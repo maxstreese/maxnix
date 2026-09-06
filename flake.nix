@@ -7,6 +7,10 @@
 
   outputs =
     { nixpkgs, ... }:
+    let
+      system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+    in
     {
       # One machine, one source of truth.
       #
@@ -17,12 +21,20 @@
       # Ubuntu host. Being a VM is a variant of the machine, not a second
       # description of it.
       nixosConfigurations.maxnix = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
+        inherit system;
         modules = [
           ./hosts/maxnix/configuration.nix
           ./hosts/maxnix/vm.nix
           ./modules/desktop
         ];
       };
+
+      # Integration test over the same machine definition.
+      #
+      # Run it with the *interactive* driver, not a plain `nix build` — see the
+      # header of tests/desktop.nix for why:
+      #   nix build .#checks.x86_64-linux.desktop.driverInteractive
+      #   ./result/bin/nixos-test-driver
+      checks.${system}.desktop = pkgs.testers.runNixOSTest ./tests/desktop.nix;
     };
 }
