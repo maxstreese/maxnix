@@ -21,6 +21,7 @@
         modules = [
           ./hosts/maxnix/configuration.nix
           ./hosts/maxnix/vm.nix
+          ./modules/desktop
         ];
       };
     };

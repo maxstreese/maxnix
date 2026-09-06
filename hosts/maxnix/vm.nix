@@ -73,7 +73,12 @@
         qemu.options = [
           # virtio-gpu + VGA compatibility + GL. Gives the guest
           # /dev/dri/card0 and a renderD128 render node.
-          "-device virtio-vga-gl"
+          #
+          # xres/yres set the *preferred* mode the virtual monitor advertises.
+          # Without them it is 1280x800, which is cramped for judging a
+          # compositor. Note virtualisation.resolution does NOT do this — that
+          # option only feeds services.xserver, and nothing here runs X.
+          "-device virtio-vga-gl,xres=1920,yres=1080"
 
           # gl=on enables host-side virglrenderer, which translates the guest's
           # GL calls onto your AMD iGPU. Without it the device still appears
