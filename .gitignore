@@ -1,0 +1,6 @@
+# Build symlinks produced by `nix build`
+/result
+/result-*
+
+# QEMU disk images — guest state, never source
+/.vm/
