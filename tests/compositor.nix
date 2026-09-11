@@ -67,6 +67,21 @@ compositor:
               "${compositor.name} enumerated no output:\n" + outputs
           )
 
+      with subtest("${compositor.name} uses the configured keyboard layout"):
+          # Asserts the *observable* layout rather than that the input was set.
+          # XKB_DEFAULT_LAYOUT=de reaches both compositors' environments, but
+          # Hyprland ignores it (its kb_layout defaults to "us"), so checking
+          # the variable would have passed while the keyboard was still US.
+          #
+          # "German" is xkb's description for layout "de", set once in
+          # hosts/maxnix/configuration.nix. If you change that layout, this
+          # string changes with it.
+          layout = machine.succeed("${compositor.layout}")
+          machine.log(layout)
+          assert "German" in layout, (
+              "${compositor.name} is not on the configured layout:\n" + layout
+          )
+
       with subtest("${compositor.name} renders a client window"):
           # Launch a normal Wayland client against the compositor's socket,
           # rather than going through the compositor's own IPC.

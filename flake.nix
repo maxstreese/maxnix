@@ -57,6 +57,7 @@
             session = "niri-session";
             ipcReady = "ls /run/user/1000/niri.wayland-*.sock";
             outputs = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1) niri msg outputs";
+            layout = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1) niri msg keyboard-layouts";
           }
         );
 
@@ -76,6 +77,7 @@
             # hyprctl resolves its socket relative to it, and the driver's
             # backdoor is a bare root shell that has none.
             outputs = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl monitors";
+            layout = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl devices";
           }
         );
       };

@@ -63,7 +63,40 @@ in
 
   time.timeZone = "Europe/Berlin";
   i18n.defaultLocale = "en_US.UTF-8";
-  console.keyMap = "de"; # matches your host's X11 layout
+  # ── Keyboard layout, in two independent places ───────────────────────────
+  #
+  # These are not the same mechanism and neither implies the other:
+  #
+  #   console.keyMap       the Linux virtual console — the TTY, and therefore
+  #                        the greeter. Applied by loadkeys via
+  #                        /etc/vconsole.conf.
+  #   XKB_DEFAULT_LAYOUT   Wayland sessions. Compositors receive raw evdev
+  #                        keycodes and map them through libxkbcommon, which
+  #                        reads this variable. They never consult the console
+  #                        keymap. Without it you get libxkbcommon's built-in
+  #                        default, "us" — so the greeter was German and the
+  #                        session was American.
+  #
+  # services.xserver.xkb.layout deliberately does NOT appear here. It is the
+  # conventional NixOS spelling and it would do nothing: XKB_DEFAULT_LAYOUT
+  # appears nowhere in the NixOS module tree, and neither programs.niri nor
+  # programs.hyprland reads services.xserver.xkb. Setting it alone evaluates
+  # fine and leaves you on "us".
+  #
+  # This reaches the compositor because sessionVariables are written to
+  # /etc/pam/environment, which pam_env applies in greetd's PAM session.
+  #
+  # It is a *default*, and only compositors that leave the layout unset will
+  # consult it. niri does, and reports "German". Hyprland does NOT: its own
+  # input:kb_layout defaults to "us", so it always passes a non-empty value and
+  # libxkbcommon never falls back to the environment. home/max/hyprland.nix
+  # therefore sets kb_layout explicitly — reading it back from this option, so
+  # the layout is still defined in exactly one place.
+  #
+  # Add XKB_DEFAULT_VARIANT / _OPTIONS here too if you ever want e.g.
+  # nodeadkeys — your host currently sets neither.
+  console.keyMap = "de";
+  environment.sessionVariables.XKB_DEFAULT_LAYOUT = "de";
 
   users.users.max = {
     isNormalUser = true;

@@ -4,7 +4,7 @@
 # only generates config. package and portalPackage are null so nothing is
 # installed twice (the module's own docs say to null them when the NixOS module
 # provides Hyprland).
-{ ... }:
+{ osConfig, ... }:
 {
   wayland.windowManager.hyprland = {
     enable = true;
@@ -33,6 +33,20 @@
       "$mod" = "ALT";
       "$terminal" = "alacritty";
       "$menu" = "fuzzel";
+
+      # Hyprland ignores XKB_DEFAULT_LAYOUT.
+      #
+      # The variable *is* in its environment — verified — but Hyprland's own
+      # input:kb_layout defaults to "us", so it always passes a non-empty
+      # layout to libxkbcommon and the environment default is never consulted.
+      # niri, which leaves the field empty, picks up "de" from the environment
+      # without any of this.
+      #
+      # Derived from the system setting rather than repeated, so the layout
+      # stays defined in exactly one place (hosts/maxnix/configuration.nix).
+      # osConfig is the NixOS config, available because Home Manager runs here
+      # as a NixOS module.
+      input.kb_layout = osConfig.environment.sessionVariables.XKB_DEFAULT_LAYOUT;
 
       general = {
         gaps_in = 5;

@@ -13,7 +13,7 @@
 #
 # The Home Manager option sits under wayland.windowManager, matching Hyprland —
 # so despite both being "niri config", the two never collide.
-{ pkgs, ... }:
+{ osConfig, pkgs, ... }:
 {
   wayland.windowManager.niri = {
     enable = true;
@@ -84,6 +84,18 @@
         "Alt+Shift+Slash".show-hotkey-overlay = { };
         "Alt+Shift+E".quit = { };
       };
+
+      # Stated explicitly, even though niri would pick this up from
+      # XKB_DEFAULT_LAYOUT on its own — it leaves the field empty, so
+      # libxkbcommon falls back to the environment.
+      #
+      # Relying on that absence is fragile: it would break silently the day
+      # niri adopts a default (exactly as Hyprland has, with kb_layout = "us"),
+      # or the day this Home Manager module starts emitting one. Both
+      # compositors now state the layout, and both read it from the same place,
+      # so neither depends on an upstream default staying absent.
+      input.keyboard.xkb.layout =
+        osConfig.environment.sessionVariables.XKB_DEFAULT_LAYOUT;
 
       # Client-side decorations off: niri draws its own focus ring, and CSD
       # title bars waste a row in a tiling layout.
