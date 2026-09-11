@@ -33,7 +33,15 @@
       # The driver appends -nographic when it finds no DISPLAY in its own
       # environment, which would leave virtio-vga-gl without a GL-capable
       # backend and silently kill acceleration.
-      virtualisation.qemu.options = [ "-display egl-headless" ];
+      # egl-headless keeps GL alive while leaving the framebuffer readable, and
+      # -vnc is the only way to capture it: screendump (which backs the
+      # driver's machine.screenshot() and get_screen_text()) fails with "Error:
+      # no surface" on a GL scanout. These two flags go together — a gtk window
+      # instead of egl-headless would make QEMU refuse -vnc entirely.
+      virtualisation.qemu.options = [
+        "-display egl-headless"
+        "-vnc 127.0.0.1:9"
+      ];
 
       # See the note in ./compositor.nix.
       users.users.root.initialPassword = lib.mkForce null;

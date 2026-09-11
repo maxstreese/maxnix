@@ -12,8 +12,21 @@
 #
 # Deliberately NOT here, because the two paths genuinely differ:
 #   -display     build-vm wants a gtk window; the test wants egl-headless
+#   -vnc         coupled to -display, see below
 #   diskImage    only meaningful for build-vm
 #   9p share     depends on a launch directory, which a test does not have
+#
+# On -vnc specifically: only ONE thing may own QEMU's GL context. A window and
+# a VNC server are therefore mutually exclusive while GL is on —
+#
+#   -display gtk,gl=on -vnc ...     qemu: Display vnc is incompatible with
+#                                   the GL context   (refuses to start)
+#   -display egl-headless -vnc ...  fine; egl-headless exists precisely to
+#                                   render GL off-screen and hand it over
+#
+# So -vnc belongs with whichever -display asked for it. It lived here briefly
+# and broke `build-vm` outright, which the tests could not catch because they
+# all override -display to egl-headless.
 { config, lib, ... }:
 let
   hostPkgs = config.virtualisation.host.pkgs;
@@ -70,15 +83,6 @@ in
       # NOT do this — that option only feeds services.xserver, and nothing here
       # runs X.
       "-device virtio-vga-gl,xres=1920,yres=1080"
-
-      # A VNC server bound to loopback only.
-      #
-      # This is the *only* way to capture the screen while GL is on: QEMU's
-      # screendump (which is what the test driver's machine.screenshot() and
-      # get_screen_text() both use) fails with "Error: no surface", because a
-      # GL scanout is a dmabuf rather than a CPU-readable surface. VNC's
-      # readback path works fine. See tests/desktop.nix.
-      "-vnc 127.0.0.1:9"
     ];
   };
 }

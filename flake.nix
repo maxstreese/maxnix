@@ -62,6 +62,29 @@
         );
       };
 
+      # nix run .#vm-headless
+      #
+      # The same VM, but rendering off-screen with a loopback VNC server
+      # instead of a window — which is the only way to capture the screen while
+      # GL is on. Only one thing may own QEMU's GL context, so a gtk window and
+      # -vnc cannot coexist: `-display gtk,gl=on -vnc ...` makes QEMU refuse to
+      # start ("Display vnc is incompatible with the GL context").
+      #
+      # Nothing appears on your desktop. Interact with it over VNC, or use it
+      # purely to let something else look at the screen:
+      #   nix run nixpkgs#vncdotool -- -s localhost::5909 capture /tmp/shot.png
+      #   nix run nixpkgs#vncdotool -- -s localhost::5909 key super-t
+      vmHeadless = pkgs.writeShellApplication {
+        name = "vm-headless";
+        text = ''
+          echo "maxnix starting headless - VNC on 127.0.0.1:5909 (display :9)" >&2
+          echo "capture:  nix run nixpkgs#vncdotool -- -s localhost::5909 capture /tmp/shot.png" >&2
+          # Prepended, so a QEMU_OPTS already in the environment still wins.
+          export QEMU_OPTS="-display egl-headless -vnc 127.0.0.1:9 ''${QEMU_OPTS:-}"
+          exec ${lib.getExe maxnix.config.system.build.vm} "$@"
+        '';
+      };
+
       # One-step runner for a test's interactive driver.
       #
       # `nix build .#checks.<system>.<name>` cannot work on this host: a
@@ -120,7 +143,13 @@
       # nix run .#test-desktop | .#test-niri | .#test-hyprland
       #
       # All three bind the same VNC port, so run them one at a time.
-      apps.${system} = lib.mapAttrs' (name: test: {
+      apps.${system} = {
+        vm-headless = {
+          type = "app";
+          program = lib.getExe vmHeadless;
+        };
+      }
+      // lib.mapAttrs' (name: test: {
         name = "test-${name}";
         value = {
           type = "app";
