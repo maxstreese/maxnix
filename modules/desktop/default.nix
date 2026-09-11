@@ -30,26 +30,33 @@
         "--time"
         "--remember" # last user
         "--remember-session" # and their last session
+        "--asterisks"
+        "--greeting maxnix"
+
+        # The greeter always showed "F12 Power" but nothing happened, because
+        # tuigreet has no shutdown/reboot commands unless you give it some.
+        #
+        # Absolute paths to the binaries rather than "systemctl poweroff":
+        # greetd takes `command` as one string and splits it, so an argument
+        # containing a space is a quoting problem waiting to happen.
+        "--power-shutdown ${pkgs.systemd}/bin/poweroff"
+        "--power-reboot ${pkgs.systemd}/bin/reboot"
+
         "--sessions ${config.services.displayManager.sessionData.desktops}/share/wayland-sessions"
       ];
       user = "greeter";
     };
   };
 
-  # Neither compositor ships a terminal, and both have default keybinds that
-  # name a specific one. Installing both pairs means neither is dead on arrival
-  # before we write any config of our own:
+  # Terminals and launchers used to live here, installed machine-wide purely so
+  # the compositors' *default* keybinds would not dead-end. Both compositors
+  # are now configured in home/max, so those are user packages and moved there
+  # — which also let kitty and wofi go entirely.
   #
-  #   niri      Mod+T -> alacritty    Mod+D -> fuzzel
-  #   Hyprland  Mod+Q -> kitty        Mod+R -> wofi
+  # What stays is diagnostics: tools you want available before or without a
+  # user session.
   environment.systemPackages = with pkgs; [
-    alacritty
-    fuzzel
-    kitty
-    wofi
-
     wayland-utils # wayland-info: what the compositor actually advertises
-    wl-clipboard
   ];
 
   fonts = {

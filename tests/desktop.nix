@@ -17,6 +17,7 @@
 # The interactive driver runs as you, outside the sandbox, where the ACL
 # applies and both devices are available — which is what the app in flake.nix
 # wraps.
+{ hostModules, ... }:
 { hostPkgs, ... }:
 {
   name = "maxnix-desktop";
@@ -24,11 +25,9 @@
   nodes.machine =
     { lib, ... }:
     {
-      imports = [
-        ../hosts/maxnix/configuration.nix
-        ../modules/desktop
-        ../modules/vm/qemu-guest.nix
-      ];
+      # The real machine, plus the virtual hardware. hostModules comes from
+      # flake.nix so this node is the same definition `nix run .#vm` builds.
+      imports = hostModules ++ [ ../modules/vm/qemu-guest.nix ];
 
       # The driver appends -nographic when it finds no DISPLAY in its own
       # environment, which would leave virtio-vga-gl without a GL-capable

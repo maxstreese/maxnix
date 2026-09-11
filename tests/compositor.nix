@@ -15,11 +15,9 @@ compositor:
   nodes.machine =
     { lib, ... }:
     {
-      imports = [
-        ../hosts/maxnix/configuration.nix
-        ../modules/desktop
-        ../modules/vm/qemu-guest.nix
-      ];
+      # The real machine, plus the virtual hardware. hostModules comes from
+      # flake.nix so this node is the same definition `nix run .#vm` builds.
+      imports = compositor.hostModules ++ [ ../modules/vm/qemu-guest.nix ];
 
       # The driver appends -nographic when it finds no DISPLAY in its own
       # environment, which would leave virtio-vga-gl without a GL-capable

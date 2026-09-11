@@ -89,6 +89,27 @@ in
   # Mesa, and the userspace bits a Wayland compositor expects to find.
   hardware.graphics.enable = true;
 
+  # Home Manager as a NixOS module, so one `nix build` rebuilds the machine and
+  # the user layer together into a single generation — no separate
+  # `home-manager switch`. The user config itself lives in ../../home/max.
+  home-manager = {
+    # Use the system's pkgs and nixpkgs config rather than a second instance.
+    useGlobalPkgs = true;
+    # Install user packages into the system profile instead of
+    # ~/.nix-profile, which keeps them inside the generation.
+    useUserPackages = true;
+
+    # niri and Hyprland have already written real files to
+    # ~/.config/niri/config.kdl and ~/.config/hypr/hyprland.lua inside this
+    # VM's disk image. Home Manager refuses to clobber existing regular files,
+    # so without this the very first activation fails with a confusing error.
+    # With it, they are renamed aside — which is also a neat demonstration of
+    # the imperative state this whole layer exists to replace.
+    backupFileExtension = "hm-bak";
+
+    users.max = import ../../home/max;
+  };
+
   environment.systemPackages = with pkgs; [
     git
     htop

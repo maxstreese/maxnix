@@ -3,10 +3,17 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      # Without this you evaluate two different nixpkgs, which bloats the
+      # closure and lets the user layer drift from the system layer.
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    { nixpkgs, ... }:
+    { nixpkgs, home-manager, ... }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
@@ -19,23 +26,33 @@
       # top — which every NixOS config can do, via `virtualisation.vmVariant` —
       # it also yields run-maxnix-vm, a script that runs on *this* Ubuntu host.
       # Being a VM is a variant of the machine, not a second description of it.
+      # Everything that defines the machine, independent of how it is run.
+      #
+      # Shared verbatim by the build-vm configuration below and by every test
+      # node, so a test can never drift from the real machine. It also has to
+      # be shared: hosts/maxnix/configuration.nix *sets* home-manager options,
+      # which only exist once home-manager's NixOS module is imported — so a
+      # test node importing the former without the latter fails to evaluate.
+      hostModules = [
+        ./hosts/maxnix/configuration.nix
+        ./modules/desktop
+        home-manager.nixosModules.home-manager
+      ];
+
       maxnix = lib.nixosSystem {
         inherit system;
-        modules = [
-          ./hosts/maxnix/configuration.nix
-          ./hosts/maxnix/vm.nix
-          ./modules/desktop
-        ];
+        modules = hostModules ++ [ ./hosts/maxnix/vm.nix ];
       };
 
       # Integration tests over that same machine definition. The two compositor
       # tests differ only in how you ask a compositor what it is doing, so the
       # test body is shared — see tests/compositor.nix.
       tests = {
-        desktop = pkgs.testers.runNixOSTest ./tests/desktop.nix;
+        desktop = pkgs.testers.runNixOSTest (import ./tests/desktop.nix { inherit hostModules; });
 
         niri = pkgs.testers.runNixOSTest (
           import ./tests/compositor.nix {
+            inherit hostModules;
             name = "niri";
             session = "niri-session";
             ipcReady = "ls /run/user/1000/niri.wayland-*.sock";
@@ -45,6 +62,7 @@
 
         hyprland = pkgs.testers.runNixOSTest (
           import ./tests/compositor.nix {
+            inherit hostModules;
             name = "hyprland";
             # What the session .desktop entry actually execs, rather than the
             # bare Hyprland binary, so this covers the real launch path.
