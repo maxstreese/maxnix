@@ -43,6 +43,19 @@ let
   # LIBGL_DRIVERS_PATH does NOT work — nixpkgs Mesa ignores it for the GBM
   # loader. GBM_BACKENDS_PATH is the one that is honoured.
   mesa = hostPkgs.mesa;
+
+  # QEMU's GTK window otherwise prints, on every start:
+  #   Gtk-Message: Failed to load module "canberra-gtk-module"
+  #
+  # The request comes from the *host* desktop, not from anything here: GNOME
+  # asks every GTK app to load the sound-event module, and this QEMU is
+  # Nix-built so it cannot see Ubuntu's copy. Clearing GTK_MODULES does not
+  # help — that variable holds "gail:atk-bridge" and the canberra entry arrives
+  # through GTK's settings, which the environment does not override. So satisfy
+  # the request rather than suppress it: nixpkgs' libcanberra-gtk3 ships
+  # exactly the file GTK looks for, lib/gtk-3.0/modules/libcanberra-gtk-module.so.
+  canberra = hostPkgs.libcanberra-gtk3;
+
   qemuWithGL = hostPkgs.symlinkJoin {
     name = "qemu-gl-on-ubuntu";
     paths = [ hostPkgs.qemu_kvm ];
@@ -51,7 +64,8 @@ let
       wrapProgram $out/bin/qemu-system-x86_64 \
         --set GBM_BACKENDS_PATH ${mesa}/lib/gbm \
         --set __EGL_VENDOR_LIBRARY_DIRS ${mesa}/share/glvnd/egl_vendor.d \
-        --prefix LD_LIBRARY_PATH : ${mesa}/lib
+        --prefix LD_LIBRARY_PATH : ${mesa}/lib \
+        --prefix GTK_PATH : ${canberra}/lib/gtk-3.0
     '';
   };
 in
