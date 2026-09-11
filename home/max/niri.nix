@@ -44,6 +44,32 @@
       #
       # This is the same fix upstream applies in nixos/tests/sway.nix
       # (`sed s/Mod4/Mod1/`). Translate Super→Alt when reading niri docs.
+      #
+      # ── Only bind keys that exist at the UNSHIFTED level of the layout ──
+      #
+      # niri resolves binds against the base keysym of a physical key, not the
+      # character you would type: "binding shifted keys requires spelling out
+      # Shift and the unshifted version of the key, according to your XKB
+      # layout". Getting this wrong produces a bind that is configured, shown
+      # in the hotkey overlay, and completely dead.
+      #
+      # niri's own defaults are US-centric, and three of them do not survive
+      # the move to `de`:
+      #
+      #   key    us base level        de base level      de needs
+      #   [      bracketleft          8                  AltGr+8
+      #   ]      bracketright         9                  AltGr+9
+      #   /      slash                7                  Shift+7
+      #
+      # So Mod+BracketLeft/Right became Alt+Comma/Period (comma and period are
+      # at base level on both layouts), and Mod+Shift+Slash became Alt+Shift+7
+      # — which is the same physical key combination that types "/" on a German
+      # keyboard, and still resolves on US since 7 is unshifted there too.
+      #
+      # Rule of thumb for anything added here: letters, digits, arrows and
+      # function keys are portable across layouts; punctuation is not. Check
+      # with `xkbcli compile-keymap --layout de` before trusting a key name
+      # taken from documentation.
       binds = {
         "Alt+T" = {
           _props.hotkey-overlay-title = "Open a Terminal";
@@ -74,14 +100,14 @@
         # Sizing, and the two floating/tiling escape hatches.
         "Alt+R".switch-preset-column-width = { };
         "Alt+F".maximize-column = { };
-        "Alt+BracketLeft".consume-or-expel-window-left = { };
-        "Alt+BracketRight".consume-or-expel-window-right = { };
+        "Alt+Comma".consume-or-expel-window-left = { };
+        "Alt+Period".consume-or-expel-window-right = { };
         "Alt+V".toggle-window-floating = { };
         "Alt+Shift+V".switch-focus-between-floating-and-tiling = { };
 
         "Alt+O".toggle-overview = { };
         "Print".screenshot = { };
-        "Alt+Shift+Slash".show-hotkey-overlay = { };
+        "Alt+Shift+7".show-hotkey-overlay = { };
         "Alt+Shift+E".quit = { };
       };
 
