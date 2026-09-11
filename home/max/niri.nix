@@ -106,6 +106,81 @@
         "Alt+Shift+V".switch-focus-between-floating-and-tiling = { };
 
         "Alt+O".toggle-overview = { };
+
+        # ── DankMaterialShell ──────────────────────────────────────────────
+        #
+        # Reproduced from inputs.dms.homeModules.niri, which we cannot import
+        # (see ./dms.nix). Upstream spells these Mod+…; ours are Alt+… and
+        # three moved to avoid colliding with binds above:
+        #
+        #   upstream        here              collided with
+        #   Mod+Comma       Alt+Shift+Comma   Alt+Comma  consume-or-expel-left
+        #   Mod+V           Alt+C             Alt+V      toggle-window-floating
+        #   Super+Alt+L     Alt+Shift+L       (Alt+Alt is not expressible)
+        #   Mod+Alt+N       Alt+Shift+N       (same)
+        "Alt+Space" = {
+          _props.hotkey-overlay-title = "Toggle Application Launcher";
+          spawn = [ "dms" "ipc" "spotlight" "toggle" ];
+        };
+        "Alt+N" = {
+          _props.hotkey-overlay-title = "Toggle Notification Center";
+          spawn = [ "dms" "ipc" "notifications" "toggle" ];
+        };
+        "Alt+Shift+Comma" = {
+          _props.hotkey-overlay-title = "Toggle Settings";
+          spawn = [ "dms" "ipc" "settings" "toggle" ];
+        };
+        "Alt+P" = {
+          _props.hotkey-overlay-title = "Toggle Notepad";
+          spawn = [ "dms" "ipc" "notepad" "toggle" ];
+        };
+        "Alt+X" = {
+          _props.hotkey-overlay-title = "Toggle Power Menu";
+          spawn = [ "dms" "ipc" "powermenu" "toggle" ];
+        };
+        "Alt+C" = {
+          _props.hotkey-overlay-title = "Toggle Clipboard Manager";
+          spawn = [ "dms" "ipc" "clipboard" "toggle" ];
+        };
+        "Alt+M" = {
+          _props.hotkey-overlay-title = "Toggle Process List";
+          spawn = [ "dms" "ipc" "processlist" "toggle" ];
+        };
+        "Alt+Shift+N" = {
+          _props.hotkey-overlay-title = "Toggle Night Mode";
+          spawn = [ "dms" "ipc" "night" "toggle" ];
+        };
+        "Alt+Shift+L" = {
+          _props.hotkey-overlay-title = "Lock the Screen";
+          spawn = [ "dms" "ipc" "lock" "lock" ];
+        };
+
+        # Media and brightness keys. Portable across layouts, and allowed
+        # while the screen is locked.
+        "XF86AudioRaiseVolume" = {
+          _props.allow-when-locked = true;
+          spawn = [ "dms" "ipc" "audio" "increment" "3" ];
+        };
+        "XF86AudioLowerVolume" = {
+          _props.allow-when-locked = true;
+          spawn = [ "dms" "ipc" "audio" "decrement" "3" ];
+        };
+        "XF86AudioMute" = {
+          _props.allow-when-locked = true;
+          spawn = [ "dms" "ipc" "audio" "mute" ];
+        };
+        "XF86AudioMicMute" = {
+          _props.allow-when-locked = true;
+          spawn = [ "dms" "ipc" "audio" "micmute" ];
+        };
+        "XF86MonBrightnessUp" = {
+          _props.allow-when-locked = true;
+          spawn = [ "dms" "ipc" "brightness" "increment" "5" "" ];
+        };
+        "XF86MonBrightnessDown" = {
+          _props.allow-when-locked = true;
+          spawn = [ "dms" "ipc" "brightness" "decrement" "5" "" ];
+        };
         "Print".screenshot = { };
         "Alt+Shift+7".show-hotkey-overlay = { };
         "Alt+Shift+E".quit = { };

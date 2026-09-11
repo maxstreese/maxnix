@@ -56,6 +56,18 @@
 
       decoration.rounding = 8;
 
+      # Reserve the top strip for DankMaterialShell's bar.
+      #
+      # `hyprctl layers` shows the bar as a top-level layer surface
+      # (namespace dms:bar, 1920x64) but it reserves no exclusive zone, so
+      # tiled windows are placed straight over it. niri does not need this
+      # because DMS generates ~/.config/niri/dms/layout.kdl for it; for
+      # Hyprland it writes only colors.lua, leaving the layout to us.
+      #
+      # 64 is the bar height DMS actually reports. If you restyle the bar,
+      # this needs to follow.
+      monitor = ",addreserved,64,0,0,0";
+
       # Animations are the thing worth judging Hyprland on, and also the thing
       # most likely to expose virgl's limits. Left at defaults so the
       # comparison with niri is about the compositors, not about our tuning.
@@ -87,6 +99,30 @@
 
         "$mod, F, fullscreen,"
         "$mod, V, togglefloating,"
+
+        # DankMaterialShell — deliberately the same key combinations as
+        # ./niri.nix, so switching compositors during the evaluation does not
+        # also mean relearning the shell.
+        "$mod, SPACE, exec, dms ipc spotlight toggle"
+        "$mod, N, exec, dms ipc notifications toggle"
+        "$mod SHIFT, comma, exec, dms ipc settings toggle"
+        "$mod, P, exec, dms ipc notepad toggle"
+        "$mod, X, exec, dms ipc powermenu toggle"
+        "$mod, C, exec, dms ipc clipboard toggle"
+        "$mod, M, exec, dms ipc processlist toggle"
+        "$mod SHIFT, N, exec, dms ipc night toggle"
+        "$mod SHIFT, L, exec, dms ipc lock lock"
+      ];
+
+      # bindl = active even when the session is locked, which is what the
+      # media keys want.
+      bindl = [
+        ", XF86AudioRaiseVolume, exec, dms ipc audio increment 3"
+        ", XF86AudioLowerVolume, exec, dms ipc audio decrement 3"
+        ", XF86AudioMute, exec, dms ipc audio mute"
+        ", XF86AudioMicMute, exec, dms ipc audio micmute"
+        ", XF86MonBrightnessUp, exec, dms ipc brightness increment 5"
+        ", XF86MonBrightnessDown, exec, dms ipc brightness decrement 5"
       ];
 
       bindm = [

@@ -1,0 +1,54 @@
+# DankMaterialShell — a Quickshell-based desktop shell.
+#
+# This fills the gap both compositors leave: niri and Hyprland draw windows and
+# nothing else, so out of the box there is no bar, no launcher, no notification
+# centre and no power menu. DMS provides all of it, built on Quickshell — which
+# means running it is also a way to evaluate Quickshell as a platform before
+# writing any QML ourselves.
+#
+# ── Why NOT inputs.dms.homeModules.niri ──────────────────────────────────────
+#
+# DMS ships a niri integration module and we deliberately do not use it, for
+# two independent reasons:
+#
+#   1. It writes to `programs.niri.settings` and uses `config.lib.niri.actions`
+#      — that is *niri-flake's* API. We use Home Manager's
+#      wayland.windowManager.niri instead. Its own `includes.enable` option is
+#      documented as "includes for niri-flake".
+#   2. Its binds are all Mod+… (Super), which GNOME intercepts on this host,
+#      and Mod+Comma would collide with our Alt+Comma.
+#
+# Nothing in it is hard to reproduce: every binding is `dms ipc <thing>
+# <action>`. So the binds live in ./niri.nix and ./hyprland.nix, spelled with
+# Alt, which also gets them into Hyprland — something the DMS module cannot do,
+# since it only supports niri.
+#
+# The main module below is compositor-agnostic: it mentions neither compositor.
+{ inputs, ... }:
+{
+  imports = [ inputs.dms.homeModules.dank-material-shell ];
+
+  programs.dank-material-shell = {
+    enable = true;
+
+    # Start DMS from the session target rather than a spawn-at-startup line in
+    # each compositor's config. Upstream warns not to enable both systemd
+    # startup and niri.enableSpawn — you get two shells. We use neither spawn
+    # mechanism, so there is nothing to collide.
+    systemd.enable = true;
+
+    # Material You palette generation from the wallpaper. This is DMS's
+    # signature feature and the main reason to look at it at all; it pulls in
+    # matugen.
+    enableDynamicTheming = true;
+
+    # The CPU/memory/network widgets in the bar.
+    enableSystemMonitoring = true;
+
+    # Deliberately off — each pulls a package for something this VM cannot
+    # meaningfully exercise:
+    #   enableVPN             glib + networkmanager, no VPN here
+    #   enableAudioWavelength cava, and guest audio is not wired up
+    #   enableCalendarEvents  khal, no calendar
+  };
+}

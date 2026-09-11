@@ -47,4 +47,30 @@
           timeout=60,
       )
       return int(out.stdout.strip())
+
+
+  def wait_for_rich_screen(machine, name, minimum, timeout=120):
+      """Capture repeatedly until the screen has at least `minimum` colours.
+
+      A fixed sleep does not work for this. DankMaterialShell takes tens of
+      seconds to generate its theme and draw its bar — measured at 545 colours
+      shortly after its service goes active, and ~6500 once it has actually
+      rendered. So "the service is active" is not "the shell is on screen", and
+      polling the observable is the only honest way to wait for it.
+      """
+      import time
+
+      deadline = time.time() + timeout
+      count = 0
+      while time.time() < deadline:
+          shot = vnc_capture(machine, name)
+          count = unique_colours(shot)
+          machine.log(f"{name}: {count} distinct colours")
+          if count >= minimum:
+              return shot, count
+          time.sleep(5)
+      raise AssertionError(
+          f"{name}: only {count} distinct colours after {timeout}s "
+          f"(wanted >= {minimum})"
+      )
 ''

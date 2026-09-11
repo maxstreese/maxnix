@@ -64,6 +64,13 @@
     packages = with pkgs; [
       noto-fonts
       dejavu_fonts
+
+      # For DankMaterialShell. Its Nix modules handle no fonts at all —
+      # checked, there is not a single font reference in them — and a Material
+      # shell without Material Symbols draws every icon as an empty box. Inter
+      # is the typeface the design language assumes.
+      material-symbols
+      inter
     ];
   };
 

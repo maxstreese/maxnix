@@ -82,6 +82,14 @@ compositor:
               "${compositor.name} is not on the configured layout:\n" + layout
           )
 
+      with subtest("${compositor.name} starts the DankMaterialShell service"):
+          # DMS is started from the session target, not by a spawn line in the
+          # compositor config, so this also checks that the compositor actually
+          # reaches graphical-session.target.
+          machine.wait_until_succeeds(
+              "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user is-active dms'"
+          )
+
       with subtest("${compositor.name} renders a client window"):
           # Launch a normal Wayland client against the compositor's socket,
           # rather than going through the compositor's own IPC.
@@ -101,14 +109,11 @@ compositor:
               """nohup alacritty >/tmp/client.log 2>&1 &'"""
           )
           machine.wait_until_succeeds("pgrep -u max -f alacrit[t]y")
-          machine.sleep(8)
-          shot = vnc_capture(machine, "${compositor.name}-session")
-          colours = unique_colours(shot)
-          machine.log(f"screen has {colours} distinct colours")
-          assert colours > 50, (
-              f"only {colours} distinct colours - the compositor drew nothing. "
-              "An empty Hyprland workspace is solid black, so this is exactly "
-              "the case a file-size check would wave through."
-          )
+
+          # 3000 sits well above a bare compositor with one terminal (measured
+          # 533-545) and well below DankMaterialShell once it has drawn its bar
+          # and wallpaper (~6500). So this asserts the whole stack is on screen,
+          # not merely that the compositor is not black.
+          wait_for_rich_screen(machine, "${compositor.name}-session", minimum=3000)
     '';
 }

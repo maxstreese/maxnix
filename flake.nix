@@ -4,6 +4,13 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
+    # DankMaterialShell — a Quickshell-based desktop shell. Not in nixpkgs;
+    # "stable" is upstream's release branch (drop the suffix for master).
+    dms = {
+      url = "github:AvengeMedia/DankMaterialShell/stable";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     home-manager = {
       url = "github:nix-community/home-manager";
       # Without this you evaluate two different nixpkgs, which bloats the
@@ -13,7 +20,7 @@
   };
 
   outputs =
-    { nixpkgs, home-manager, ... }:
+    inputs@{ nixpkgs, home-manager, ... }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
@@ -37,6 +44,10 @@
         ./hosts/maxnix/configuration.nix
         ./modules/desktop
         home-manager.nixosModules.home-manager
+
+        # The user layer needs flake inputs of its own (home/max/dms.nix
+        # imports one), and Home Manager modules do not see them by default.
+        { home-manager.extraSpecialArgs = { inherit inputs; }; }
       ];
 
       maxnix = lib.nixosSystem {
