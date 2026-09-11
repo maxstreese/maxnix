@@ -88,14 +88,21 @@
         "Alt+Down".focus-window-down = { };
 
         # Move the focused column along the scrollable strip.
-        "Alt+Ctrl+Left".move-column-left = { };
-        "Alt+Ctrl+Right".move-column-right = { };
+        #
+        # Shift, not Ctrl, for the whole "move" family — Ctrl+Alt+Up/Down is
+        # GNOME's switch-to-workspace and is swallowed before the guest sees
+        # it. Verified with wev: the host takes Ctrl+Alt+Up, Alt+Space and bare
+        # Super regardless of QEMU's input grab, so Ctrl+Alt+G does not help.
+        # Shift also gives a cleaner model: Alt+key focuses, Alt+Shift+key
+        # moves.
+        "Alt+Shift+Left".move-column-left = { };
+        "Alt+Shift+Right".move-column-right = { };
 
         # Workspaces are vertical in niri; the strip scrolls horizontally.
         "Alt+Page_Down".focus-workspace-down = { };
         "Alt+Page_Up".focus-workspace-up = { };
-        "Alt+Ctrl+Page_Down".move-column-to-workspace-down = { };
-        "Alt+Ctrl+Page_Up".move-column-to-workspace-up = { };
+        "Alt+Shift+Page_Down".move-column-to-workspace-down = { };
+        "Alt+Shift+Page_Up".move-column-to-workspace-up = { };
 
         # Sizing, and the two floating/tiling escape hatches.
         "Alt+R".switch-preset-column-width = { };
@@ -118,7 +125,11 @@
         #   Mod+V           Alt+C             Alt+V      toggle-window-floating
         #   Super+Alt+L     Alt+Shift+L       (Alt+Alt is not expressible)
         #   Mod+Alt+N       Alt+Shift+N       (same)
-        "Alt+Space" = {
+        # Alt+S, not upstream's Mod+Space: GNOME owns Alt+Space as
+        # `activate-window-menu` and consumes it before the guest sees it —
+        # Ctrl+Alt+G does not help, same as with the bare Super key. S pairs
+        # with Alt+D (fuzzel) and is base level on both layouts.
+        "Alt+S" = {
           _props.hotkey-overlay-title = "Toggle Application Launcher";
           spawn = [ "dms" "ipc" "spotlight" "toggle" ];
         };
@@ -181,7 +192,7 @@
           _props.allow-when-locked = true;
           spawn = [ "dms" "ipc" "brightness" "decrement" "5" "" ];
         };
-        "Print".screenshot = { };
+        "Alt+Shift+Print".screenshot = { };
         "Alt+Shift+7".show-hotkey-overlay = { };
         "Alt+Shift+E".quit = { };
       };

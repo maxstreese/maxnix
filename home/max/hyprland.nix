@@ -83,10 +83,15 @@
         "$mod, up, movefocus, u"
         "$mod, down, movefocus, d"
 
-        "$mod CTRL, left, movewindow, l"
-        "$mod CTRL, right, movewindow, r"
-        "$mod CTRL, up, movewindow, u"
-        "$mod CTRL, down, movewindow, d"
+        # Shift, not Ctrl: GNOME claims Ctrl+Alt+Up/Down for
+        # switch-to-workspace and swallows them before the guest sees them
+        # (verified with wev; QEMU's input grab makes no difference). Shift
+        # keeps the model consistent with ./niri.nix too — Alt+key focuses,
+        # Alt+Shift+key moves.
+        "$mod SHIFT, left, movewindow, l"
+        "$mod SHIFT, right, movewindow, r"
+        "$mod SHIFT, up, movewindow, u"
+        "$mod SHIFT, down, movewindow, d"
 
         "$mod, 1, workspace, 1"
         "$mod, 2, workspace, 2"
@@ -103,7 +108,8 @@
         # DankMaterialShell — deliberately the same key combinations as
         # ./niri.nix, so switching compositors during the evaluation does not
         # also mean relearning the shell.
-        "$mod, SPACE, exec, dms ipc spotlight toggle"
+        # Alt+S, not Alt+SPACE: GNOME claims Alt+space as its window menu.
+        "$mod, S, exec, dms ipc spotlight toggle"
         "$mod, N, exec, dms ipc notifications toggle"
         "$mod SHIFT, comma, exec, dms ipc settings toggle"
         "$mod, P, exec, dms ipc notepad toggle"

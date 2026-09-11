@@ -38,6 +38,23 @@
     alacritty
     fuzzel
     wl-clipboard
+
+    # wev prints every Wayland key event its window receives, with the keysym.
+    #
+    # This is the debugger for a whole class of problem this setup keeps
+    # producing, where nothing errors and a key simply does nothing:
+    #
+    #   - is the host compositor swallowing this key before the guest sees it?
+    #     (GNOME claims Alt+Space, bare Super, Ctrl+Alt+Up/Down; and its
+    #     workspace bindings are inert on a horizontal layout, so "nothing
+    #     visibly happened" proves nothing without this)
+    #   - what keysym does this physical key actually produce on the current
+    #     layout? (bracketleft is AltGr+8 on de, slash is Shift+7 — binding the
+    #     US names produced three dead binds)
+    #
+    # niri's own documentation points at wev for the second question. Run it,
+    # focus its window, press the key, read the sym: field in the terminal.
+    wev
   ];
 
 

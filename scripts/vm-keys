@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+#
+# Release the host GNOME shortcuts the VM cannot otherwise reach, and give
+# them back afterwards.
+#
+# ── Why this exists ──────────────────────────────────────────────────────────
+#
+# GNOME grabs some keys before any client sees them. Verified with wev inside
+# the guest: Alt+Space (activate-window-menu) and bare Super (Mutter's
+# overlay-key) never arrive, and QEMU's input grab (Ctrl+Alt+G) makes no
+# difference at all. No amount of guest-side config can recover them — the
+# only fix is to stop the host from claiming them.
+#
+# Everything else we fixed by remapping in home/max/. These two are the
+# residue that remapping cannot reach.
+#
+# ── Why this is a plain script and not a flake app ───────────────────────────
+#
+# It must use the system dconf: GNOME's schemas live in
+# /usr/share/glib-2.0/schemas, outside the Nix store, so a Nix-built glib
+# cannot see them. That makes it host tooling by nature — the same host/guest
+# boundary this repo draws everywhere else. The repo configures the guest; your
+# Ubuntu install stays hand-managed, and this script is the hand.
+#
+# Note also that `gsettings` on your PATH may be Homebrew's, which reports
+# schema *defaults* rather than your actual settings. dconf reads the real
+# database, which is why this uses dconf throughout.
+#
+# ── Usage ────────────────────────────────────────────────────────────────────
+#
+#   scripts/vm-keys run -- nix run .#vm    release, run, restore on exit
+#   scripts/vm-keys release                release and leave released
+#   scripts/vm-keys restore                put everything back
+#
+set -euo pipefail
+
+DCONF=/usr/bin/dconf
+STATE="${XDG_CACHE_HOME:-$HOME/.cache}/maxnix-vm-keys.saved"
+
+# path → value that disables it
+declare -A DISABLE=(
+  [/org/gnome/desktop/wm/keybindings/activate-window-menu]="@as []"
+  [/org/gnome/mutter/overlay-key]="''"
+)
+
+release() {
+  : > "$STATE"
+  for key in "${!DISABLE[@]}"; do
+    # An empty read means the key is at its schema default; record that as
+    # DEFAULT so restore() knows to reset rather than write a literal value.
+    value="$("$DCONF" read "$key" || true)"
+    printf '%s\t%s\n' "$key" "${value:-DEFAULT}" >> "$STATE"
+    "$DCONF" write "$key" "${DISABLE[$key]}"
+  done
+  echo "host shortcuts released (saved to $STATE)" >&2
+}
+
+restore() {
+  [ -f "$STATE" ] || { echo "nothing saved; leaving host settings alone" >&2; return; }
+  while IFS=$'\t' read -r key value; do
+    if [ "$value" = "DEFAULT" ]; then
+      "$DCONF" reset "$key"
+    else
+      "$DCONF" write "$key" "$value"
+    fi
+  done < "$STATE"
+  echo "host shortcuts restored" >&2
+}
+
+case "${1:-}" in
+  release) release ;;
+  restore) restore ;;
+  run)
+    shift
+    [ "${1:-}" = "--" ] && shift
+    [ $# -gt 0 ] || { echo "usage: vm-keys run -- <command...>" >&2; exit 2; }
+    release
+    # Restore even if the command crashes or you Ctrl-C it.
+    trap restore EXIT INT TERM
+    "$@"
+    ;;
+  *)
+    sed -n '/^# ── Usage/,/^set -euo/p' "$0" | sed 's/^# \?//;$d'
+    exit 2
+    ;;
+esac
