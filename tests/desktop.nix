@@ -4,10 +4,9 @@
 # Deliberately has NO autologin, so this exercises the configuration exactly as
 # committed. Per-compositor behaviour lives in ./compositor.nix.
 #
-# HOW TO RUN (this matters — the obvious way does not work):
+# HOW TO RUN:
 #
-#   nix build .#checks.x86_64-linux.desktop.driverInteractive
-#   ./result/bin/nixos-test-driver --no-interactive -o /tmp/testout
+#   nix run .#test-desktop
 #
 # NOT `nix build .#checks.x86_64-linux.desktop`. A sandboxed build on this
 # Ubuntu host can open neither /dev/kvm nor /dev/dri: both are crw-rw---- owned
@@ -16,7 +15,8 @@
 # supplementary groups). So a sandboxed run gets no GPU — meaning niri cannot
 # render at all — and silently falls back to TCG emulation for want of KVM.
 # The interactive driver runs as you, outside the sandbox, where the ACL
-# applies and both devices are available.
+# applies and both devices are available — which is what the app in flake.nix
+# wraps.
 { hostPkgs, ... }:
 {
   name = "maxnix-desktop";

@@ -10,17 +10,16 @@
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
-    in
-    {
+      inherit (nixpkgs) lib;
+
       # One machine, one source of truth.
       #
       # Evaluated normally this describes a system you could install on metal.
       # Evaluated again with nixos/modules/virtualisation/qemu-vm.nix layered on
       # top — which every NixOS config can do, via `virtualisation.vmVariant` —
-      # it also yields ./result/bin/run-maxnix-vm, a script that runs on *this*
-      # Ubuntu host. Being a VM is a variant of the machine, not a second
-      # description of it.
-      nixosConfigurations.maxnix = nixpkgs.lib.nixosSystem {
+      # it also yields run-maxnix-vm, a script that runs on *this* Ubuntu host.
+      # Being a VM is a variant of the machine, not a second description of it.
+      maxnix = lib.nixosSystem {
         inherit system;
         modules = [
           ./hosts/maxnix/configuration.nix
@@ -29,20 +28,12 @@
         ];
       };
 
-      # Integration tests over the same machine definition.
-      #
-      # Run these with the *interactive* driver, not a plain `nix build` — see
-      # the header of tests/desktop.nix for why:
-      #   nix build .#checks.x86_64-linux.<name>.driverInteractive
-      #   ./result/bin/nixos-test-driver --no-interactive -o /tmp/testout
-      #
-      # They all bind the same VNC port, so run them one at a time.
-      checks.${system} = {
-        # Compositor-agnostic: boot, greeter, sessions, GPU.
+      # Integration tests over that same machine definition. The two compositor
+      # tests differ only in how you ask a compositor what it is doing, so the
+      # test body is shared — see tests/compositor.nix.
+      tests = {
         desktop = pkgs.testers.runNixOSTest ./tests/desktop.nix;
 
-        # One per compositor. The two differ only in how you ask them what they
-        # are doing, so the test body is shared.
         niri = pkgs.testers.runNixOSTest (
           import ./tests/compositor.nix {
             name = "niri";
@@ -65,11 +56,76 @@
             ipcReady = "ls /run/user/1000/hypr/*/.socket.sock";
             # XDG_RUNTIME_DIR is required even with the instance signature:
             # hyprctl resolves its socket relative to it, and the driver's
-            # backdoor is a bare root shell that has none. Without it hyprctl
-            # exits 4. (Same root cause as Hyprland --version aborting.)
+            # backdoor is a bare root shell that has none.
             outputs = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl monitors";
           }
         );
       };
+
+      # One-step runner for a test's interactive driver.
+      #
+      # `nix build .#checks.<system>.<name>` cannot work on this host: a
+      # sandboxed build can open neither /dev/kvm nor /dev/dri, because both are
+      # crw-rw---- root:kvm / root:render and the only grant is an ACL for the
+      # human user, which does not apply to the nixbld build users. So a
+      # sandboxed run gets no GPU (niri cannot render at all) and silently falls
+      # back to TCG for want of KVM.
+      #
+      # The interactive driver runs as you, outside the sandbox, where those
+      # ACLs apply. Wrapping it here puts that knowledge in the entry point
+      # instead of a comment nobody rereads.
+      testRunner =
+        name: test:
+        pkgs.writeShellApplication {
+          name = "test-${name}";
+          runtimeInputs = [ pkgs.coreutils ];
+          text = ''
+            out=$(mktemp -d -t "maxnix-test-${name}-XXXXXX")
+            echo "screenshots and logs -> $out" >&2
+            cd "$out"
+            # --no-interactive runs the test script. To get a REPL against a
+            # live VM instead, pass --interactive through; the later flag wins:
+            #   nix run .#test-${name} -- --interactive
+            exec ${test.driverInteractive}/bin/nixos-test-driver \
+              --no-interactive -o "$out" "$@"
+          '';
+        };
+    in
+    {
+      nixosConfigurations.maxnix = maxnix;
+
+      # nix run .#vm      — or just `nix run .`
+      #
+      # No wrapper needed: qemu-vm.nix already sets
+      #   meta.mainProgram = "run-${config.system.name}-vm"
+      # on this derivation, which is exactly what `nix run` resolves.
+      #
+      # Run it from the repo root. `nix run .#vm` requires flake.nix in the
+      # current directory anyway (Nix does not search upward), and that matches
+      # what the VM needs: virtualisation.diskImage and the 9p share are both
+      # relative to the launch directory. Invoking it by absolute path from
+      # elsewhere would work, and would scatter .vm/maxnix.qcow2 wherever you
+      # happened to be.
+      #
+      # Unlike `nix build`, `nix run` leaves no `result` symlink and therefore
+      # no GC root, so a garbage collection can force a rebuild. Use
+      # `nix build .#vm` when you want the closure pinned.
+      packages.${system} = {
+        vm = maxnix.config.system.build.vm;
+        default = maxnix.config.system.build.vm;
+      };
+
+      checks.${system} = tests;
+
+      # nix run .#test-desktop | .#test-niri | .#test-hyprland
+      #
+      # All three bind the same VNC port, so run them one at a time.
+      apps.${system} = lib.mapAttrs' (name: test: {
+        name = "test-${name}";
+        value = {
+          type = "app";
+          program = lib.getExe (testRunner name test);
+        };
+      }) tests;
     };
 }

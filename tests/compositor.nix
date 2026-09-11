@@ -5,8 +5,8 @@
 # they are doing. Instantiated once per compositor in flake.nix.
 #
 # HOW TO RUN — the sandboxed path does not work, see tests/desktop.nix:
-#   nix build .#checks.x86_64-linux.niri.driverInteractive
-#   ./result/bin/nixos-test-driver --no-interactive -o /tmp/testout
+#   nix run .#test-niri
+#   nix run .#test-hyprland
 compositor:
 { hostPkgs, ... }:
 {
