@@ -36,6 +36,50 @@
     # Use the niri the system already installs rather than resolving a second
     # copy from pkgs.
     compositor.package = config.programs.niri.package;
+
+    # Track the user's DankMaterialShell palette, so the login screen and the
+    # desktop are visibly the same thing rather than two Material themes that
+    # happen to be adjacent.
+    #
+    # This expands to three files the greeter copies into its own cache:
+    #   ~/.config/DankMaterialShell/settings.json
+    #   ~/.local/state/DankMaterialShell/session.json
+    #   ~/.cache/DankMaterialShell/dms-colors.json   -> colors.json
+    #
+    # The copy happens in greetd's preStart, which runs as root, so it can read
+    # a 0700 home directory; each copy is guarded on the file existing, so a
+    # machine that has never run DMS just uses the greeter's defaults. It also
+    # reads the wallpaper path out of session.json and copies the image itself,
+    # rewriting the path to point into the cache — otherwise the greeter, which
+    # runs as `greeter`, could not read a wallpaper living under /home/max.
+    #
+    # ── Do NOT run `dms-greeter sync` on this machine ───────────────────
+    #
+    # Upstream's documentation describes syncing via a `dms-greeter sync`
+    # command that adds your user to the greeter group, sets ACLs, and
+    # *symlinks* the greeter cache at your live DMS config. The Nix module
+    # takes a different route — root-owned *copies* made in greetd's preStart —
+    # and the two would fight each other. Running sync here would replace the
+    # module's copies with symlinks that the next rebuild undoes.
+    #
+    # The trade: the module's copies are a snapshot taken when greetd starts,
+    # so the greeter shows the DMS state from *last* boot. Upstream's symlinks
+    # are live. In exchange we need no group membership, no ACLs, and no
+    # imperative setup step.
+    #
+    # ── What actually changes the greeter's appearance ──────────────────
+    #
+    # Of the three files, upstream documents settings.json as the one carrying
+    # theme and appearance preferences; session.json carries the wallpaper.
+    # colors.json on its own does not appear to drive what you see: repainting
+    # every hex value in it bright green and restarting greetd left the login
+    # screen pixel-identical.
+    #
+    # On a machine that has never had DMS configured, only colors.json exists,
+    # so this option has nothing to sync yet and the greeter uses its defaults.
+    # It starts mattering once you change a theme or wallpaper in DMS and those
+    # two files appear.
+    configHome = config.users.users.max.home;
   };
 
   # The module sets services.greetd.settings.default_session.command with
