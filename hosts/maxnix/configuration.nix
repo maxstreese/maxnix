@@ -119,6 +119,14 @@ in
   # Log straight in on the console.
   services.getty.autologinUser = "max";
 
+  # The guest needs flakes of its own, so it can rebuild this configuration
+  # from the repo shared at /mnt/maxnix and activate it without a reboot.
+  # See the `rebuild` command in ./vm.nix.
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
+
   # Mesa, and the userspace bits a Wayland compositor expects to find.
   hardware.graphics.enable = true;
 
