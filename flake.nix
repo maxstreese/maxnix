@@ -11,6 +11,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Dank Greeter — the graphical login screen matching DMS. It lives in its
+    # own repo; the DMS flake's nixosModules.greeter is now only a deprecation
+    # warning pointing here.
+    dank-greeter = {
+      url = "github:AvengeMedia/dank-greeter";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     home-manager = {
       url = "github:nix-community/home-manager";
       # Without this you evaluate two different nixpkgs, which bloats the
@@ -44,6 +52,7 @@
         ./hosts/maxnix/configuration.nix
         ./modules/desktop
         home-manager.nixosModules.home-manager
+        inputs.dank-greeter.nixosModules.default
 
         # The user layer needs flake inputs of its own (home/max/dms.nix
         # imports one), and Home Manager modules do not see them by default.

@@ -77,15 +77,15 @@
           assert "virgl" in gpu.lower(), "no hardware acceleration:\n" + gpu
 
       with subtest("the greeter renders"):
-          shot = vnc_capture(machine, "greeter")
-          colours = unique_colours(shot)
-          machine.log(f"greeter screen has {colours} distinct colours")
-          # Threshold of 1, not the 50 the compositor tests use: tuigreet is a
-          # text UI on the DRM console and legitimately draws in about three
-          # colours. All this can prove is that the framebuffer is not a single
-          # flat colour — i.e. something was drawn rather than nothing. A
-          # stronger check would OCR the capture for "Username", at the cost of
-          # OCR flakiness on console text.
-          assert colours > 1, f"greeter screen is a single flat colour ({colours})"
+          # Dank Greeter is a Quickshell UI hosted in niri, so this is a real
+          # graphical screen: measured at ~5300-5700 colours once drawn, and
+          # exactly 1 before that. The old tuigreet greeter was a text console
+          # drawing in three colours, which is why this check used to assert
+          # `> 1` — that threshold would now pass on a blank screen.
+          #
+          # Polling rather than a fixed wait, for the same reason as the
+          # compositor tests: the greeter needs tens of seconds to appear and a
+          # single early capture caught a flat black frame.
+          wait_for_rich_screen(machine, "greeter", minimum=3000)
     '';
 }
