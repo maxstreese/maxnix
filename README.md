@@ -200,8 +200,15 @@ precisely so muscle memory transfers.
 
 The cost of keeping both is ~170 lines of compositor-specific config, of which
 30 are the same 15 bindings written twice, and it grows per feature added
-rather than sitting still. The thing that will actually force the question is
-**Hyprland 0.57 removing `.conf` support** — migrating to the Lua API is real
-work (`hl.dsp.exec` does not exist and the correct spelling was not
-discoverable from the binary or the docs), and it is work that dropping
-Hyprland would skip entirely. Until then there is nothing to decide.
+rather than sitting still.
+
+Nothing forces the question. `flake.lock` pins nixpkgs, so Hyprland 0.57 —
+which removes `.conf` support — arrives only when you run `nix flake update`,
+and as of this writing nixpkgs-unstable still ships 0.56.2. When it does land
+there are three options, only one of which is about compositors: port to
+`configType = "lua"`, pin Hyprland to 0.56, or drop it. So this is a future
+cost you choose when to pay, not a deadline.
+
+The Lua API has been mapped empirically — see the table in
+`home/max/hyprland.nix` — and the port is blocked on exactly one unknown: the
+`addreserved` equivalent that keeps the DMS bar from being covered.

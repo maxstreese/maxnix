@@ -19,12 +19,48 @@
     # live at hl.dsp.<namespace>.<action>()). Home Manager supports both via
     # configType, and at our stateVersion it would default to "lua".
     #
-    # Pinned to hyprlang anyway, deliberately: essentially every Hyprland
-    # tutorial, wiki page and rice you will read while evaluating is written in
-    # hyprlang, and the Lua API is new enough that its dispatcher names are
-    # hard to discover. Matching the ecosystem's documentation is worth more
-    # during an evaluation than being on the newer format. Revisit if you keep
-    # Hyprland.
+    # Pinned to hyprlang deliberately. Every Hyprland tutorial and rice is
+    # written in it, and there is no deadline to move: flake.lock pins nixpkgs,
+    # so 0.57 arrives only when you run `nix flake update`. As of this writing
+    # nixpkgs-unstable still ships 0.56.2, so there is nothing to move *to*.
+    #
+    # ── Lua port: mapped, but blocked on one unknown ─────────────────────
+    #
+    # The API was reverse-engineered from a running Hyprland, since it is
+    # undocumented. Two things make that awkward: `hyprctl eval` works *only*
+    # when Hyprland is already running a Lua config (chicken and egg — switch
+    # configType first), and it prints "ok" rather than the returned value, so
+    # results have to be written out with io.open from inside the sandbox.
+    #
+    # Constructing a dispatcher is side-effect free — it returns an
+    # HL.Dispatcher object rather than executing — so shapes can be probed
+    # safely with pcall. A wrong shape returns nil instead of erroring.
+    #
+    #   hyprlang                     lua
+    #   exec, X                      hl.dsp.exec_cmd("X")
+    #   killactive,                  hl.dsp.window.close()
+    #   exit,                        hl.dsp.exit()
+    #   movefocus, l                 hl.dsp.focus({direction="l"})
+    #   movewindow, l                hl.dsp.window.move({direction="l"})
+    #   workspace, N                 hl.dsp.workspace.change_id({id=N})
+    #   movetoworkspace, N           hl.dsp.window.move({workspace=N})
+    #   fullscreen,                  hl.dsp.window.fullscreen()
+    #   togglefloating,              hl.dsp.window.float()
+    #   bindm … movewindow           hl.dsp.window.drag()
+    #   bindm … resizewindow         hl.dsp.window.resize()
+    #   bindl                        third arg: {locked = true}
+    #   bind = $mod SHIFT, T, …      hl.bind("ALT + SHIFT + T", …)
+    #
+    # Note `hl.dsp.exec` does NOT exist — it is exec_cmd. Modifiers are joined
+    # with " + " between *every* component: "ALT + SHIFT + T" registers,
+    # "ALT SHIFT + T" silently does not.
+    #
+    # UNRESOLVED: the equivalent of `monitor = ,addreserved,64,0,0,0`, which
+    # reserves the strip DankMaterialShell's bar occupies (see below). hl.monitor
+    # exists but rejected every shape tried — a name/addreserved table, a
+    # reserved list, and the raw hyprlang string. Without it the bar would be
+    # covered by tiled windows, so the port is not worth finishing until that
+    # is known. Revisit when 0.57 lands and the API is documented.
     configType = "hyprlang";
 
     settings = {
