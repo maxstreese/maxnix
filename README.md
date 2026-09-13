@@ -14,6 +14,7 @@ nix run .#vm-headless                  # no window; VNC on 127.0.0.1:5909 so som
 nix run .#test-desktop                 # boot, greeter, sessions, GPU
 nix run .#test-niri                    # niri: IPC, output, layout, shell, render
 nix run .#test-hyprland                # same, for Hyprland
+nix run .#test-vm-starts               # the runner above actually starts (opens a window for 8s)
 ```
 
 Log in as `max` / `maxnix`. Inside the VM, `rebuild` reapplies the config from
@@ -129,11 +130,21 @@ greetd's `preStart`. They fight.
 
 ## Tests
 
-15 subtests across three checks. They share `hostModules` with the real machine,
-so a test node cannot drift from what `nix run .#vm` builds.
+15 subtests across three `nixosTest` checks, plus a startup check. The three
+share `hostModules` with the real machine, so a test node cannot drift from what
+`nix run .#vm` builds.
 
 Run them with `nix run .#test-<name>`, **not** `nix build .#checks…` — see the
 sandbox finding above.
+
+`test-vm-starts` is the odd one out and covers what the other three
+structurally cannot. They all override `-display` to `egl-headless`, so the
+`gtk,gl=on` path a human uses was exercised by nothing — which is how the
+`-vnc` regression in `5231c9a` shipped with every suite green. QEMU validates
+flag compatibility at startup, so "still alive after 8 s" suffices: `timeout`
+reports that as exit 124, and any other status means QEMU bailed. It needs a
+graphical session and flashes a window; that is inherent to testing
+`-display gtk`.
 
 Hard-won lessons encoded in them:
 
@@ -146,15 +157,14 @@ Hard-won lessons encoded in them:
   screen and called it success.
 - **Thresholds are calibrations that expire.** `colours > 1` was right for
   tuigreet's text console and would have passed on a blank graphical greeter.
+- **Verify the verifier.** Every check here was run against a deliberately
+  broken config to confirm it fails — the layout test with the layout flipped
+  to `us`, `test-vm-starts` with `-vnc` put back. A test only ever seen passing
+  is indistinguishable from one that asserts nothing.
 
 ---
 
 ## Open points
-
-**Biggest coverage gap — nothing tests the command you actually run.** Every
-test overrides `-display` to `egl-headless`, so the `gtk,gl=on` path is
-unexercised. That is exactly how the `-vnc` regression shipped in `5231c9a`.
-A cheap fix: spawn the real runner for ~10 s and assert it does not exit.
 
 **Bind reachability is not checked.** The dead German binds were found by a
 hand-run audit, not by anything in the repo. A build-time check comparing bind
@@ -183,6 +193,15 @@ frees Super, so reverting to upstream defaults is available if wanted.
 **Media and brightness keys** stay with the host. Six of the remaining
 collisions are hardware keys; not worth fighting.
 
-**And the actual question: niri or Hyprland?** Sixteen commits in, this has not
-been answered. Everything blocking it is gone — both have a real shell, working
-keys in the right layout, and a graphical login screen.
+**niri or Hyprland — deliberately not decided.** Running both indefinitely is a
+legitimate outcome, not a deferral. Switching is a logout and a session pick,
+and both carry identical DMS bindings (`Alt+S`, `Alt+N`, `Alt+X`, `Alt+Comma`)
+precisely so muscle memory transfers.
+
+The cost of keeping both is ~170 lines of compositor-specific config, of which
+30 are the same 15 bindings written twice, and it grows per feature added
+rather than sitting still. The thing that will actually force the question is
+**Hyprland 0.57 removing `.conf` support** — migrating to the Lua API is real
+work (`hl.dsp.exec` does not exist and the correct spelling was not
+discoverable from the binary or the docs), and it is work that dropping
+Hyprland would skip entirely. Until then there is nothing to decide.
