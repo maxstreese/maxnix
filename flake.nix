@@ -125,6 +125,58 @@
         '';
       };
 
+      # nix run .#test-vm-starts
+      #
+      # Asserts that the command a human actually types starts.
+      #
+      # Every other check overrides -display to egl-headless, so the
+      # `gtk,gl=on` path that `nix run .#vm` uses is exercised by nothing. That
+      # is exactly how commit 5231c9a shipped: -vnc landed in the shared
+      # qemu-guest module, QEMU refuses `-display gtk,gl=on` together with -vnc
+      # ("Display vnc is incompatible with the GL context"), and build-vm was
+      # broken for a whole commit while all three test suites stayed green.
+      #
+      # The trick is that QEMU validates flag compatibility at startup and
+      # exits immediately when they conflict, so "still alive after a few
+      # seconds" is a sufficient signal — and `timeout` reports that as exit
+      # 124. Any other exit code means QEMU bailed, and the log says why.
+      #
+      # Deliberately shallow: it proves the runner starts, nothing about
+      # booting or rendering. That depth is already covered by the three
+      # nixosTest checks, which cannot reach this path.
+      vmStarts = pkgs.writeShellApplication {
+        name = "test-vm-starts";
+        runtimeInputs = [ pkgs.coreutils ];
+        text = ''
+          if [ -z "''${DISPLAY:-}" ] && [ -z "''${WAYLAND_DISPLAY:-}" ]; then
+            echo "no graphical session found." >&2
+            echo "this test exercises -display gtk, which needs one; it cannot run headless." >&2
+            exit 2
+          fi
+
+          scratch=$(mktemp -d)
+          trap 'rm -rf "$scratch"' EXIT
+
+          echo "starting the real runner for 8s — a window will appear" >&2
+
+          # A scratch disk and share, so a test run never disturbs the VM state
+          # in ./.vm or depends on where it was invoked from.
+          set +e
+          NIX_DISK_IMAGE="$scratch/test.qcow2"           MAXNIX_REPO="$scratch"             timeout 8 ${lib.getExe maxnix.config.system.build.vm} > "$scratch/qemu.log" 2>&1
+          rc=$?
+          set -e
+
+          if [ "$rc" -eq 124 ]; then
+            echo "ok: the runner started with its real flags and stayed up" >&2
+          else
+            echo "FAIL: the runner exited with status $rc rather than being killed by timeout" >&2
+            echo "--- qemu output ---" >&2
+            cat "$scratch/qemu.log" >&2
+            exit 1
+          fi
+        '';
+      };
+
       # One-step runner for a test's interactive driver.
       #
       # `nix build .#checks.<system>.<name>` cannot work on this host: a
@@ -187,6 +239,10 @@
         vm-headless = {
           type = "app";
           program = lib.getExe vmHeadless;
+        };
+        test-vm-starts = {
+          type = "app";
+          program = lib.getExe vmStarts;
         };
       }
       // lib.mapAttrs' (name: test: {
