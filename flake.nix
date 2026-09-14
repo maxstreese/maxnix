@@ -1,5 +1,5 @@
 {
-  description = "maxnix — a NixOS VM for evaluating niri, Hyprland and Quickshell";
+  description = "maxnix — a NixOS VM running niri and Hyprland, with Quickshell on top";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";

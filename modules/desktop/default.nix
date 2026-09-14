@@ -1,6 +1,7 @@
 # The shared desktop layer: a greeter, and the bits both compositors expect to
-# find. The compositors themselves are one file each, so either can be dropped
-# from ./: nothing here depends on which of them is installed.
+# find. The compositors themselves are one file each and nothing here depends
+# on which of them is installed. Both are meant to stay — the split is so each
+# one's enablement is self-contained, not so one can be dropped later.
 {
   config,
   lib,

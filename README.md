@@ -1,8 +1,9 @@
 # maxnix
 
-A declarative NixOS VM, built to evaluate **niri** vs **Hyprland** with
-**Quickshell**, and to learn how the pieces fit — while the host stays an
-ordinary Ubuntu install.
+A declarative NixOS VM running **niri** and **Hyprland** side by side, with
+**Quickshell** on top, built to learn how the pieces fit — while the host stays
+an ordinary Ubuntu install. Both compositors are in daily use; which one you
+get is a pick at the login screen, not a decision this repo is working toward.
 
 The whole machine is defined here. Being a VM is a *variant* of that
 definition, not a second description of it.
@@ -28,7 +29,7 @@ Log in as `max` / `maxnix`. Inside the VM, `rebuild` reapplies the config from
 |---|---|
 | host | Ubuntu 24.04, GNOME Wayland. Only needs a Nix daemon and `/dev/kvm` |
 | distro | NixOS, `nixpkgs-unstable`, pinned by `flake.lock` |
-| compositors | niri 26.04, Hyprland 0.56.2 — both installed, selectable at login |
+| compositors | niri 26.04, Hyprland 0.56.2 — both in use, switched between at login |
 | shell toolkit | Quickshell 0.3.0 |
 | shell | DankMaterialShell (bar, launcher, notifications, power menu) |
 | greeter | Dank Greeter (Quickshell UI hosted in niri) |
@@ -61,12 +62,12 @@ and KVM — even the QEMU binary comes from the Nix store.
 |---|---|---|
 | channel | `nixpkgs-unstable` | these three packages move fast; stable would evaluate old versions |
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
-| compositors | both, selectable at login | the A/B is the point; it is cheap in NixOS |
+| compositors | both, for good | not an A/B: both stay and get switched between. NixOS makes two configs cheap, and shared DMS bindings make switching cheap too |
 | VM disk | ephemeral, host `/nix/store` over 9p | rebuilds in seconds; the VM is not a standalone artifact |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
 | Hyprland config | `configType = "hyprlang"` | every tutorial is hyprlang; **removed in Hyprland 0.57**, so this expires |
 | modifier key | Alt, not Super | GNOME owns `Super_L` as its overlay key and takes it before the guest sees it |
-| shell | DankMaterialShell now, own Quickshell later | unblocks the evaluation; DMS's QML is a worked example to learn from |
+| shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 
 ---
@@ -172,9 +173,15 @@ keysyms against the compiled keymap would catch the whole class.
 
 **Colour thresholds are magic numbers** calibrated against today's screenshots.
 
-**Hyprland's `.conf` support is removed in 0.57.** Migrating to `configType =
-"lua"` means learning the new dispatcher API (`hl.dsp.…`); `hl.dsp.exec` does
-not exist and the spelling was not obvious.
+**Hyprland's `.conf` support is removed in 0.57.** Nothing forces the question
+yet: `flake.lock` pins nixpkgs, so 0.57 arrives only when you run
+`nix flake update`, and as of this writing nixpkgs-unstable still ships 0.56.2.
+When it does land there are two options — port to `configType = "lua"`, or pin
+Hyprland to 0.56. Dropping Hyprland is not one of them. The Lua API has been
+mapped empirically (see the table in `home/max/hyprland.nix`; `hl.dsp.exec`
+does not exist and the spelling was not obvious) and the port is blocked on
+exactly one unknown: the `addreserved` equivalent that keeps the DMS bar from
+being covered.
 
 **Write our own Quickshell config** — the last piece of the original plan, and
 the reason Quickshell was on the list. Point
@@ -193,22 +200,11 @@ frees Super, so reverting to upstream defaults is available if wanted.
 **Media and brightness keys** stay with the host. Six of the remaining
 collisions are hardware keys; not worth fighting.
 
-**niri or Hyprland — deliberately not decided.** Running both indefinitely is a
-legitimate outcome, not a deferral. Switching is a logout and a session pick,
-and both carry identical DMS bindings (`Alt+S`, `Alt+N`, `Alt+X`, `Alt+Comma`)
-precisely so muscle memory transfers.
-
-The cost of keeping both is ~170 lines of compositor-specific config, of which
-30 are the same 15 bindings written twice, and it grows per feature added
-rather than sitting still.
-
-Nothing forces the question. `flake.lock` pins nixpkgs, so Hyprland 0.57 —
-which removes `.conf` support — arrives only when you run `nix flake update`,
-and as of this writing nixpkgs-unstable still ships 0.56.2. When it does land
-there are three options, only one of which is about compositors: port to
-`configType = "lua"`, pin Hyprland to 0.56, or drop it. So this is a future
-cost you choose when to pay, not a deadline.
-
-The Lua API has been mapped empirically — see the table in
-`home/max/hyprland.nix` — and the port is blocked on exactly one unknown: the
-`addreserved` equivalent that keeps the DMS bar from being covered.
+**Two compositor configs to keep in step.** Both compositors stay, so their
+configs are a permanent pair rather than a temporary one. Switching is a logout
+and a session pick, and both carry identical DMS bindings (`Alt+S`, `Alt+N`,
+`Alt+X`, `Alt+Comma`) precisely so muscle memory transfers. The cost is ~170
+lines of compositor-specific config, of which 30 are the same 15 bindings
+written twice, and it grows per feature added rather than sitting still. Today
+a bind added to one file has to be added to the other by hand; generating both
+from a single binding list would remove that.

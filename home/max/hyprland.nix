@@ -104,9 +104,9 @@
       # this needs to follow.
       monitor = ",addreserved,64,0,0,0";
 
-      # Animations are the thing worth judging Hyprland on, and also the thing
-      # most likely to expose virgl's limits. Left at defaults so the
-      # comparison with niri is about the compositors, not about our tuning.
+      # Animations are Hyprland's signature, and also the thing most likely to
+      # expose virgl's limits. Left at defaults: if they stutter in the VM,
+      # that should be attributable to virgl rather than to our tuning.
 
       bind = [
         "$mod, T, exec, $terminal"
@@ -142,8 +142,8 @@
         "$mod, V, togglefloating,"
 
         # DankMaterialShell — deliberately the same key combinations as
-        # ./niri.nix, so switching compositors during the evaluation does not
-        # also mean relearning the shell.
+        # ./niri.nix. Both compositors are in use and switching between them
+        # is routine, so it must not also mean relearning the shell.
         # Alt+S, not Alt+SPACE: GNOME claims Alt+space as its window menu.
         "$mod, S, exec, dms ipc spotlight toggle"
         "$mod, N, exec, dms ipc notifications toggle"
