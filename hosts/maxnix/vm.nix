@@ -90,14 +90,7 @@
         sharedDirectories.maxnix = {
           source = ''"''${MAXNIX_REPO:-$OLDPWD}"'';
           target = "/mnt/maxnix";
-
-          # `writable` replaced `securityModel` in nixpkgs; the old option no
-          # longer exists and evaluation fails outright if you set it. true
-          # preserves the previous behaviour (the mount was rw). Nothing in the
-          # guest writes here — `rebuild` only reads the flake — so flipping
-          # this to false would be a small safety win, at the cost of changing
-          # behaviour during an unrelated version bump.
-          writable = true;
+          securityModel = "none";
         };
       };
     };
