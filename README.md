@@ -38,7 +38,7 @@ Log in as `max` / `maxnix`. Inside the VM, `rebuild` reapplies the config from
 flake.nix                    inputs, hostModules, packages + apps + checks
 hosts/maxnix/
   configuration.nix          the machine: user, locale, keyboard, home-manager
-  vm.nix                     build-vm specifics: window, disk image, 9p share, `rebuild`
+  vm.nix                     build-vm specifics: window, disk image, repo share, `rebuild`
 modules/
   desktop/{default,niri,hyprland,greeter}.nix    system-level enable + greeter
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
@@ -63,7 +63,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | channel | `nixpkgs-unstable` | these three packages move fast; stable would evaluate old versions |
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
 | compositors | both, for good | not an A/B: both stay and get switched between. NixOS makes two configs cheap, and shared DMS bindings make switching cheap too |
-| VM disk | ephemeral, host `/nix/store` over 9p | rebuilds in seconds; the VM is not a standalone artifact |
+| VM disk | ephemeral, host `/nix/store` shared over virtiofs | rebuilds in seconds; the VM is not a standalone artifact |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
 | Hyprland config | `configType = "hyprlang"` | every tutorial is hyprlang; **removed in Hyprland 0.57**, so this expires |
 | modifier key | Alt, not Super | GNOME owns `Super_L` as its overlay key and takes it before the guest sees it |
@@ -122,6 +122,14 @@ reading GNOME settings.
 **Hyprland 0.56 moved config and dispatchers to Lua.** `hyprctl dispatch exec`
 now fails; `hyprctl dispatch exit` still works. Config lives at
 `~/.config/hypr/hyprland.lua` unless you pin `configType = "hyprlang"`.
+
+**virtiofs needs shared guest memory, and `build-vm` does not give it any.**
+nixpkgs moved shared directories from 9p to virtiofs in September 2026. vhost-user
+devices need the guest's RAM as a shared memory object, which only the NixOS
+test driver switches on — so every test passed while `nix run .#vm` hung on a
+vhost handshake. The virtiofsd warning about file handles and "Operation not
+permitted" is a red herring. `modules/vm/qemu-guest.nix` sets
+`qemu.enableSharedMemory` until nixpkgs PR #563324 makes it the default.
 
 **Do not run `dms-greeter sync`.** Upstream's documented path symlinks the
 greeter cache at live DMS config; the Nix module makes root-owned copies in

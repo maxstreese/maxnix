@@ -90,7 +90,14 @@
         sharedDirectories.maxnix = {
           source = ''"''${MAXNIX_REPO:-$OLDPWD}"'';
           target = "/mnt/maxnix";
-          securityModel = "none";
+
+          # `writable` replaced `securityModel` when nixpkgs moved shared
+          # directories from 9p to virtiofs; the old option no longer exists
+          # and setting it fails evaluation. true keeps the previous rw
+          # behaviour. Nothing in the guest writes here — `rebuild` only
+          # reads the flake — so false would be a small hardening, deferred
+          # so a version bump does not also change behaviour.
+          writable = true;
         };
       };
     };

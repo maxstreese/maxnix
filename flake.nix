@@ -217,7 +217,7 @@
       #
       # Run it from the repo root. `nix run .#vm` requires flake.nix in the
       # current directory anyway (Nix does not search upward), and that matches
-      # what the VM needs: virtualisation.diskImage and the 9p share are both
+      # what the VM needs: virtualisation.diskImage and the repo share are both
       # relative to the launch directory. Invoking it by absolute path from
       # elsewhere would work, and would scatter .vm/maxnix.qcow2 wherever you
       # happened to be.
