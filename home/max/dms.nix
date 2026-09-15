@@ -15,13 +15,13 @@
 #      — that is *niri-flake's* API. We use Home Manager's
 #      wayland.windowManager.niri instead. Its own `includes.enable` option is
 #      documented as "includes for niri-flake".
-#   2. Its binds are all Mod+… (Super), which GNOME intercepts on this host,
-#      and Mod+Comma would collide with our Alt+Comma.
+#   2. Two of its binds collide with ours: Mod+Comma with consume-or-expel
+#      and Mod+V with toggle-window-floating.
 #
 # Nothing in it is hard to reproduce: every binding is `dms ipc <thing>
-# <action>`. So the binds live in ./niri.nix and ./hyprland.nix, spelled with
-# Alt, which also gets them into Hyprland — something the DMS module cannot do,
-# since it only supports niri.
+# <action>`. So the binds live in ./niri.nix and ./hyprland.nix, which also
+# gets them into Hyprland — something the DMS module cannot do, since it only
+# supports niri.
 #
 # The main module below is compositor-agnostic: it mentions neither compositor.
 { inputs, ... }:

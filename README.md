@@ -9,8 +9,8 @@ The whole machine is defined here. Being a VM is a *variant* of that
 definition, not a second description of it.
 
 ```bash
-scripts/vm-keys run -- nix run .#vm    # start it (releases host shortcuts, restores on exit)
-nix run .#vm                           # start it, plainly
+scripts/vm-keys run -- nix run .#vm    # start it; releases the host's Super key, restores on exit
+nix run .#vm                           # start it plainly — Super binds will be dead, see below
 nix run .#vm-headless                  # no window; VNC on 127.0.0.1:5909 so something can watch
 nix run .#test-desktop                 # boot, greeter, sessions, GPU
 nix run .#test-niri                    # niri: IPC, output, layout, shell, render
@@ -66,7 +66,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | VM disk | ephemeral, host `/nix/store` shared over virtiofs | rebuilds in seconds; the VM is not a standalone artifact |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
 | Hyprland config | `configType = "hyprlang"` | every tutorial is hyprlang; **removed in Hyprland 0.57**, so this expires |
-| modifier key | Alt, not Super | GNOME owns `Super_L` as its overlay key and takes it before the guest sees it |
+| modifier key | Super, as upstream | GNOME's overlay key is `Super_L` and it is the one chord QEMU's grab cannot shield; `scripts/vm-keys` releases it for the run |
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 
@@ -110,10 +110,12 @@ Wayland — and neither implies the other. `services.xserver.xkb.layout` reaches
 *nothing* in a Wayland-only system. Hyprland ignores `XKB_DEFAULT_LAYOUT`
 because its own `kb_layout` defaults to `"us"`; niri honours it.
 
-**GNOME takes `Alt+Space`, bare `Super` and `Ctrl+Alt+Up/Down` before any client
-sees them**, and QEMU's `Ctrl+Alt+G` grab makes no difference — verified with
-`wev` inside the guest. Remapping fixes what it can reach; `scripts/vm-keys`
-handles the two it cannot.
+**Bare `Super` and `Alt+Space` never reach the guest** while GNOME owns them,
+and QEMU's `Ctrl+Alt+G` grab makes no difference to those two — verified with
+`wev` inside the guest. Mutter's source explains it: with a client's grab in
+place, ordinary chords are inhibited, but the overlay key is handled before
+that check. `scripts/vm-keys` releases both for the duration of a run, which
+is what lets the compositors keep upstream's Super binds.
 
 **Homebrew's `gsettings` shadows the system one** and reports schema *defaults*
 rather than your dconf database. Use `/usr/bin/gsettings` or `dconf` when
@@ -201,18 +203,14 @@ wired and the copy is verified byte-identical, but repainting `colors.json`
 changed nothing on screen. Upstream documents `settings.json` as the file
 carrying appearance; DMS has not written one here yet.
 
-**Alt vs Super.** Alt is more ergonomic but steals `Alt+letter` menu mnemonics
-from applications — a problem that only appears off the VM. `scripts/vm-keys`
-frees Super, so reverting to upstream defaults is available if wanted.
-
 **Media and brightness keys** stay with the host. Six of the remaining
 collisions are hardware keys; not worth fighting.
 
 **Two compositor configs to keep in step.** Both compositors stay, so their
 configs are a permanent pair rather than a temporary one. Switching is a logout
-and a session pick, and both carry identical DMS bindings (`Alt+S`, `Alt+N`,
-`Alt+X`, `Alt+Comma`) precisely so muscle memory transfers. The cost is ~170
-lines of compositor-specific config, of which 30 are the same 15 bindings
-written twice, and it grows per feature added rather than sitting still. Today
-a bind added to one file has to be added to the other by hand; generating both
-from a single binding list would remove that.
+and a session pick, and both carry identical DMS bindings (`Super+Space`,
+`Super+N`, `Super+X`, `Super+Shift+Comma`) precisely so muscle memory
+transfers. The cost is ~170 lines of compositor-specific config, of which 30
+are the same 15 bindings written twice, and it grows per feature added rather
+than sitting still. Today a bind added to one file has to be added to the other
+by hand; generating both from a single binding list would remove that.

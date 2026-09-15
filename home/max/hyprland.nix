@@ -49,11 +49,11 @@
     #   bindm … movewindow           hl.dsp.window.drag()
     #   bindm … resizewindow         hl.dsp.window.resize()
     #   bindl                        third arg: {locked = true}
-    #   bind = $mod SHIFT, T, …      hl.bind("ALT + SHIFT + T", …)
+    #   bind = $mod SHIFT, T, …      hl.bind("SUPER + SHIFT + T", …)
     #
     # Note `hl.dsp.exec` does NOT exist — it is exec_cmd. Modifiers are joined
-    # with " + " between *every* component: "ALT + SHIFT + T" registers,
-    # "ALT SHIFT + T" silently does not.
+    # with " + " between *every* component: "SUPER + SHIFT + T" registers,
+    # "SUPER SHIFT + T" silently does not.
     #
     # UNRESOLVED: the equivalent of `monitor = ,addreserved,64,0,0,0`, which
     # reserves the strip DankMaterialShell's bar occupies (see below). hl.monitor
@@ -64,9 +64,10 @@
     configType = "hyprlang";
 
     settings = {
-      # Alt rather than Super, for the same reason as niri: GNOME's overlay-key
-      # is Super_L and it consumes the key before the guest sees it.
-      "$mod" = "ALT";
+      # Super, as upstream. It reaches the guest only while the host has
+      # released its overlay key — see the note in ./niri.nix and
+      # scripts/vm-keys.
+      "$mod" = "SUPER";
       "$terminal" = "alacritty";
       "$menu" = "fuzzel";
 
@@ -119,15 +120,11 @@
         "$mod, up, movefocus, u"
         "$mod, down, movefocus, d"
 
-        # Shift, not Ctrl: GNOME claims Ctrl+Alt+Up/Down for
-        # switch-to-workspace and swallows them before the guest sees them
-        # (verified with wev; QEMU's input grab makes no difference). Shift
-        # keeps the model consistent with ./niri.nix too — Alt+key focuses,
-        # Alt+Shift+key moves.
-        "$mod SHIFT, left, movewindow, l"
-        "$mod SHIFT, right, movewindow, r"
-        "$mod SHIFT, up, movewindow, u"
-        "$mod SHIFT, down, movewindow, d"
+        # Same model as ./niri.nix: Mod+key focuses, Mod+Ctrl+key moves.
+        "$mod CTRL, left, movewindow, l"
+        "$mod CTRL, right, movewindow, r"
+        "$mod CTRL, up, movewindow, u"
+        "$mod CTRL, down, movewindow, d"
 
         "$mod, 1, workspace, 1"
         "$mod, 2, workspace, 2"
@@ -144,16 +141,15 @@
         # DankMaterialShell — deliberately the same key combinations as
         # ./niri.nix. Both compositors are in use and switching between them
         # is routine, so it must not also mean relearning the shell.
-        # Alt+S, not Alt+SPACE: GNOME claims Alt+space as its window menu.
-        "$mod, S, exec, dms ipc spotlight toggle"
+        "$mod, SPACE, exec, dms ipc spotlight toggle"
         "$mod, N, exec, dms ipc notifications toggle"
         "$mod SHIFT, comma, exec, dms ipc settings toggle"
         "$mod, P, exec, dms ipc notepad toggle"
         "$mod, X, exec, dms ipc powermenu toggle"
         "$mod, C, exec, dms ipc clipboard toggle"
         "$mod, M, exec, dms ipc processlist toggle"
-        "$mod SHIFT, N, exec, dms ipc night toggle"
-        "$mod SHIFT, L, exec, dms ipc lock lock"
+        "$mod ALT, N, exec, dms ipc night toggle"
+        "$mod ALT, L, exec, dms ipc lock lock"
       ];
 
       # bindl = active even when the session is locked, which is what the

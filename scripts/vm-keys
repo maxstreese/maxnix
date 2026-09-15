@@ -8,11 +8,12 @@
 # GNOME grabs some keys before any client sees them. Verified with wev inside
 # the guest: Alt+Space (activate-window-menu) and bare Super (Mutter's
 # overlay-key) never arrive, and QEMU's input grab (Ctrl+Alt+G) makes no
-# difference at all. No amount of guest-side config can recover them — the
-# only fix is to stop the host from claiming them.
+# difference to those two. No amount of guest-side config can recover them —
+# the only fix is to stop the host from claiming them.
 #
-# Everything else we fixed by remapping in home/max/. These two are the
-# residue that remapping cannot reach.
+# Both compositors use Super as their modifier, as upstream does, so this is
+# not optional: without it every Mod+… bind in the guest is dead. The
+# compositor configs used to work around that with Alt; they no longer do.
 #
 # ── Why this is a plain script and not a flake app ───────────────────────────
 #

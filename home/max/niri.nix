@@ -34,16 +34,18 @@
     systemd.enable = false;
 
     settings = {
-      # ── Why Alt and not Super ──────────────────────────────────────────
+      # ── Mod is Super, as upstream ──────────────────────────────────────
       #
-      # This VM runs inside a GNOME session whose `overlay-key` is Super_L, and
-      # GNOME consumes that before any client sees it — so Super-based binds
-      # are unreliable no matter what QEMU's input grab does. niri has no
-      # `mod-key` option (checked against 26.04), so the remap means writing
-      # the binds out rather than flipping a setting.
+      # This VM runs inside a GNOME session whose `overlay-key` is Super_L.
+      # While QEMU's window holds the keyboard, GNOME's ordinary chords are
+      # inhibited, but the bare overlay key is the one thing Mutter still
+      # handles itself — so Super binds only work when the host has released
+      # it. scripts/vm-keys does that for the duration of a run:
       #
-      # This is the same fix upstream applies in nixos/tests/sway.nix
-      # (`sed s/Mod4/Mod1/`). Translate Super→Alt when reading niri docs.
+      #   scripts/vm-keys run -- nix run .#vm
+      #
+      # Without it, Super-based binds are dead in the guest. This used to be
+      # worked around with Alt as the modifier; the binds are now upstream's.
       #
       # ── Only bind keys that exist at the UNSHIFTED level of the layout ──
       #
@@ -61,8 +63,8 @@
       #   ]      bracketright         9                  AltGr+9
       #   /      slash                7                  Shift+7
       #
-      # So Mod+BracketLeft/Right became Alt+Comma/Period (comma and period are
-      # at base level on both layouts), and Mod+Shift+Slash became Alt+Shift+7
+      # So Mod+BracketLeft/Right became Mod+Comma/Period (comma and period are
+      # at base level on both layouts), and Mod+Shift+Slash became Mod+Shift+7
       # — which is the same physical key combination that types "/" on a German
       # keyboard, and still resolves on US since 7 is unshifted there too.
       #
@@ -71,97 +73,85 @@
       # with `xkbcli compile-keymap --layout de` before trusting a key name
       # taken from documentation.
       binds = {
-        "Alt+T" = {
+        "Mod+T" = {
           _props.hotkey-overlay-title = "Open a Terminal";
           spawn = [ "alacritty" ];
         };
-        "Alt+D" = {
+        "Mod+D" = {
           _props.hotkey-overlay-title = "Run an Application";
           spawn = [ "fuzzel" ];
         };
-        "Alt+Q".close-window = { };
+        "Mod+Q".close-window = { };
 
         # Focus: columns left/right, windows within a column up/down.
-        "Alt+Left".focus-column-left = { };
-        "Alt+Right".focus-column-right = { };
-        "Alt+Up".focus-window-up = { };
-        "Alt+Down".focus-window-down = { };
+        "Mod+Left".focus-column-left = { };
+        "Mod+Right".focus-column-right = { };
+        "Mod+Up".focus-window-up = { };
+        "Mod+Down".focus-window-down = { };
 
-        # Move the focused column along the scrollable strip.
-        #
-        # Shift, not Ctrl, for the whole "move" family — Ctrl+Alt+Up/Down is
-        # GNOME's switch-to-workspace and is swallowed before the guest sees
-        # it. Verified with wev: the host takes Ctrl+Alt+Up, Alt+Space and bare
-        # Super regardless of QEMU's input grab, so Ctrl+Alt+G does not help.
-        # Shift also gives a cleaner model: Alt+key focuses, Alt+Shift+key
-        # moves.
-        "Alt+Shift+Left".move-column-left = { };
-        "Alt+Shift+Right".move-column-right = { };
+        # Move the focused column along the scrollable strip. Upstream's
+        # scheme: Mod+key focuses, Mod+Ctrl+key moves.
+        "Mod+Ctrl+Left".move-column-left = { };
+        "Mod+Ctrl+Right".move-column-right = { };
 
         # Workspaces are vertical in niri; the strip scrolls horizontally.
-        "Alt+Page_Down".focus-workspace-down = { };
-        "Alt+Page_Up".focus-workspace-up = { };
-        "Alt+Shift+Page_Down".move-column-to-workspace-down = { };
-        "Alt+Shift+Page_Up".move-column-to-workspace-up = { };
+        "Mod+Page_Down".focus-workspace-down = { };
+        "Mod+Page_Up".focus-workspace-up = { };
+        "Mod+Ctrl+Page_Down".move-column-to-workspace-down = { };
+        "Mod+Ctrl+Page_Up".move-column-to-workspace-up = { };
 
         # Sizing, and the two floating/tiling escape hatches.
-        "Alt+R".switch-preset-column-width = { };
-        "Alt+F".maximize-column = { };
-        "Alt+Comma".consume-or-expel-window-left = { };
-        "Alt+Period".consume-or-expel-window-right = { };
-        "Alt+V".toggle-window-floating = { };
-        "Alt+Shift+V".switch-focus-between-floating-and-tiling = { };
+        "Mod+R".switch-preset-column-width = { };
+        "Mod+F".maximize-column = { };
+        "Mod+Comma".consume-or-expel-window-left = { };
+        "Mod+Period".consume-or-expel-window-right = { };
+        "Mod+V".toggle-window-floating = { };
+        "Mod+Shift+V".switch-focus-between-floating-and-tiling = { };
 
-        "Alt+O".toggle-overview = { };
+        "Mod+O".toggle-overview = { };
 
         # ── DankMaterialShell ──────────────────────────────────────────────
         #
         # Reproduced from inputs.dms.homeModules.niri, which we cannot import
-        # (see ./dms.nix). Upstream spells these Mod+…; ours are Alt+… and
-        # three moved to avoid colliding with binds above:
+        # (see ./dms.nix). Upstream's keys, except two that collide with
+        # binds above:
         #
         #   upstream        here              collided with
-        #   Mod+Comma       Alt+Shift+Comma   Alt+Comma  consume-or-expel-left
-        #   Mod+V           Alt+C             Alt+V      toggle-window-floating
-        #   Super+Alt+L     Alt+Shift+L       (Alt+Alt is not expressible)
-        #   Mod+Alt+N       Alt+Shift+N       (same)
-        # Alt+S, not upstream's Mod+Space: GNOME owns Alt+Space as
-        # `activate-window-menu` and consumes it before the guest sees it —
-        # Ctrl+Alt+G does not help, same as with the bare Super key. S pairs
-        # with Alt+D (fuzzel) and is base level on both layouts.
-        "Alt+S" = {
+        #   Mod+Comma       Mod+Shift+Comma   Mod+Comma  consume-or-expel-left
+        #   Mod+V           Mod+C             Mod+V      toggle-window-floating
+        "Mod+Space" = {
           _props.hotkey-overlay-title = "Toggle Application Launcher";
           spawn = [ "dms" "ipc" "spotlight" "toggle" ];
         };
-        "Alt+N" = {
+        "Mod+N" = {
           _props.hotkey-overlay-title = "Toggle Notification Center";
           spawn = [ "dms" "ipc" "notifications" "toggle" ];
         };
-        "Alt+Shift+Comma" = {
+        "Mod+Shift+Comma" = {
           _props.hotkey-overlay-title = "Toggle Settings";
           spawn = [ "dms" "ipc" "settings" "toggle" ];
         };
-        "Alt+P" = {
+        "Mod+P" = {
           _props.hotkey-overlay-title = "Toggle Notepad";
           spawn = [ "dms" "ipc" "notepad" "toggle" ];
         };
-        "Alt+X" = {
+        "Mod+X" = {
           _props.hotkey-overlay-title = "Toggle Power Menu";
           spawn = [ "dms" "ipc" "powermenu" "toggle" ];
         };
-        "Alt+C" = {
+        "Mod+C" = {
           _props.hotkey-overlay-title = "Toggle Clipboard Manager";
           spawn = [ "dms" "ipc" "clipboard" "toggle" ];
         };
-        "Alt+M" = {
+        "Mod+M" = {
           _props.hotkey-overlay-title = "Toggle Process List";
           spawn = [ "dms" "ipc" "processlist" "toggle" ];
         };
-        "Alt+Shift+N" = {
+        "Mod+Alt+N" = {
           _props.hotkey-overlay-title = "Toggle Night Mode";
           spawn = [ "dms" "ipc" "night" "toggle" ];
         };
-        "Alt+Shift+L" = {
+        "Mod+Alt+L" = {
           _props.hotkey-overlay-title = "Lock the Screen";
           spawn = [ "dms" "ipc" "lock" "lock" ];
         };
@@ -192,9 +182,9 @@
           _props.allow-when-locked = true;
           spawn = [ "dms" "ipc" "brightness" "decrement" "5" "" ];
         };
-        "Alt+Shift+Print".screenshot = { };
-        "Alt+Shift+7".show-hotkey-overlay = { };
-        "Alt+Shift+E".quit = { };
+        "Print".screenshot = { };
+        "Mod+Shift+7".show-hotkey-overlay = { };
+        "Mod+Shift+E".quit = { };
       };
 
       # Stated explicitly, even though niri would pick this up from
