@@ -50,7 +50,7 @@ there. No credential is in this repo, and none ever should be.
 
 | layer | what |
 |---|---|
-| host | Ubuntu 24.04, GNOME Wayland. Only needs a Nix daemon and `/dev/kvm` |
+| host, for now | Ubuntu 24.04, GNOME Wayland. Only needs a Nix daemon and `/dev/kvm` |
 | distro | NixOS, `nixpkgs-unstable`, pinned by `flake.lock` |
 | compositors | niri 26.04, Hyprland 0.56.2 — both in use, switched between at login |
 | shell toolkit | Quickshell 0.3.0 |
@@ -88,7 +88,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | channel | `nixpkgs-unstable` | these three packages move fast; stable would evaluate old versions |
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
 | compositors | both, for good | not an A/B: both stay and get switched between. NixOS makes two configs cheap, and shared DMS bindings make switching cheap too |
-| VM disk | ephemeral, host `/nix/store` shared over virtiofs | rebuilds in seconds; the VM is not a standalone artifact |
+| VM disk | ephemeral, host `/nix/store` shared over virtiofs | rebuilds in seconds; the VM is a variant of the machine, not the artifact |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
 | Hyprland config | `configType = "hyprlang"` | every tutorial is hyprlang; **removed in Hyprland 0.57**, so this expires |
 | modifier key | Super, as upstream | QEMU's keyboard grab makes Mutter inhibit its shortcuts for the window; `scripts/vm-keys` covers the two things the grab cannot: the overlay key, and GNOME's remembered permission |
@@ -275,9 +275,26 @@ undone or replaced when this becomes the host install:
   disk layout, probably via disko so the layout is declarative too.
 - No machine secrets. Nothing needs one yet, but a laptop wants a Wi‑Fi PSK
   at least; that is when sops-nix or agenix earns its place.
+- No networking beyond QEMU's user-mode DHCP. A laptop needs NetworkManager,
+  which is also what DMS's network widget talks to.
+- `security.rtkit.enable` is off, so PipeWire cannot get real-time
+  scheduling; every boot log shows the RTKit errors. Harmless without audio
+  hardware, wrong on a machine with speakers.
+- Nothing for Bluetooth, UPower or power profiles. DMS's battery and power
+  widgets expect them.
+- The three DMS features left off in `home/max/dms.nix` (VPN, audio
+  visualiser, calendar) are off only because the VM cannot exercise them.
+- Hyprland runs without UWSM. Lock, suspend and portals lean on a well-formed
+  systemd user session, which matters more on hardware.
+- Dank Greeter needs GL. A driver regression on hardware means no login
+  screen, and the console autologin above is currently the only rescue path.
+  Decide on a deliberate one before removing it.
 - `scripts/vm-keys`, `grab-on-hover`, the virtiofs share and `rebuild` all
   describe the host/guest seam and stop meaning anything on metal. The
   compositor, shell, keyboard, 1Password and Firefox work transfers as-is.
+
+Each shortcut in the config is marked `ROAD TO METAL` in its comment, so
+`grep -rn 'ROAD TO METAL'` lists them.
 
 **Media and brightness keys** are GNOME keybindings like any other, so they
 should follow the grab now. Not yet verified with a keypress.

@@ -11,6 +11,12 @@
 # compositor to host it and therefore needs working GL. If the GPU setup ever
 # breaks, you now get no greeter at all rather than a text one.
 #
+# ROAD TO METAL. In the VM that is a mild trade; on the real host it is
+# sharper, because a GPU driver regression after an update means no login
+# screen. Today the console autologin in hosts/maxnix/configuration.nix is
+# the accidental rescue path, and it is itself slated for removal. Decide on a
+# deliberate one — a TTY login on another VT is enough — before installing.
+#
 # The trade is deliberate: the GPU path has been stable and tested for a while
 # (tests/desktop.nix asserts virgl works on every run), and matching DMS
 # visually is the point of having chosen DMS.

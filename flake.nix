@@ -1,5 +1,5 @@
 {
-  description = "maxnix — a NixOS VM running niri and Hyprland, with Quickshell on top";
+  description = "maxnix — a NixOS machine running niri and Hyprland with Quickshell; staged as a VM until it becomes the host";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -36,7 +36,8 @@
 
       # One machine, one source of truth.
       #
-      # Evaluated normally this describes a system you could install on metal.
+      # Evaluated normally this describes the system that is meant to end up
+      # installed on metal.
       # Evaluated again with nixos/modules/virtualisation/qemu-vm.nix layered on
       # top — which every NixOS config can do, via `virtualisation.vmVariant` —
       # it also yields run-maxnix-vm, a script that runs on *this* Ubuntu host.

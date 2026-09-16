@@ -45,8 +45,8 @@
     # The CPU/memory/network widgets in the bar.
     enableSystemMonitoring = true;
 
-    # Deliberately off — each pulls a package for something this VM cannot
-    # meaningfully exercise:
+    # Off for now — each pulls a package for something the VM cannot
+    # exercise. All three become relevant on metal (ROAD TO METAL):
     #   enableVPN             glib + networkmanager, no VPN here
     #   enableAudioWavelength cava, and guest audio is not wired up
     #   enableCalendarEvents  khal, no calendar

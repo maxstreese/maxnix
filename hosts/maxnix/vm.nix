@@ -63,7 +63,9 @@
         # Default is "./${hostname}.qcow2", i.e. wherever you happened to cd.
         # Pinned so a forgotten image in another directory cannot silently
         # supply stale state. If you change a password and it does not take,
-        # this file is why: delete it and the VM is recreated from scratch.
+        # this file is why: delete it and the VM is recreated from scratch —
+        # which also wipes every login made inside it (1Password, Firefox, …);
+        # see the README's open point on login state.
         diskImage = "./.vm/maxnix.qcow2";
 
         qemu.options = [

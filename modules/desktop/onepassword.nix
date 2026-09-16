@@ -2,8 +2,8 @@
 #
 # ── Why it is here at all ─────────────────────────────────────────────────
 #
-# This VM is a trial of a daily driver, and a daily driver has to log in to
-# things: Google, Claude, Spotify, GitHub. The rule for this repo is that no
+# This machine is meant to become the daily driver, and a daily driver has to
+# log in to things: Google, Claude, Spotify, GitHub. The rule for this repo is that no
 # credential ever appears in it — not in Nix, not in git, not in the store.
 # 1Password is how the two are reconciled: the repo installs and enables it,
 # you sign in once inside the guest, and from then on the browser extension,

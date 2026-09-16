@@ -36,17 +36,20 @@
     settings = {
       # ── Mod is Super, as upstream ──────────────────────────────────────
       #
-      # This VM runs inside a GNOME session whose `overlay-key` is Super_L.
-      # While QEMU holds the keyboard grab, Mutter inhibits its own shortcuts
-      # for that window — but the bare overlay key is the one thing it still
-      # handles itself, and the grab is only honoured once GNOME has been
-      # told to allow it. scripts/vm-keys arranges both for the duration of a
-      # run, and its header explains the mechanism:
+      # For as long as this runs as a VM inside a GNOME session, Super has a
+      # catch: GNOME's `overlay-key` is Super_L. While QEMU holds the keyboard
+      # grab, Mutter inhibits its own shortcuts for that window — but the bare
+      # overlay key is the one thing it still handles itself, and the grab is
+      # only honoured once GNOME has been told to allow it. scripts/vm-keys
+      # arranges both for the duration of a run, and its header explains the
+      # mechanism:
       #
       #   scripts/vm-keys run -- nix run .#vm
       #
       # Without it, Super-based binds are dead in the guest. This used to be
-      # worked around with Alt as the modifier; the binds are now upstream's.
+      # worked around with Alt as the modifier; the binds are now upstream's,
+      # which is also what the eventual metal install wants — none of this
+      # applies once there is no host compositor in the way.
       #
       # ── Only bind keys that exist at the UNSHIFTED level of the layout ──
       #

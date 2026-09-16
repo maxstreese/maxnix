@@ -8,9 +8,8 @@
     enable = true;
 
     # Upstream pulls in Nautilus purely to back the portal's file chooser.
-    # That is a lot of GNOME for a VM whose file dialogs we are not evaluating;
-    # the GTK file chooser is used instead. Flip to true if a file picker
-    # misbehaves.
+    # That is a lot of GNOME for one dialog; the GTK file chooser serves. Flip
+    # to true if a file picker misbehaves.
     useNautilus = false;
   };
 }

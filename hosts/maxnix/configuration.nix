@@ -1,12 +1,17 @@
 # The machine.
 #
-# Nothing in this file knows or cares that it will run as a VM. Everything
-# VM-shaped lives in ./vm.nix. Keeping that line clean is the whole point:
-# this file stays true if the config is ever built for real hardware.
+# Nothing in this file knows or cares that it currently runs as a VM.
+# Everything VM-shaped lives in ./vm.nix. Keeping that line clean is the whole
+# point: this file stays true when the config is built for real hardware,
+# which is where it is headed (README, "Why this exists").
+#
+# A few settings below are honest shortcuts taken because it is *only a VM
+# today*. Each is marked "ROAD TO METAL" and listed in the README, so they
+# are found again when the time comes.
 { pkgs, ... }:
 let
   # Prints everything that determines whether a Wayland compositor will start.
-  # Run it in the VM before blaming niri or Hyprland for anything.
+  # Run it on the machine before blaming niri or Hyprland for anything.
   gpu-check = pkgs.writeShellScriptBin "gpu-check" ''
     echo "== DRM devices =="
     if [ -d /dev/dri ]; then
@@ -105,23 +110,29 @@ in
       "wheel"
       "video" # DRM access, needed by every compositor
     ];
-    # Throwaway credential for a local VM; it lands world-readable in the Nix
-    # store, which is fine here and would not be on a real machine.
-    # `initialPassword` only applies when the user is first created — see the
-    # note about stale disk images in ./vm.nix.
+    # ROAD TO METAL. A plaintext credential that lands world-readable in the
+    # Nix store: acceptable while this is a local VM, not on the real host.
+    # Replace with hashedPasswordFile (or an interactive first boot) before
+    # installing on hardware. `initialPassword` only applies when the user is
+    # first created — see the note about stale disk images in ./vm.nix.
     initialPassword = "maxnix";
   };
+  # ROAD TO METAL, same as above.
   users.users.root.initialPassword = "maxnix";
 
-  # No password prompt on sudo. A VM you throw away is not worth the friction.
+  # ROAD TO METAL. No password prompt on sudo, purely to skip typing in a
+  # guest whose disk is thrown away. On the real host this goes.
   security.sudo.wheelNeedsPassword = false;
 
-  # Log straight in on the console.
+  # ROAD TO METAL. Log straight in on the console. Convenient in the VM, and
+  # it doubles as the rescue path if the graphical greeter ever fails to draw
+  # (see ../../modules/desktop/greeter.nix). On a laptop it means anyone at
+  # the keyboard is you; drop it and keep a TTY login instead.
   services.getty.autologinUser = "max";
 
-  # The guest needs flakes of its own, so it can rebuild this configuration
-  # from the repo shared at /mnt/maxnix and activate it without a reboot.
-  # See the `rebuild` command in ./vm.nix.
+  # The machine needs flakes so it can rebuild itself from this repo. In the
+  # VM the repo is shared at /mnt/maxnix and `rebuild` (./vm.nix) activates
+  # the result without a reboot; on metal it is plain nixos-rebuild.
   nix.settings.experimental-features = [
     "nix-command"
     "flakes"

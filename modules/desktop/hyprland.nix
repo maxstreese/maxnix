@@ -11,9 +11,13 @@
 
     # withUWSM launches Hyprland under the Universal Wayland Session Manager,
     # which upstream recommends. Left off for now: it changes how the session
-    # and its systemd targets start, and step 3 is about getting a compositor
-    # on screen with as few moving parts as possible. Worth revisiting once
-    # Quickshell needs graphical-session.target to behave.
+    # and its systemd targets start, and the priority was a compositor on
+    # screen with as few moving parts as possible.
+    #
+    # ROAD TO METAL. On the real host this matters more than in the VM: lock,
+    # suspend, portals and DMS all lean on a well-formed systemd user session,
+    # and niri already provides one through its own module. Revisit before
+    # relying on Hyprland day-to-day on hardware.
     withUWSM = false;
   };
 }
