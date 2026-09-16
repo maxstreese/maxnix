@@ -69,9 +69,18 @@
         qemu.options = [
           # A real window. The test node overrides this with egl-headless.
           #
+          # grab-on-hover: grab the keyboard whenever the pointer is over the
+          # window, instead of only after Ctrl+Alt+G. The grab is what makes
+          # GTK ask Mutter to inhibit the host's shortcuts, so with it Alt+Tab,
+          # Super+1 and the rest go to the guest as soon as you point at it,
+          # and back to the host when you point away. It only works once the
+          # host has granted the request — scripts/vm-keys handles that, and
+          # explains the whole chain. Drop the flag if you would rather grab
+          # explicitly.
+          #
           # Override at runtime without rebuilding:
           #   QEMU_OPTS="-display egl-headless" ./result/bin/run-maxnix-vm
-          "-display gtk,gl=on,show-cursor=on"
+          "-display gtk,gl=on,show-cursor=on,grab-on-hover=on"
         ];
 
         # The repo itself, mounted inside the VM at /mnt/maxnix. It is what

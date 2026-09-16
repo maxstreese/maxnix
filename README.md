@@ -9,8 +9,8 @@ The whole machine is defined here. Being a VM is a *variant* of that
 definition, not a second description of it.
 
 ```bash
-scripts/vm-keys run -- nix run .#vm    # start it; releases the host's Super key, restores on exit
-nix run .#vm                           # start it plainly — Super binds will be dead, see below
+scripts/vm-keys run -- nix run .#vm    # start it; hands the keyboard to the guest, restores on exit
+nix run .#vm                           # start it plainly — host keeps Super and its chords, see below
 nix run .#vm-headless                  # no window; VNC on 127.0.0.1:5909 so something can watch
 nix run .#test-desktop                 # boot, greeter, sessions, GPU
 nix run .#test-niri                    # niri: IPC, output, layout, shell, render
@@ -72,7 +72,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | VM disk | ephemeral, host `/nix/store` shared over virtiofs | rebuilds in seconds; the VM is not a standalone artifact |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
 | Hyprland config | `configType = "hyprlang"` | every tutorial is hyprlang; **removed in Hyprland 0.57**, so this expires |
-| modifier key | Super, as upstream | GNOME's overlay key is `Super_L` and it is the one chord QEMU's grab cannot shield; `scripts/vm-keys` releases it for the run |
+| modifier key | Super, as upstream | QEMU's keyboard grab makes Mutter inhibit its shortcuts for the window; `scripts/vm-keys` covers the two things the grab cannot: the overlay key, and GNOME's remembered permission |
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | credentials | 1Password in the guest | the repo installs, you sign in once; browser extension, SSH agent and `op` then serve every other login. Nothing secret in Nix or git |
@@ -118,12 +118,19 @@ Wayland — and neither implies the other. `services.xserver.xkb.layout` reaches
 *nothing* in a Wayland-only system. Hyprland ignores `XKB_DEFAULT_LAYOUT`
 because its own `kb_layout` defaults to `"us"`; niri honours it.
 
-**Bare `Super` and `Alt+Space` never reach the guest** while GNOME owns them,
-and QEMU's `Ctrl+Alt+G` grab makes no difference to those two — verified with
-`wev` inside the guest. Mutter's source explains it: with a client's grab in
-place, ordinary chords are inhibited, but the overlay key is handled before
-that check. `scripts/vm-keys` releases both for the duration of a run, which
-is what lets the compositors keep upstream's Super binds.
+**QEMU's keyboard grab does work — once GNOME is allowed to honour it.** On
+Wayland every key goes to Mutter first. When QEMU grabs the keyboard, GTK sends
+a `keyboard-shortcuts-inhibit` request and Mutter then passes every chord
+through, `Alt+Tab` and `Super+1` included (verified with `WAYLAND_DEBUG=1`).
+Granting is a user decision, and because Ubuntu ships `qemu.desktop`, GNOME
+Shell remembers the answer in the desktop portal's permission store. This host
+had a remembered **Deny**, which makes the grab silently do nothing: request
+sent, no dialog, no reply. That is the true story behind the old finding that
+`Ctrl+Alt+G` "makes no difference". `scripts/vm-keys` sets the entry to
+GRANTED for the run. The one thing the grab never covers is the bare overlay
+key, which Mutter handles before the inhibitor check, so the script releases
+that too. `grab-on-hover=on` in `vm.nix` engages the grab by pointing at the
+window.
 
 **Homebrew's `gsettings` shadows the system one** and reports schema *defaults*
 rather than your dconf database. Use `/usr/bin/gsettings` or `dconf` when
@@ -235,8 +242,8 @@ that file is the documented reset. A second qcow2 for `/home` would let root be
 thrown away while the sign-ins survive. Not a host share: browser profiles and
 Electron apps use sqlite with file locks, which virtiofs is the wrong place for.
 
-**Media and brightness keys** stay with the host. Six of the remaining
-collisions are hardware keys; not worth fighting.
+**Media and brightness keys** are GNOME keybindings like any other, so they
+should follow the grab now. Not yet verified with a keypress.
 
 **Two compositor configs to keep in step.** Both compositors stay, so their
 configs are a permanent pair rather than a temporary one. Switching is a logout

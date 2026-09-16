@@ -37,10 +37,11 @@
       # ── Mod is Super, as upstream ──────────────────────────────────────
       #
       # This VM runs inside a GNOME session whose `overlay-key` is Super_L.
-      # While QEMU's window holds the keyboard, GNOME's ordinary chords are
-      # inhibited, but the bare overlay key is the one thing Mutter still
-      # handles itself — so Super binds only work when the host has released
-      # it. scripts/vm-keys does that for the duration of a run:
+      # While QEMU holds the keyboard grab, Mutter inhibits its own shortcuts
+      # for that window — but the bare overlay key is the one thing it still
+      # handles itself, and the grab is only honoured once GNOME has been
+      # told to allow it. scripts/vm-keys arranges both for the duration of a
+      # run, and its header explains the mechanism:
       #
       #   scripts/vm-keys run -- nix run .#vm
       #

@@ -3,17 +3,36 @@
 # Release the host GNOME shortcuts the VM cannot otherwise reach, and give
 # them back afterwards.
 #
-# ── Why this exists ──────────────────────────────────────────────────────────
+# ── What actually happens to a key press ─────────────────────────────────────
 #
-# GNOME grabs some keys before any client sees them. Verified with wev inside
-# the guest: Alt+Space (activate-window-menu) and bare Super (Mutter's
-# overlay-key) never arrive, and QEMU's input grab (Ctrl+Alt+G) makes no
-# difference to those two. No amount of guest-side config can recover them —
-# the only fix is to stop the host from claiming them.
+# On Wayland every key goes to Mutter (GNOME's compositor) first. Mutter checks
+# it against its own keybinding tables — window-manager, Shell, media keys —
+# and only forwards what nothing claimed to the focused window, here QEMU. So
+# by default Alt+Tab, Super+1, Super+Space and friends never reach the guest.
 #
-# Both compositors use Super as their modifier, as upstream does, so this is
-# not optional: without it every Mod+… bind in the guest is dead. The
-# compositor configs used to work around that with Alt; they no longer do.
+# Wayland has a protocol for exactly this: keyboard-shortcuts-inhibit. When
+# QEMU grabs the keyboard (Ctrl+Alt+G, fullscreen, or grab-on-hover — see
+# hosts/maxnix/vm.nix) GTK sends that request, and once Mutter grants it, it
+# skips its keybindings for that window and everything goes through. Verified
+# with WAYLAND_DEBUG=1: the `active` event arrives ~10 ms after the request,
+# and Alt+Tab, Super+1 and Super+Space were all delivered to QEMU.
+#
+# Two things the grab does NOT cover, which is what this script is for:
+#
+#   1. The overlay key. Mutter handles a bare Super press *before* it checks
+#      for an inhibitor, so it is eaten even under a grab. Releasing
+#      /org/gnome/mutter/overlay-key fixes that.
+#
+#   2. GNOME's remembered answer. Granting an inhibitor is a user decision:
+#      GNOME Shell shows "The app QEMU wants to inhibit shortcuts" with
+#      Allow/Deny. Ubuntu ships /usr/share/applications/qemu.desktop, so
+#      Shell can match the window to an app and *remembers* the answer in the
+#      desktop portal's permission store — after which it never asks again.
+#      A Deny in there makes the grab silently do nothing: the request is
+#      sent, Mutter never answers, no dialog. That is exactly what this host
+#      had, and it is why an earlier finding in this repo concluded that
+#      Ctrl+Alt+G "makes no difference". This script sets the entry to GRANTED
+#      for the run and puts the previous value back afterwards.
 #
 # ── Why this is a plain script and not a flake app ───────────────────────────
 #
@@ -32,17 +51,52 @@
 #   scripts/vm-keys run -- nix run .#vm    release, run, restore on exit
 #   scripts/vm-keys release                release and leave released
 #   scripts/vm-keys restore                put everything back
+#   scripts/vm-keys status                 show the current host state (read-only)
 #
 set -euo pipefail
 
 DCONF=/usr/bin/dconf
+BUSCTL=/usr/bin/busctl
 STATE="${XDG_CACHE_HOME:-$HOME/.cache}/maxnix-vm-keys.saved"
 
-# path → value that disables it
+# dconf path → value that disables it
 declare -A DISABLE=(
-  [/org/gnome/desktop/wm/keybindings/activate-window-menu]="@as []"
   [/org/gnome/mutter/overlay-key]="''"
 )
+
+# The permission-store entry GNOME Shell consults before showing the
+# inhibit-shortcuts dialog. Table and id are GNOME Shell's; the app id is the
+# desktop file Shell matches QEMU's window to.
+PERM_TABLE=gnome
+PERM_ID=shortcuts-inhibitor
+PERM_APP=qemu.desktop
+
+perm_call() {
+  "$BUSCTL" --user call \
+    org.freedesktop.impl.portal.PermissionStore \
+    /org/freedesktop/impl/portal/PermissionStore \
+    org.freedesktop.impl.portal.PermissionStore "$@"
+}
+
+# Prints GRANTED, DENIED, or NONE when no entry exists.
+perm_read() {
+  local out
+  if ! out="$(perm_call Lookup ss "$PERM_TABLE" "$PERM_ID" 2>/dev/null)"; then
+    echo NONE
+    return
+  fi
+  # Output looks like:  a{sas}v 1 "qemu.desktop" 1 "GRANTED" y 0
+  local v
+  v="$(printf '%s' "$out" | grep -oE "\"$PERM_APP\" [0-9]+ \"[A-Z]+\"" | awk '{print $3}' | tr -d '"' || true)"
+  echo "${v:-NONE}"
+}
+
+perm_write() {
+  case "$1" in
+    NONE) perm_call DeletePermission sss "$PERM_TABLE" "$PERM_ID" "$PERM_APP" >/dev/null 2>&1 || true ;;
+    *)    perm_call SetPermission sbssas "$PERM_TABLE" true "$PERM_ID" "$PERM_APP" 1 "$1" >/dev/null ;;
+  esac
+}
 
 release() {
   : > "$STATE"
@@ -50,27 +104,57 @@ release() {
     # An empty read means the key is at its schema default; record that as
     # DEFAULT so restore() knows to reset rather than write a literal value.
     value="$("$DCONF" read "$key" || true)"
-    printf '%s\t%s\n' "$key" "${value:-DEFAULT}" >> "$STATE"
+    printf 'dconf\t%s\t%s\n' "$key" "${value:-DEFAULT}" >> "$STATE"
     "$DCONF" write "$key" "${DISABLE[$key]}"
   done
+
+  printf 'perm\t%s\t%s\n' "$PERM_APP" "$(perm_read)" >> "$STATE"
+  perm_write GRANTED
+
   echo "host shortcuts released (saved to $STATE)" >&2
 }
 
 restore() {
   [ -f "$STATE" ] || { echo "nothing saved; leaving host settings alone" >&2; return; }
-  while IFS=$'\t' read -r key value; do
-    if [ "$value" = "DEFAULT" ]; then
-      "$DCONF" reset "$key"
-    else
-      "$DCONF" write "$key" "$value"
-    fi
+  while IFS=$'\t' read -r kind key value; do
+    case "$kind" in
+      dconf)
+        if [ "$value" = "DEFAULT" ]; then
+          "$DCONF" reset "$key"
+        else
+          "$DCONF" write "$key" "$value"
+        fi
+        ;;
+      perm)
+        perm_write "$value"
+        ;;
+      /*)
+        # State file from before the permission entry existed: "<key>\t<value>".
+        if [ "$key" = "DEFAULT" ]; then "$DCONF" reset "$kind"; else "$DCONF" write "$kind" "$key"; fi
+        ;;
+    esac
   done < "$STATE"
+  rm -f "$STATE"
   echo "host shortcuts restored" >&2
+}
+
+status() {
+  local v
+  for key in "${!DISABLE[@]}"; do
+    # dconf prints nothing for a key at its schema default.
+    v="$("$DCONF" read "$key" || true)"
+    printf '%-58s %s\n' "$key" "${v:-<default>}"
+  done
+  printf '%-58s %s\n' "permission-store $PERM_TABLE/$PERM_ID/$PERM_APP" "$(perm_read)"
+  if [ -f "$STATE" ]; then
+    echo "saved state at $STATE: a release is in effect (or a run was killed before restoring — run 'restore')" >&2
+  fi
 }
 
 case "${1:-}" in
   release) release ;;
   restore) restore ;;
+  status)  status ;;
   run)
     shift
     [ "${1:-}" = "--" ] && shift
