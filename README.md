@@ -1,9 +1,28 @@
 # maxnix
 
-A declarative NixOS VM running **niri** and **Hyprland** side by side, with
-**Quickshell** on top, built to learn how the pieces fit — while the host stays
-an ordinary Ubuntu install. Both compositors are in daily use; which one you
+A declarative NixOS machine running **niri** and **Hyprland** side by side,
+with **Quickshell** on top. Both compositors are in daily use; which one you
 get is a pick at the login screen, not a decision this repo is working toward.
+
+## Why this exists
+
+The aim is a Linux that is declarative, reproducible and tailored to one
+person, built and debugged with heavy LLM assistance. Today it runs as a VM on
+an ordinary Ubuntu host, so it can be tinkered with for as long as it takes
+without committing to it full time. The destination is to **live in it**: this
+configuration is meant to become the real host install. The VM is a staging
+environment for that future host, not a sandbox for its own sake.
+
+That has two consequences for how work here is judged:
+
+- **Prefer what transfers to metal.** A convenience that only makes sense
+  inside a VM is a lower priority than a fix that still holds on hardware.
+  Shortcuts taken "because it is only a VM" are debt, tracked under *Road to
+  metal* below.
+- **The VM boundary is what makes broad assistant permissions acceptable.**
+  Inside the guest, rebuild, break and probe freely. Anything that reaches
+  the Ubuntu host — `scripts/vm-keys`, dconf, the portal permission store —
+  is the exception: be conservative, explain, and save-and-restore.
 
 The whole machine is defined here. Being a VM is a *variant* of that
 definition, not a second description of it.
@@ -241,6 +260,24 @@ Firefox and every later sign-in persist in `.vm/maxnix.qcow2`, and deleting
 that file is the documented reset. A second qcow2 for `/home` would let root be
 thrown away while the sign-ins survive. Not a host share: browser profiles and
 Electron apps use sqlite with file locks, which virtiofs is the wrong place for.
+A VM-only problem, so it ranks below anything on the road to metal.
+
+**Road to metal.** Everything the config does *because it is only a VM*, to be
+undone or replaced when this becomes the host install:
+
+- `initialPassword` for `max` and `root` in `hosts/maxnix/configuration.nix`,
+  world-readable in the store. Real hardware wants `hashedPasswordFile` or an
+  interactive first boot.
+- `security.sudo.wheelNeedsPassword = false` and `services.getty.autologinUser`.
+  Both exist purely to skip typing in a throwaway guest.
+- No hardware module. The VM gets its disks, GPU and network from
+  `qemu-vm.nix`; metal needs `hardware-configuration.nix`, a bootloader, and a
+  disk layout, probably via disko so the layout is declarative too.
+- No machine secrets. Nothing needs one yet, but a laptop wants a Wi‑Fi PSK
+  at least; that is when sops-nix or agenix earns its place.
+- `scripts/vm-keys`, `grab-on-hover`, the virtiofs share and `rebuild` all
+  describe the host/guest seam and stop meaning anything on metal. The
+  compositor, shell, keyboard, 1Password and Firefox work transfers as-is.
 
 **Media and brightness keys** are GNOME keybindings like any other, so they
 should follow the grab now. Not yet verified with a keypress.
