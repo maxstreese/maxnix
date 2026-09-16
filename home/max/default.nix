@@ -15,6 +15,7 @@
     ./dms.nix
     ./niri.nix
     ./hyprland.nix
+    ./firefox.nix
   ];
 
   home.username = "max";

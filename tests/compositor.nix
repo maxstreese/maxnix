@@ -12,6 +12,15 @@ compositor:
 {
   name = "maxnix-${compositor.name}";
 
+  # The framework hands every node a prebuilt, read-only pkgs, and then any
+  # module touching nixpkgs.* fails with "defined multiple times". This
+  # machine's modules do touch it — modules/desktop/onepassword.nix adds to
+  # nixpkgs.config.allowUnfreePackages — so let the node build its own pkgs
+  # from those options instead, exactly as `nix run .#vm` does. Costs one
+  # extra nixpkgs evaluation per test; buys a node that cannot diverge from
+  # the real machine in what it is allowed to install.
+  node.pkgsReadOnly = false;
+
   nodes.machine =
     { lib, ... }:
     {

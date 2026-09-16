@@ -22,6 +22,15 @@
 {
   name = "maxnix-desktop";
 
+  # The framework hands every node a prebuilt, read-only pkgs, and then any
+  # module touching nixpkgs.* fails with "defined multiple times". This
+  # machine's modules do touch it — modules/desktop/onepassword.nix adds to
+  # nixpkgs.config.allowUnfreePackages — so let the node build its own pkgs
+  # from those options instead, exactly as `nix run .#vm` does. Costs one
+  # extra nixpkgs evaluation per test; buys a node that cannot diverge from
+  # the real machine in what it is allowed to install.
+  node.pkgsReadOnly = false;
+
   nodes.machine =
     { lib, ... }:
     {
@@ -70,6 +79,19 @@
           )
           assert "niri.desktop" in sessions, sessions
           assert "hyprland.desktop" in sessions, sessions
+
+      with subtest("1Password, its CLI and Firefox are installed and wired up"):
+          machine.succeed("command -v 1password op firefox")
+          # The extension only ever connects if the wrapped Firefox's real
+          # executable name is on 1Password's allow-list. Asserting the file's
+          # content, not merely its presence: an empty file is the failure
+          # mode this guards against.
+          machine.succeed("grep -qx .firefox-wrapped /etc/1password/custom_allowed_browsers")
+          # Keyring unlock at login is a PAM stack detail nothing else surfaces.
+          # greetd delegates to `login` via substack, and `login` carries the
+          # keyring module — both halves of that chain are asserted.
+          machine.succeed("grep -q pam_gnome_keyring /etc/pam.d/login")
+          machine.succeed("grep -Eq '^auth[[:space:]]+substack[[:space:]]+login' /etc/pam.d/greetd")
 
       with subtest("the guest has a GPU with working virgl"):
           gpu = machine.succeed("gpu-check")

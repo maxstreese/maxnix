@@ -13,6 +13,7 @@
     ./greeter.nix
     ./niri.nix
     ./hyprland.nix
+    ./onepassword.nix
   ];
 
   # The login screen lives in ./greeter.nix. It used to be configured here as
@@ -46,4 +47,24 @@
 
   # Compositors need polkit for anything privileged (mounting, suspend).
   security.polkit.enable = true;
+
+  # A Secret Service for both sessions. Firefox, Spotify, 1Password's system
+  # authentication and anything else that "remembers a login" stores it in
+  # the keyring; without one they either prompt every start or forget. The
+  # niri module already enables this (mkDefault), but the Hyprland module does
+  # not, and this layer's contract is what *both* compositors can rely on —
+  # so it is stated here rather than inherited from one of them.
+  #
+  # Enabling the daemon is half of it. The other half is unlocking the keyring
+  # with the login password, and that is already covered: NixOS puts
+  # pam_gnome_keyring into the `login` PAM service whenever this daemon is
+  # enabled, and greetd's PAM service is a substack of `login` (greetd sets
+  # useDefaultRules = false and delegates every phase to it). So the password
+  # typed into Dank Greeter unlocks the keyring, in both compositor sessions.
+  #
+  # Do NOT set security.pam.services.greetd.enableGnomeKeyring: greetd
+  # replaces its rules wholesale, so that option renders nothing — it was
+  # tried, and the built /etc/pam.d/greetd came out identical. The keyring
+  # lines live in /etc/pam.d/login, which is what tests/desktop.nix asserts.
+  services.gnome.gnome-keyring.enable = true;
 }

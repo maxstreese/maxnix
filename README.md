@@ -21,6 +21,10 @@ nix run .#test-vm-starts               # the runner above actually starts (opens
 Log in as `max` / `maxnix`. Inside the VM, `rebuild` reapplies the config from
 `/mnt/maxnix` in ~35 s without rebooting.
 
+First run only: open 1Password and sign in. Everything else that needs a
+login — Firefox, and later Spotify and Claude — gets its credentials from
+there. No credential is in this repo, and none ever should be.
+
 ---
 
 ## How it fits together
@@ -33,6 +37,8 @@ Log in as `max` / `maxnix`. Inside the VM, `rebuild` reapplies the config from
 | shell toolkit | Quickshell 0.3.0 |
 | shell | DankMaterialShell (bar, launcher, notifications, power menu) |
 | greeter | Dank Greeter (Quickshell UI hosted in niri) |
+| browser | Firefox, 1Password extension preinstalled by policy |
+| credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
 
 ```
 flake.nix                    inputs, hostModules, packages + apps + checks
@@ -40,9 +46,9 @@ hosts/maxnix/
   configuration.nix          the machine: user, locale, keyboard, home-manager
   vm.nix                     build-vm specifics: window, disk image, repo share, `rebuild`
 modules/
-  desktop/{default,niri,hyprland,greeter}.nix    system-level enable + greeter
+  desktop/{default,niri,hyprland,greeter,onepassword}.nix  system-level enable
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
-home/max/{default,niri,hyprland,dms}.nix         user-level config
+home/max/{default,niri,hyprland,dms,firefox}.nix user-level config
 tests/{desktop,compositor,vnc}.nix               integration tests
 scripts/vm-keys              host tooling: release/restore GNOME shortcuts
 ```
@@ -69,6 +75,8 @@ and KVM — even the QEMU binary comes from the Nix store.
 | modifier key | Super, as upstream | GNOME's overlay key is `Super_L` and it is the one chord QEMU's grab cannot shield; `scripts/vm-keys` releases it for the run |
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
+| credentials | 1Password in the guest | the repo installs, you sign in once; browser extension, SSH agent and `op` then serve every other login. Nothing secret in Nix or git |
+| unfree packages | per-module `allowUnfreePackages` list | matched on pname and concatenated across modules, so each unfree package is named next to its reason and a new one still fails evaluation |
 
 ---
 
@@ -133,6 +141,24 @@ vhost handshake. The virtiofsd warning about file handles and "Operation not
 permitted" is a red herring. `modules/vm/qemu-guest.nix` sets
 `qemu.enableSharedMemory` until nixpkgs PR #563324 makes it the default.
 
+**1Password only talks to browsers it recognises by executable name.** nixpkgs'
+Firefox is a wrapper that execs `.firefox-wrapped`, which is not on the list, so
+the extension never connects and never says why. `/etc/1password/custom_allowed_browsers`
+must name it, root-owned and mode 0755, or the app rejects the file.
+
+**greetd's PAM stack is a substack of `login`**, and NixOS puts
+`pam_gnome_keyring` into `login` whenever the keyring daemon is enabled — so the
+password typed into the greeter already unlocks the keyring. Setting
+`security.pam.services.greetd.enableGnomeKeyring` renders nothing, because
+greetd replaces its rules wholesale; the keyring lines are in
+`/etc/pam.d/login`, which is what the test asserts.
+
+**Test nodes get a read-only `pkgs`.** `runNixOSTest` sets `node.pkgs`, which
+makes every `nixpkgs.*` option on the node fail with "defined multiple times".
+A module that adds to `allowUnfreePackages` therefore breaks every test until
+`node.pkgsReadOnly = false` lets the node build its own `pkgs` from the same
+options `nix run .#vm` uses.
+
 **Do not run `dms-greeter sync`.** Upstream's documented path symlinks the
 greeter cache at live DMS config; the Nix module makes root-owned copies in
 greetd's `preStart`. They fight.
@@ -141,7 +167,7 @@ greetd's `preStart`. They fight.
 
 ## Tests
 
-15 subtests across three `nixosTest` checks, plus a startup check. The three
+16 subtests across three `nixosTest` checks, plus a startup check. The three
 share `hostModules` with the real machine, so a test node cannot drift from what
 `nix run .#vm` builds.
 
@@ -202,6 +228,12 @@ live editing, then fold it into the store once the design settles.
 wired and the copy is verified byte-identical, but repainting `colors.json`
 changed nothing on screen. Upstream documents `settings.json` as the file
 carrying appearance; DMS has not written one here yet.
+
+**Login state lives on a disk this repo treats as disposable.** 1Password,
+Firefox and every later sign-in persist in `.vm/maxnix.qcow2`, and deleting
+that file is the documented reset. A second qcow2 for `/home` would let root be
+thrown away while the sign-ins survive. Not a host share: browser profiles and
+Electron apps use sqlite with file locks, which virtiofs is the wrong place for.
 
 **Media and brightness keys** stay with the host. Six of the remaining
 collisions are hardware keys; not worth fighting.
