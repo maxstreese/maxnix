@@ -117,8 +117,17 @@
       # that should be attributable to virgl rather than to our tuning.
 
       bind = [
-        "$mod, T, exec, $terminal"
-        "$mod, D, exec, $menu"
+        # `uwsm app --` asks systemd to start the program as its own unit in
+        # the session's app slice, rather than as a child of Hyprland inside
+        # the compositor's cgroup. Upstream: "Running applications as child
+        # processes inside compositor's unit is discouraged." Own unit means
+        # own lifetime (a compositor crash does not take the terminal with
+        # it), own resource accounting, and orderly shutdown on logout. niri
+        # does the equivalent on its own for every `spawn`; Hyprland needs
+        # the prefix. The `dms ipc` binds below are short-lived commands to
+        # an already-running service, so they do not need it.
+        "$mod, T, exec, uwsm app -- $terminal"
+        "$mod, D, exec, uwsm app -- $menu"
         "$mod, Q, killactive,"
         "$mod SHIFT, E, exit,"
 

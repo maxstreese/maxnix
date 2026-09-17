@@ -8,7 +8,7 @@
 #   nix run .#test-niri
 #   nix run .#test-hyprland
 compositor:
-{ hostPkgs, ... }:
+{ hostPkgs, lib, ... }:
 {
   name = "maxnix-${compositor.name}";
 
@@ -131,9 +131,20 @@ compositor:
           machine.succeed(
               """su max -c 'export XDG_RUNTIME_DIR=/run/user/1000; """
               """export WAYLAND_DISPLAY=$(cd "$XDG_RUNTIME_DIR" && ls -1 wayland-[0-9] | head -1); """
-              """nohup alacritty >/tmp/client.log 2>&1 &'"""
+              """nohup ${compositor.launch} >/tmp/client.log 2>&1 &'"""
           )
           machine.wait_until_succeeds("pgrep -u max -f alacrit[t]y")
+    ''
+    + lib.optionalString (compositor.appUnit != null) ''
+
+          # `uwsm app --` must have handed the client to systemd as a unit of
+          # its own — that is the whole point of the prefix in the binds.
+          units = machine.wait_until_succeeds(
+              "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user list-units --plain --no-legend \"${compositor.appUnit}\"' | grep ."
+          )
+          machine.log(units)
+    ''
+    + ''
 
           # 3000 sits well above a bare compositor with one terminal (measured
           # 533-545) and well below DankMaterialShell once it has drawn its bar

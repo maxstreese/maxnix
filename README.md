@@ -99,6 +99,8 @@ and KVM — even the QEMU binary comes from the Nix store.
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17; not on the road to metal |
+| rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
+| app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
 | credentials | 1Password in the guest | the repo installs, you sign in once; browser extension, SSH agent and `op` then serve every other login. Nothing secret in Nix or git |
 | unfree packages | per-module `allowUnfreePackages` list | matched on pname and concatenated across modules, so each unfree package is named next to its reason and a new one still fails evaluation |
 
@@ -198,6 +200,11 @@ per-run temp directory. A persistent second disk therefore creates itself: its
 `/home` must be `neededForBoot`, because activation creates `/home/max` before
 systemd mounts anything.
 
+**niri scopes spawned programs by itself; Hyprland does not.** Under a systemd
+session niri puts every `spawn` into its own transient scope (its spawning
+code says why). Hyprland launches binds as children of the compositor, so its
+launcher binds carry `uwsm app --`, per the Hyprland wiki's UWSM page.
+
 **Do not run `dms-greeter sync`.** Upstream's documented path symlinks the
 greeter cache at live DMS config; the Nix module makes root-owned copies in
 greetd's `preStart`. They fight.
@@ -277,8 +284,8 @@ carrying appearance; DMS has not written one here yet.
 **Road to metal.** Everything the config does *because it is only a VM*, to be
 undone or replaced when this becomes the host install:
 
-- `security.sudo.wheelNeedsPassword = false` and `services.getty.autologinUser`.
-  Both exist purely to skip typing in a throwaway guest.
+- `security.sudo.wheelNeedsPassword = false`, purely to skip typing in a
+  throwaway guest.
 - No hardware module. The VM gets its disks, GPU and network from
   `qemu-vm.nix`; metal needs `hardware-configuration.nix`, a bootloader, and a
   disk layout, probably via disko so the layout is declarative too.
@@ -293,9 +300,6 @@ undone or replaced when this becomes the host install:
   widgets expect them.
 - The three DMS features left off in `home/max/dms.nix` (VPN, audio
   visualiser, calendar) are off only because the VM cannot exercise them.
-- Dank Greeter needs GL. A driver regression on hardware means no login
-  screen, and the console autologin above is currently the only rescue path.
-  Decide on a deliberate one before removing it.
 - `scripts/vm-keys`, `grab-on-hover`, the virtiofs share and `rebuild` all
   describe the host/guest seam and stop meaning anything on metal. The
   compositor, shell, keyboard, 1Password and Firefox work transfers as-is.

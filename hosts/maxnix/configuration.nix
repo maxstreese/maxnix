@@ -5,9 +5,9 @@
 # point: this file stays true when the config is built for real hardware,
 # which is where it is headed (README, "Why this exists").
 #
-# Two settings below are honest shortcuts taken because it is *only a VM
-# today*. Each is marked "ROAD TO METAL" and listed in the README, so they
-# are found again when the time comes.
+# One setting below is an honest shortcut taken because it is *only a VM
+# today*. It is marked "ROAD TO METAL" and listed in the README, so it is
+# found again when the time comes.
 { pkgs, ... }:
 let
   # Prints everything that determines whether a Wayland compositor will start.
@@ -123,11 +123,12 @@ in
   # guest whose disk is thrown away. On the real host this goes.
   security.sudo.wheelNeedsPassword = false;
 
-  # ROAD TO METAL. Log straight in on the console. Convenient in the VM, and
-  # it doubles as the rescue path if the graphical greeter ever fails to draw
-  # (see ../../modules/desktop/greeter.nix). On a laptop it means anyone at
-  # the keyboard is you; drop it and keep a TTY login instead.
-  services.getty.autologinUser = "max";
+  # No console autologin, deliberately (decided 2026-09-17). The text
+  # consoles on Ctrl+Alt+F2…F6 keep their password prompt, and that is the
+  # rescue path if the graphical greeter ever fails to draw: it needs working
+  # GL, a TTY does not (see ../../modules/desktop/greeter.nix). Autologin
+  # would have made the lock screen decorative — anyone at the keyboard, two
+  # keystrokes, a root shell via passwordless sudo.
 
   # The machine needs flakes so it can rebuild itself from this repo. In the
   # VM the repo is shared at /mnt/maxnix and `rebuild` (./vm.nix) activates
