@@ -83,8 +83,11 @@
           entry = machine.succeed(f"cat {desktops}/hyprland-uwsm.desktop")
           assert "uwsm start" in entry, entry
 
-      with subtest("1Password, its CLI and Firefox are installed and wired up"):
-          machine.succeed("command -v 1password op firefox")
+      with subtest("1Password, Firefox, Spotify and Claude Code are installed and wired up"):
+          machine.succeed("command -v 1password op firefox spotify claude")
+          # Chromium-based apps read this to pick Wayland; it travels through
+          # PAM like the keyboard layout does.
+          machine.succeed("grep -q '^NIXOS_OZONE_WL' /etc/pam/environment")
           # The extension only ever connects if the wrapped Firefox's real
           # executable name is on 1Password's allow-list. Asserting the file's
           # content, not merely its presence: an empty file is the failure
@@ -111,6 +114,20 @@
           # Polling rather than a fixed wait, for the same reason as the
           # compositor tests: the greeter needs tens of seconds to appear and a
           # single early capture caught a flat black frame.
-          wait_for_rich_screen(machine, "greeter", minimum=3000)
+          #
+          # This has failed intermittently — a flat black screen for the whole
+          # timeout, roughly one run in five — and both times the console log
+          # was not kept. So on failure, dump what greetd and the greeter's
+          # compositor logged before re-raising, to make the next one count.
+          try:
+              wait_for_rich_screen(machine, "greeter", minimum=3000)
+          except AssertionError:
+              machine.log(machine.succeed(
+                  "journalctl -b --no-pager -u greetd.service | tail -n 80"
+              ))
+              machine.log(machine.succeed(
+                  "journalctl -b --no-pager _COMM=niri _COMM=dms-greeter _COMM=quickshell | tail -n 80 || true"
+              ))
+              raise
     '';
 }

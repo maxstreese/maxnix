@@ -35,4 +35,16 @@
       OfferToSaveLogins = false;
     };
   };
+
+  # Make it the default browser, so `xdg-open` and every "log in with
+  # browser" flow (Claude Code's OAuth, Spotify's login) land here rather than
+  # in whatever the portal picks first.
+  xdg.mimeApps = {
+    enable = true;
+    defaultApplications = {
+      "text/html" = "firefox.desktop";
+      "x-scheme-handler/http" = "firefox.desktop";
+      "x-scheme-handler/https" = "firefox.desktop";
+    };
+  };
 }

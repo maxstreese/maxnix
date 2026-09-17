@@ -56,7 +56,8 @@ there. No credential is in this repo, and none ever should be.
 | shell toolkit | Quickshell 0.3.0 |
 | shell | DankMaterialShell (bar, launcher, notifications, power menu) |
 | greeter | Dank Greeter (Quickshell UI hosted in niri) |
-| browser | Firefox, 1Password extension preinstalled by policy |
+| browser | Firefox, 1Password extension preinstalled by policy, default for links |
+| apps | Spotify, Claude Code — each signs in once via the browser |
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
 
 ```
@@ -67,7 +68,7 @@ hosts/maxnix/
 modules/
   desktop/{default,niri,hyprland,greeter,onepassword}.nix  system-level enable
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
-home/max/{default,niri,hyprland,dms,firefox}.nix user-level config
+home/max/{default,niri,hyprland,dms,firefox,apps}.nix  user-level config
 tests/{desktop,compositor,vnc}.nix               integration tests
 scripts/vm-keys              host tooling: release/restore GNOME shortcuts
 ```
@@ -236,6 +237,12 @@ hand-run audit, not by anything in the repo. A build-time check comparing bind
 keysyms against the compiled keymap would catch the whole class.
 
 **Colour thresholds are magic numbers** calibrated against today's screenshots.
+
+**The greeter sometimes never draws in the desktop test.** Roughly one run in
+five, the screen stays a single colour for the full 120 s while every other
+subtest passes; an immediate rerun passes. Neither failure's log was kept, so
+the cause is unknown. The test now dumps greetd's and the greeter compositor's
+journal on that failure.
 
 **Hyprland's `.conf` support is removed in 0.57.** Nothing forces the question
 yet: `flake.lock` pins nixpkgs, so 0.57 arrives only when you run

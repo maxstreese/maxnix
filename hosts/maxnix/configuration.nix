@@ -140,6 +140,15 @@ in
   # Mesa, and the userspace bits a Wayland compositor expects to find.
   hardware.graphics.enable = true;
 
+  # Unfree packages installed by the *user* layer. Home Manager modules cannot
+  # declare these themselves: with useGlobalPkgs (below) they borrow the
+  # system's nixpkgs config, so the allow-list has to be made here. Each name
+  # is a pname; see home/max/apps.nix for why each is wanted.
+  nixpkgs.config.allowUnfreePackages = [
+    "spotify"
+    "claude-code"
+  ];
+
   # Home Manager as a NixOS module, so one `nix build` rebuilds the machine and
   # the user layer together into a single generation — no separate
   # `home-manager switch`. The user config itself lives in ../../home/max.

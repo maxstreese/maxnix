@@ -16,6 +16,7 @@
     ./niri.nix
     ./hyprland.nix
     ./firefox.nix
+    ./apps.nix
   ];
 
   home.username = "max";

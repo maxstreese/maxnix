@@ -48,6 +48,13 @@
   # Compositors need polkit for anything privileged (mounting, suspend).
   security.polkit.enable = true;
 
+  # Tell Electron and Chromium-based apps to render on Wayland directly rather
+  # than through XWayland. nixpkgs wraps such apps (1Password, Spotify, …) to
+  # read this exact variable; without it they come up blurry on HiDPI and
+  # ignore the compositor's fractional scaling. sessionVariables reach the
+  # compositor sessions through PAM, same route as XKB_DEFAULT_LAYOUT.
+  environment.sessionVariables.NIXOS_OZONE_WL = "1";
+
   # A Secret Service for both sessions. Firefox, Spotify, 1Password's system
   # authentication and anything else that "remembers a login" stores it in
   # the keyring; without one they either prompt every start or forget. The
