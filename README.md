@@ -66,7 +66,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 flake.nix                    inputs, hostModules, packages + apps + checks
 hosts/maxnix/
   configuration.nix          the machine: user, locale, keyboard, home-manager
-  vm.nix                     build-vm specifics: window, disk image, repo share, `rebuild`
+  vm.nix                     build-vm specifics: window, disk images, repo share, `rebuild`
 modules/
   desktop/{default,niri,hyprland,greeter,onepassword}.nix  system-level enable
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
@@ -91,7 +91,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | channel | `nixpkgs-unstable`, also on the future host | these three packages move fast; stable would evaluate old versions. Decided 2026-09-17 to keep it |
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
 | compositors | both, for good | not an A/B: both stay and get switched between. NixOS makes two configs cheap, and shared DMS bindings make switching cheap too |
-| VM disk | ephemeral, host `/nix/store` shared over virtiofs | rebuilds in seconds; the VM is a variant of the machine, not the artifact |
+| VM disks | root is disposable, `/home` is its own image, host `/nix/store` shared over virtiofs | root can be deleted to reset the machine without losing a single login; the VM is a variant of the machine, not the artifact |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
 | Hyprland config | `configType = "hyprlang"` | every tutorial is hyprlang; **removed in Hyprland 0.57**, so this expires |
 | Hyprland session | under UWSM | systemd-managed session like niri's. The greeter also offers the unmanaged entry; hiding it would cost a package wrapper, so it stays |
@@ -190,6 +190,14 @@ A module that adds to `allowUnfreePackages` therefore breaks every test until
 `node.pkgsReadOnly = false` lets the node build its own `pkgs` from the same
 options `nix run .#vm` uses.
 
+**The VM runner has no pre-start hook, but drive paths are shell-expanded.**
+`qemu-vm.nix` creates only the root image, and its `emptyDiskImages` live in a
+per-run temp directory. A persistent second disk therefore creates itself: its
+`file` is a `$(…)` that makes the image on first use and prints the path. Same
+`$OLDPWD` anchoring as the repo share, for the same `cd "$TMPDIR"` reason.
+`/home` must be `neededForBoot`, because activation creates `/home/max` before
+systemd mounts anything.
+
 **Do not run `dms-greeter sync`.** Upstream's documented path symlinks the
 greeter cache at live DMS config; the Nix module makes root-owned copies in
 greetd's `preStart`. They fight.
@@ -265,13 +273,6 @@ live editing, then fold it into the store once the design settles.
 wired and the copy is verified byte-identical, but repainting `colors.json`
 changed nothing on screen. Upstream documents `settings.json` as the file
 carrying appearance; DMS has not written one here yet.
-
-**Login state lives on a disk this repo treats as disposable.** 1Password,
-Firefox and every later sign-in persist in `.vm/maxnix.qcow2`, and deleting
-that file is the documented reset. A second qcow2 for `/home` would let root be
-thrown away while the sign-ins survive. Not a host share: browser profiles and
-Electron apps use sqlite with file locks, which virtiofs is the wrong place for.
-A VM-only problem, so it ranks below anything on the road to metal.
 
 **Road to metal.** Everything the config does *because it is only a VM*, to be
 undone or replaced when this becomes the host install:

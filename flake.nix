@@ -161,10 +161,10 @@
 
           echo "starting the real runner for 8s — a window will appear" >&2
 
-          # A scratch disk and share, so a test run never disturbs the VM state
+          # Scratch disks and share, so a test run never disturbs the VM state
           # in ./.vm or depends on where it was invoked from.
           set +e
-          NIX_DISK_IMAGE="$scratch/test.qcow2"           MAXNIX_REPO="$scratch"             timeout 8 ${lib.getExe maxnix.config.system.build.vm} > "$scratch/qemu.log" 2>&1
+          NIX_DISK_IMAGE="$scratch/test.qcow2"           MAXNIX_HOME_IMAGE="$scratch/home.qcow2"           MAXNIX_REPO="$scratch"             timeout 8 ${lib.getExe maxnix.config.system.build.vm} > "$scratch/qemu.log" 2>&1
           rc=$?
           set -e
 
