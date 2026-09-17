@@ -40,9 +40,10 @@ nix run .#test-vm-starts               # the runner above actually starts (opens
 Log in as `max` / `maxnix`. Inside the VM, `rebuild` reapplies the config from
 `/mnt/maxnix` in ~35 s without rebooting.
 
-First run only: open 1Password and sign in. Everything else that needs a
-login — Firefox, and later Spotify and Claude — gets its credentials from
-there. No credential is in this repo, and none ever should be.
+First run only: open 1Password, sign in, and in Settings → Developer switch on
+"Use the SSH agent" and "Integrate with 1Password CLI". Everything else that
+needs a login — Firefox, Spotify, Claude Code, `ssh`, `op` — gets its
+credentials from there. No credential is in this repo, and none ever should be.
 
 ---
 
@@ -58,6 +59,7 @@ there. No credential is in this repo, and none ever should be.
 | greeter | Dank Greeter (Quickshell UI hosted in niri) |
 | browser | Firefox, 1Password extension preinstalled by policy, default for links |
 | apps | Spotify, Claude Code — each signs in once via the browser |
+| ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
 
 ```
@@ -68,7 +70,7 @@ hosts/maxnix/
 modules/
   desktop/{default,niri,hyprland,greeter,onepassword}.nix  system-level enable
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
-home/max/{default,niri,hyprland,dms,firefox,apps}.nix  user-level config
+home/max/{default,niri,hyprland,dms,firefox,apps,ssh}.nix  user-level config
 tests/{desktop,compositor,vnc}.nix               integration tests
 scripts/vm-keys              host tooling: release/restore GNOME shortcuts
 ```

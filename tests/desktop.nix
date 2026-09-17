@@ -88,6 +88,10 @@
           # Chromium-based apps read this to pick Wayland; it travels through
           # PAM like the keyboard layout does.
           machine.succeed("grep -q '^NIXOS_OZONE_WL' /etc/pam/environment")
+          # ssh is pointed at the 1Password agent socket. The file is Home
+          # Manager's, so it exists only once the user's activation has run.
+          machine.wait_for_unit("home-manager-max.service")
+          machine.succeed("grep -q '1password/agent.sock' /home/max/.ssh/config")
           # The extension only ever connects if the wrapped Firefox's real
           # executable name is on 1Password's allow-list. Asserting the file's
           # content, not merely its presence: an empty file is the failure

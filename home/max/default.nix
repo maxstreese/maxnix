@@ -17,6 +17,7 @@
     ./hyprland.nix
     ./firefox.nix
     ./apps.nix
+    ./ssh.nix
   ];
 
   home.username = "max";
