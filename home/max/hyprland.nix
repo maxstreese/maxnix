@@ -11,6 +11,13 @@
     package = null;
     portalPackage = null;
 
+    # Hyprland runs under UWSM (see modules/desktop/hyprland.nix), which owns
+    # graphical-session.target. Home Manager's default is to inject exec-once
+    # lines that import variables into systemd and start its own
+    # hyprland-session.target bound to the same graphical-session.target —
+    # two managers of one target. Upstream says pick one; UWSM is the one.
+    systemd.enable = false;
+
     # ── hyprlang, not lua ────────────────────────────────────────────────
     #
     # Hyprland 0.56 moved to a Lua config and generates ~/.config/hypr/

@@ -67,7 +67,8 @@
 
       # Integration tests over that same machine definition. The two compositor
       # tests differ only in how you ask a compositor what it is doing, so the
-      # test body is shared — see tests/compositor.nix.
+      # test body is shared — see tests/compositor.nix. `session` is the
+      # desktop entry the greeter would offer; the test runs its real Exec.
       tests = {
         desktop = pkgs.testers.runNixOSTest (import ./tests/desktop.nix { inherit hostModules; });
 
@@ -75,7 +76,7 @@
           import ./tests/compositor.nix {
             inherit hostModules;
             name = "niri";
-            session = "niri-session";
+            session = "niri";
             ipcReady = "ls /run/user/1000/niri.wayland-*.sock";
             outputs = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1) niri msg outputs";
             layout = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1) niri msg keyboard-layouts";
@@ -86,9 +87,9 @@
           import ./tests/compositor.nix {
             inherit hostModules;
             name = "hyprland";
-            # What the session .desktop entry actually execs, rather than the
-            # bare Hyprland binary, so this covers the real launch path.
-            session = "start-hyprland";
+            # The UWSM-managed entry, not the plain one: that is the session
+            # meant to be used, see modules/desktop/hyprland.nix.
+            session = "hyprland-uwsm";
             # Wait for the *command* socket, not just the instance directory.
             # The directory and .socket2.sock (events) appear well before
             # .socket.sock, so watching the directory races and hyprctl then

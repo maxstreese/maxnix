@@ -22,7 +22,23 @@ compositor:
   node.pkgsReadOnly = false;
 
   nodes.machine =
-    { lib, ... }:
+    {
+      config,
+      lib,
+      pkgs,
+      ...
+    }:
+    let
+      # The greeter would read Exec= out of this very file and hand it to
+      # greetd. Do the same, at runtime, so the test launches exactly what a
+      # login does — including uwsm for Hyprland — and cannot drift from the
+      # session file if its Exec changes.
+      desktops = config.services.displayManager.sessionData.desktops;
+      runSession = pkgs.writeShellScript "run-${compositor.session}-session" ''
+        entry="${desktops}/share/wayland-sessions/${compositor.session}.desktop"
+        exec $(sed -n 's/^Exec=//p' "$entry")
+      '';
+    in
     {
       # The real machine, plus the virtual hardware. hostModules comes from
       # flake.nix so this node is the same definition `nix run .#vm` builds.
@@ -45,7 +61,7 @@ compositor:
       # compositor failure rather than a greeter-typing failure. The greeter
       # itself is covered by tests/desktop.nix.
       services.greetd.settings.initial_session = {
-        command = compositor.session;
+        command = "${runSession}";
         user = "max";
       };
 

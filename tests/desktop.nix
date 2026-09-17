@@ -74,11 +74,14 @@
           machine.succeed("command -v Hyprland")
 
       with subtest("both register a session for the greeter to offer"):
-          sessions = machine.succeed(
-              "ls ${nodes.machine.services.displayManager.sessionData.desktops}/share/wayland-sessions/"
-          )
+          desktops = "${nodes.machine.services.displayManager.sessionData.desktops}/share/wayland-sessions"
+          sessions = machine.succeed(f"ls {desktops}")
           assert "niri.desktop" in sessions, sessions
-          assert "hyprland.desktop" in sessions, sessions
+          # The package ships two Hyprland entries; the UWSM-managed one is
+          # the session meant to be used, so it is the one asserted on.
+          assert "hyprland-uwsm.desktop" in sessions, sessions
+          entry = machine.succeed(f"cat {desktops}/hyprland-uwsm.desktop")
+          assert "uwsm start" in entry, entry
 
       with subtest("1Password, its CLI and Firefox are installed and wired up"):
           machine.succeed("command -v 1password op firefox")

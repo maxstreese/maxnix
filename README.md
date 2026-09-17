@@ -91,6 +91,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | VM disk | ephemeral, host `/nix/store` shared over virtiofs | rebuilds in seconds; the VM is a variant of the machine, not the artifact |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
 | Hyprland config | `configType = "hyprlang"` | every tutorial is hyprlang; **removed in Hyprland 0.57**, so this expires |
+| Hyprland session | under UWSM | systemd-managed session like niri's. The greeter also offers the unmanaged entry; hiding it would cost a package wrapper, so it stays |
 | modifier key | Super, as upstream | QEMU's keyboard grab makes Mutter inhibit its shortcuts for the window; `scripts/vm-keys` covers the two things the grab cannot: the overlay key, and GNOME's remembered permission |
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
@@ -284,8 +285,6 @@ undone or replaced when this becomes the host install:
   widgets expect them.
 - The three DMS features left off in `home/max/dms.nix` (VPN, audio
   visualiser, calendar) are off only because the VM cannot exercise them.
-- Hyprland runs without UWSM. Lock, suspend and portals lean on a well-formed
-  systemd user session, which matters more on hardware.
 - Dank Greeter needs GL. A driver regression on hardware means no login
   screen, and the console autologin above is currently the only rescue path.
   Decide on a deliberate one before removing it.
