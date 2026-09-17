@@ -85,7 +85,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 
 | decision | choice | reasoning |
 |---|---|---|
-| channel | `nixpkgs-unstable` | these three packages move fast; stable would evaluate old versions |
+| channel | `nixpkgs-unstable`, also on the future host | these three packages move fast; stable would evaluate old versions. Decided 2026-09-17 to keep it |
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
 | compositors | both, for good | not an A/B: both stay and get switched between. NixOS makes two configs cheap, and shared DMS bindings make switching cheap too |
 | VM disk | ephemeral, host `/nix/store` shared over virtiofs | rebuilds in seconds; the VM is a variant of the machine, not the artifact |
@@ -95,6 +95,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | modifier key | Super, as upstream | QEMU's keyboard grab makes Mutter inhibit its shortcuts for the window; `scripts/vm-keys` covers the two things the grab cannot: the overlay key, and GNOME's remembered permission |
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
+| login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17; not on the road to metal |
 | credentials | 1Password in the guest | the repo installs, you sign in once; browser extension, SSH agent and `op` then serve every other login. Nothing secret in Nix or git |
 | unfree packages | per-module `allowUnfreePackages` list | matched on pname and concatenated across modules, so each unfree package is named next to its reason and a new one still fails evaluation |
 
@@ -266,9 +267,6 @@ A VM-only problem, so it ranks below anything on the road to metal.
 **Road to metal.** Everything the config does *because it is only a VM*, to be
 undone or replaced when this becomes the host install:
 
-- `initialPassword` for `max` and `root` in `hosts/maxnix/configuration.nix`,
-  world-readable in the store. Real hardware wants `hashedPasswordFile` or an
-  interactive first boot.
 - `security.sudo.wheelNeedsPassword = false` and `services.getty.autologinUser`.
   Both exist purely to skip typing in a throwaway guest.
 - No hardware module. The VM gets its disks, GPU and network from

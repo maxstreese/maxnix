@@ -5,7 +5,7 @@
 # point: this file stays true when the config is built for real hardware,
 # which is where it is headed (README, "Why this exists").
 #
-# A few settings below are honest shortcuts taken because it is *only a VM
+# Two settings below are honest shortcuts taken because it is *only a VM
 # today*. Each is marked "ROAD TO METAL" and listed in the README, so they
 # are found again when the time comes.
 { pkgs, ... }:
@@ -110,14 +110,13 @@ in
       "wheel"
       "video" # DRM access, needed by every compositor
     ];
-    # ROAD TO METAL. A plaintext credential that lands world-readable in the
-    # Nix store: acceptable while this is a local VM, not on the real host.
-    # Replace with hashedPasswordFile (or an interactive first boot) before
-    # installing on hardware. `initialPassword` only applies when the user is
-    # first created — see the note about stale disk images in ./vm.nix.
+    # A plaintext credential, world-readable in the Nix store. Decided
+    # 2026-09-17: fine as it is, on the VM and on the eventual host alike, so
+    # this is not on the road to metal. `initialPassword` only applies when
+    # the user is first created — see the note about stale disk images in
+    # ./vm.nix.
     initialPassword = "maxnix";
   };
-  # ROAD TO METAL, same as above.
   users.users.root.initialPassword = "maxnix";
 
   # ROAD TO METAL. No password prompt on sudo, purely to skip typing in a
