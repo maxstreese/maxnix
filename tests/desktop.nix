@@ -108,9 +108,16 @@
                   # duckdb/kubectl/scala are the dev tools; delta is git's
                   # pager and fzf backs its `cleanup` alias, so a missing one
                   # of those two breaks git itself.
-                  "duckdb", "kubectl", "scala", "delta", "fzf",
+                  "duckdb", "kubectl", "scala", "marimo", "delta", "fzf",
               ],
               user=True,
+          )
+
+          # The point of installing marimo inside a python3.withPackages
+          # environment rather than bare: a notebook can import the data
+          # libraries. The bare package cannot, and fails only at run time.
+          machine.succeed(
+              "su - max -c 'python3 -c \"import marimo, polars, duckdb, altair, pyarrow, numpy\"'"
           )
           # The udev rules are what let a normal user talk to the keyboard;
           # without them wootility finds the device and cannot open it.

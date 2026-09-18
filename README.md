@@ -80,6 +80,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | apps | Spotify, Slack, Claude Code — each signs in once via the browser |
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
 | dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf |
+| notebooks | marimo, inside a declared `python3.withPackages` with polars, duckdb, pyarrow, altair, numpy |
 | git config | identity, aliases and ignores declared in Home Manager, carried over from the host |
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
@@ -251,6 +252,31 @@ no root, because the USB node is `root:input` and you are in that group:
 `QEMU_OPTS="-device usb-host,vendorid=0x31e3,productid=0x1312" nix run .#vm`.
 The host has no keyboard for as long as that VM runs. On metal the udev rules
 alone are enough.
+
+**NixOS cannot run generic-linux binaries, and modern Python tooling is full
+of them.** uv downloads its own CPython rather than using a system one, and
+that binary dies before `main()` because there is no
+`/lib64/ld-linux-x86-64.so.2`. `programs.nix-ld` puts a stub loader there and
+is what the NixOS wiki and the error message both point at. It works: with it
+on, a marimo notebook declaring polars inline ran its cells and imported
+polars from PyPI.
+
+It is also not the only way, and it was not kept. Pointing uv at a nixpkgs
+interpreter (`UV_PYTHON`, with `UV_PYTHON_DOWNLOADS=never`) means no
+generic-linux binary is ever executed, and the same notebook ran with the
+nix-ld variables removed. uv and Nix are known to sit awkwardly together —
+astral-sh/uv#4450 has been open since 2024, labelled *compatibility*, and
+`uv venv` from a wrapped nixpkgs Python isolates itself from that Python's
+packages — so the third option won: marimo lives in a `python3.withPackages`
+environment, and nothing downloads an interpreter at all.
+
+**A tool's Nix wrapper can have a closed environment, which fails only at run
+time.** The bare `marimo` package is wrapped with a fixed PYTHONPATH holding
+its own runtime dependencies and nothing else, with no pip. It installs
+cleanly, starts cleanly, and then a notebook's `import polars` fails, and
+installing polars elsewhere in the profile does not help. Declaring the
+library set alongside marimo in one `python3.withPackages` is what makes the
+global install honest; `home/max/dev.nix` carries the reasoning.
 
 **An unconfigured Twingate daemon respawns forever.** Its unit pairs
 `Restart=always` with `StartLimitIntervalSec=0`, which turns off systemd's
