@@ -169,10 +169,10 @@
 
           echo "starting the real runner for 8s — a window will appear" >&2
 
-          # Scratch disks and share, so a test run never disturbs the VM state
-          # in ./.vm or depends on where it was invoked from.
+          # Scratch disks, so a test run never disturbs the VM state in ./.vm
+          # or depends on where it was invoked from.
           set +e
-          NIX_DISK_IMAGE="$scratch/test.qcow2"           MAXNIX_HOME_IMAGE="$scratch/home.qcow2"           MAXNIX_REPO="$scratch"             timeout 8 ${lib.getExe maxnix.config.system.build.vm} > "$scratch/qemu.log" 2>&1
+          NIX_DISK_IMAGE="$scratch/test.qcow2"           MAXNIX_HOME_IMAGE="$scratch/home.qcow2"             timeout 8 ${lib.getExe maxnix.config.system.build.vm} > "$scratch/qemu.log" 2>&1
           rc=$?
           set -e
 
@@ -186,6 +186,81 @@
           fi
         '';
       };
+
+      # An `ssh` that reaches the VM.
+      #
+      # Goes through the loopback port forward in hosts/maxnix/vm.nix, logs in
+      # with the (plaintext, by decision) VM password, and ignores host keys —
+      # every root-image reset mints a new one, and this is loopback to a
+      # machine you own. -F /dev/null skips the host's /etc/ssh/ssh_config,
+      # which is Ubuntu's and names options this Nix-built ssh does not know.
+      #
+      # Named `ssh` and put first on PATH on purpose: `nix copy` and friends
+      # exec whatever `ssh` they find, so this is how vm-deploy's copies get
+      # their port and password without any of those tools knowing.
+      vmSshShim = pkgs.writeShellScriptBin "ssh" ''
+        exec ${lib.getExe pkgs.sshpass} -p ${lib.escapeShellArg maxnix.config.users.users.max.initialPassword} \
+          ${pkgs.openssh}/bin/ssh \
+            -p 2222 \
+            -F /dev/null \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o LogLevel=ERROR \
+            "$@"
+      '';
+
+      # nix run .#vm-ssh -- <command…>
+      #
+      # Run a command in the running VM, or open a shell with no arguments.
+      # The host-side way to look at and poke the machine you are using:
+      #   nix run .#vm-ssh -- niri msg outputs
+      #   nix run .#vm-ssh -- 'grim -' > shot.png       # screenshot, copied out
+      #   nix run .#vm-ssh -- journalctl --user -u dms -n 50
+      vmSsh = pkgs.writeShellApplication {
+        name = "vm-ssh";
+        runtimeInputs = [ vmSshShim ];
+        text = ''
+          exec ssh max@127.0.0.1 "$@"
+        '';
+      };
+
+      # nix run .#vm-deploy
+      #
+      # Build this machine here and activate it in the running VM, without a
+      # reboot and without the guest ever seeing the repo. This is the
+      # standard NixOS remote-deploy shape — build on one machine, `nix copy`
+      # the closure, run switch-to-configuration on the other — done by hand
+      # rather than via nixos-rebuild --target-host, so the two ssh hops are
+      # explicit and the shim above covers both.
+      #
+      # `test`, not `switch`, for the same reason as the in-guest `rebuild`:
+      # activate now, leave the bootloader alone, the disk is disposable.
+      #
+      # --no-check-sigs: the host's paths are unsigned; the guest accepts them
+      # because max is a trusted user there (hosts/maxnix/vm.nix). The copy is
+      # over loopback and only sends what the guest does not already have.
+      #
+      # The toplevel is interpolated into the script, so `nix run .#vm-deploy`
+      # builds it as a dependency — no nested nix invocation, and what gets
+      # deployed is exactly what this evaluation of the flake describes.
+      vmDeploy =
+        let
+          toplevel = maxnix.config.virtualisation.vmVariant.system.build.toplevel;
+        in
+        pkgs.writeShellApplication {
+          name = "vm-deploy";
+          runtimeInputs = [
+            vmSshShim
+            pkgs.nix
+          ];
+          text = ''
+            echo "copying ${toplevel} into the VM..." >&2
+            nix copy --no-check-sigs --to ssh://max@127.0.0.1 ${toplevel}
+
+            echo "activating" >&2
+            ssh max@127.0.0.1 sudo ${toplevel}/bin/switch-to-configuration test
+          '';
+        };
 
       # One-step runner for a test's interactive driver.
       #
@@ -227,10 +302,9 @@
       #
       # Run it from the repo root. `nix run .#vm` requires flake.nix in the
       # current directory anyway (Nix does not search upward), and that matches
-      # what the VM needs: virtualisation.diskImage and the repo share are both
-      # relative to the launch directory. Invoking it by absolute path from
-      # elsewhere would work, and would scatter .vm/maxnix.qcow2 wherever you
-      # happened to be.
+      # what the VM needs: both disk images are relative to the launch
+      # directory. Invoking it by absolute path from elsewhere would work, and
+      # would scatter .vm/*.qcow2 wherever you happened to be.
       #
       # Unlike `nix build`, `nix run` leaves no `result` symlink and therefore
       # no GC root, so a garbage collection can force a rebuild. Use
@@ -253,6 +327,14 @@
         test-vm-starts = {
           type = "app";
           program = lib.getExe vmStarts;
+        };
+        vm-ssh = {
+          type = "app";
+          program = lib.getExe vmSsh;
+        };
+        vm-deploy = {
+          type = "app";
+          program = lib.getExe vmDeploy;
         };
       }
       // lib.mapAttrs' (name: test: {

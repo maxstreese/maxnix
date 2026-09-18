@@ -4,6 +4,14 @@
 # node can share it; this file holds only what is specific to launching the VM
 # by hand from a shell.
 #
+# The guest has no view of the host filesystem. It used to have the repo
+# mounted at /mnt/maxnix (9p, then virtiofs, then 9p again), and that share
+# was both the fast loop and a hole in the VM boundary. Dropped 2026-09-18:
+# the guest keeps its own clone like any other machine, git is the sync, and
+# the host reaches in over ssh — `nix run .#vm-deploy` builds here and
+# activates there, which is the standard NixOS remote-deploy model and the
+# same one the metal install will use.
+#
 # Everything under virtualisation.vmVariant applies solely to the second
 # evaluation that produces run-maxnix-vm. The base machine never sees it, and
 # these become QEMU flags on the Ubuntu host — which is why the host needs
@@ -32,9 +40,10 @@
       # be created here. The runner has no pre-start hook, but the drive's
       # `file` string is expanded by the shell at launch — so it can be a
       # command substitution that creates the image on first use and prints
-      # its path. Same trick, and same $OLDPWD caveat, as the repo share
-      # below: by the time it runs the runner has done `cd "$TMPDIR"`, so the
-      # default path is anchored to $OLDPWD, the launch directory.
+      # its path. One caveat: by the time it runs the runner has done
+      # `cd "$TMPDIR"`, so the default path is anchored to $OLDPWD, the launch
+      # directory. If a future nixpkgs adds a second cd to the runner this
+      # breaks silently, which is what MAXNIX_HOME_IMAGE is for.
       #
       # MAXNIX_HOME_IMAGE overrides the location, which is how tests keep
       # their hands off the real one.
@@ -55,9 +64,12 @@
 
       # ── The fast loop ────────────────────────────────────────────────────
       #
-      # Rebuild this machine from the repo shared at /mnt/maxnix and activate
-      # it live, without rebooting. Measured at ~35s, against 1.5-3 minutes for
-      # rebuilding on the host plus a reboot and a fresh login.
+      # Rebuild this machine from a clone of the repo inside the guest and
+      # activate it live, without rebooting. Measured at ~30s. This is the
+      # inside-the-VM loop: edit in the clone (or let Claude Code do it),
+      # `rebuild`, look. The clone lives on the /home disk, so it survives a
+      # root-image reset, and it syncs with the host through git like any two
+      # machines would. From the host, `nix run .#vm-deploy` is the equivalent.
       #
       # Two things this wraps that are easy to get wrong by hand:
       #
@@ -71,16 +83,16 @@
       #     right for a VM whose disk image you throw away.
       #
       # Inherited from flakes: they only see git-tracked files, so a brand new
-      # file needs `git add` on the host before rebuild can see it.
+      # file needs `git add` before rebuild can see it.
       rebuild = pkgs.writeShellApplication {
         name = "rebuild";
         text = ''
-          flake="''${MAXNIX_FLAKE:-/mnt/maxnix}"
+          flake="''${MAXNIX_FLAKE:-$HOME/Repositories/github.com/maxstreese/maxnix}"
 
           if [ ! -e "$flake/flake.nix" ]; then
             echo "no flake.nix at $flake" >&2
-            echo "the repo is shared there by hosts/maxnix/vm.nix;" >&2
-            echo "set MAXNIX_FLAKE to point somewhere else" >&2
+            echo "clone the repo there (git clone <remote> \"$flake\")," >&2
+            echo "or set MAXNIX_FLAKE to where it is" >&2
             exit 1
           fi
 
@@ -98,6 +110,33 @@
       imports = [ ../../modules/vm/qemu-guest.nix ];
 
       environment.systemPackages = [ rebuild ];
+
+      # ── SSH into the running VM ──────────────────────────────────────────
+      #
+      # The host-side way to drive the VM you are actually using: run
+      # `rebuild`, poke the compositors and DMS over their IPC, take a
+      # screenshot with grim and copy it out, read the journal — without a
+      # fresh boot through the test driver each time. `nix run .#vm-ssh -- …`
+      # (flake.nix) wraps the connection.
+      #
+      # Password authentication, deliberately: the password is plaintext in
+      # this repo by decision, so a key would add ceremony without adding
+      # secrecy. The port is bound to the host's loopback only (below), so
+      # nothing on the network can reach it.
+      #
+      # VM-only. Whether the real host runs sshd is a separate decision, so
+      # this lives here rather than in configuration.nix.
+      services.openssh = {
+        enable = true;
+        settings.PasswordAuthentication = true;
+      };
+
+      # `nix run .#vm-deploy` pushes a closure built on the host into the
+      # guest with `nix copy` over that ssh connection. Host-built paths carry
+      # no signature the guest knows, and only a trusted user may import
+      # unsigned paths. VM-only, like sshd: on metal the deploy story is a
+      # separate decision.
+      nix.settings.trusted-users = [ "max" ];
 
       virtualisation = {
         # Default is "./${hostname}.qcow2", i.e. wherever you happened to cd.
@@ -157,31 +196,18 @@
           "-display gtk,gl=on,show-cursor=on,grab-on-hover=on"
         ];
 
-        # The repo itself, mounted inside the VM at /mnt/maxnix. It is what
-        # `rebuild` above builds from, and it lets you edit Quickshell QML on
-        # the host and see it in the guest without a rebuild at all.
-        #
-        # $PWD does NOT work here. The generated runner does `cd "$TMPDIR"`
-        # before this string is expanded, so $PWD would silently share an empty
-        # temp directory. (diskImage above escapes this only because the runner
-        # resolves it to an absolute path *before* that cd.)
-        #
-        # $OLDPWD is what the launch directory becomes after that single cd. If
-        # a future nixpkgs adds a second cd to the runner this breaks silently,
-        # so MAXNIX_REPO is the explicit escape hatch:
-        #   MAXNIX_REPO=/path/to/repo ./result/bin/run-maxnix-vm
-        sharedDirectories.maxnix = {
-          source = ''"''${MAXNIX_REPO:-$OLDPWD}"'';
-          target = "/mnt/maxnix";
+        # Host loopback 2222 → guest 22, for the sshd above. QEMU's user-mode
+        # networking does the forwarding; the guest sees an ordinary inbound
+        # connection.
+        forwardPorts = [
+          {
+            from = "host";
+            host.address = "127.0.0.1";
+            host.port = 2222;
+            guest.port = 22;
+          }
+        ];
 
-          # `writable` replaced `securityModel` when nixpkgs moved shared
-          # directories from 9p to virtiofs; the old option no longer exists
-          # and setting it fails evaluation. true keeps the previous rw
-          # behaviour. Nothing in the guest writes here — `rebuild` only
-          # reads the flake — so false would be a small hardening, deferred
-          # so a version bump does not also change behaviour.
-          writable = true;
-        };
       };
     };
 }

@@ -20,9 +20,11 @@ That has two consequences for how work here is judged:
   Shortcuts taken "because it is only a VM" are debt, tracked under *Road to
   metal* below.
 - **The VM boundary is what makes broad assistant permissions acceptable.**
-  Inside the guest, rebuild, break and probe freely. Anything that reaches
-  the Ubuntu host — `scripts/vm-keys`, dconf, the portal permission store —
-  is the exception: be conservative, explain, and save-and-restore.
+  Inside the guest, rebuild, break and probe freely; nothing in there can
+  reach the host's filesystem, not even the repo (there is no share — git is
+  the only channel out). Anything that reaches the Ubuntu host from the
+  host side — `scripts/vm-keys`, dconf, the portal permission store — is the
+  exception: be conservative, explain, and save-and-restore.
 
 The whole machine is defined here. Being a VM is a *variant* of that
 definition, not a second description of it.
@@ -31,14 +33,30 @@ definition, not a second description of it.
 scripts/vm-keys run -- nix run .#vm    # start it; hands the keyboard to the guest, restores on exit
 nix run .#vm                           # start it plainly — host keeps Super and its chords, see below
 nix run .#vm-headless                  # no window; VNC on 127.0.0.1:5909 so something can watch
+nix run .#vm-deploy                    # build here, activate in the running VM, no reboot
+nix run .#vm-ssh -- niri msg outputs   # run a command in the running VM (or open a shell with no args)
 nix run .#test-desktop                 # boot, greeter, sessions, GPU
 nix run .#test-niri                    # niri: IPC, output, layout, shell, render
 nix run .#test-hyprland                # same, for Hyprland
 nix run .#test-vm-starts               # the runner above actually starts (opens a window for 8s)
 ```
 
-Log in as `max` / `maxnix`. Inside the VM, `rebuild` reapplies the config from
-`/mnt/maxnix` in ~35 s without rebooting.
+Log in as `max` / `maxnix`. The guest has no view of the host's filesystem;
+it is a separate machine that happens to run here, and the two sync through
+git like any other pair.
+
+Two ways to iterate on the running machine, both faster than a test run:
+
+- **From inside.** Clone the repo to `~/Repositories/github.com/maxstreese/maxnix`
+  (on the `/home` disk, so it survives a root reset), edit there or run
+  `claude` in it, then `rebuild` — ~30 s, no reboot. Both compositors reload
+  their config on the spot, DMS restarts with the activation, and DMS's own
+  theme settings need no rebuild at all. Commit and push as on any machine.
+- **From the host.** Edit here, `nix run .#vm-deploy`: builds on the host,
+  copies the closure in over ssh, activates. Then drive and observe the
+  desktop over the same channel: `nix run .#vm-ssh -- niri msg …`, `hyprctl`,
+  `dms ipc`, and `nix run .#vm-ssh -- 'grim -' > shot.png` for a screenshot
+  to look at.
 
 First run only: open 1Password, sign in, and in Settings → Developer switch on
 "Use the SSH agent" and "Integrate with 1Password CLI". Everything else that
@@ -67,7 +85,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 flake.nix                    inputs, hostModules, packages + apps + checks
 hosts/maxnix/
   configuration.nix          the machine: user, locale, keyboard, home-manager
-  vm.nix                     build-vm specifics: window, disk images, repo share, `rebuild`
+  vm.nix                     build-vm specifics: window, disk images, sshd, `rebuild`
 modules/
   desktop/{default,niri,hyprland,greeter,onepassword}.nix  system-level enable
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
@@ -93,6 +111,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
 | compositors | both, for good | not an A/B: both stay and get switched between. NixOS makes two configs cheap, and shared DMS bindings make switching cheap too |
 | VM disks | root is disposable, `/home` is its own image, host `/nix/store` shared over virtiofs | root can be deleted to reset the machine without losing a single login; the VM is a variant of the machine, not the artifact |
+| repo in the guest | its own clone, no host share | the share was the fast loop and a hole in the boundary at once, and virtiofs broke it twice over (see findings); git syncs two machines, and the host deploys over ssh — the same model metal will use |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
 | Hyprland config | `configType = "hyprlang"` | every tutorial is hyprlang; **removed in Hyprland 0.57**, so this expires |
 | Hyprland session | under UWSM | systemd-managed session like niri's. The greeter also offers the unmanaged entry; hiding it would cost a package wrapper, so it stays |
@@ -103,6 +122,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
 | app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
 | terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup on both compositors |
+| VM access | sshd in the guest, host loopback 2222, password auth | `vm-deploy` and `vm-ssh` drive the running VM from the host; loopback-only, and the password is public by decision, so a key would add nothing |
 | credentials | 1Password in the guest | the repo installs, you sign in once; browser extension, SSH agent and `op` then serve every other login. Nothing secret in Nix or git |
 | unfree packages | per-module `allowUnfreePackages` list | matched on pname and concatenated across modules, so each unfree package is named next to its reason and a new one still fails evaluation |
 
@@ -194,11 +214,22 @@ A module that adds to `allowUnfreePackages` therefore breaks every test until
 `node.pkgsReadOnly = false` lets the node build its own `pkgs` from the same
 options `nix run .#vm` uses.
 
+**virtiofs shares are unusable as a live, two-way working tree**, for two
+independent reasons, and it was this that ended the repo share. Unprivileged
+virtiofsd acts only for a guest identity whose uid *and* gid match its own; the
+guest user's default gid is 100 against 1000 on the host, so every create as a
+normal user fails with EPERM while root works, which is why nixpkgs' own tests
+never notice. And the module hardcodes `--cache=always`, so a file edited on
+the host kept its old content in the guest until caches were dropped, and
+`rebuild` cheerfully rebuilt the previous revision. 9p (one `-virtfs` flag and
+a mount, `cache=mmap` for git) has neither problem and was verified, then
+dropped along with the share itself.
+
 **The VM runner has no pre-start hook, but drive paths are shell-expanded.**
 `qemu-vm.nix` creates only the root image, and its `emptyDiskImages` live in a
 per-run temp directory. A persistent second disk therefore creates itself: its
-`file` is a `$(…)` that makes the image on first use and prints the path. Same
-`$OLDPWD` anchoring as the repo share, for the same `cd "$TMPDIR"` reason.
+`file` is a `$(…)` that makes the image on first use and prints the path,
+anchored to `$OLDPWD` because the runner has already done `cd "$TMPDIR"`.
 `/home` must be `neededForBoot`, because activation creates `/home/max` before
 systemd mounts anything.
 
@@ -275,8 +306,8 @@ being covered.
 
 **Write our own Quickshell config** — the last piece of the original plan, and
 the reason Quickshell was on the list. Point
-`programs.quickshell.configs.<name>` at a *string* path under `/mnt/maxnix` for
-live editing, then fold it into the store once the design settles.
+`programs.quickshell.configs.<name>` at a *string* path inside the guest's
+clone for live editing, then fold it into the store once the design settles.
 
 **The greeter does not visibly track the DMS palette yet.** `configHome` is
 wired and the copy is verified byte-identical, but repainting `colors.json`
@@ -302,8 +333,9 @@ undone or replaced when this becomes the host install:
   widgets expect them.
 - The three DMS features left off in `home/max/dms.nix` (VPN, audio
   visualiser, calendar) are off only because the VM cannot exercise them.
-- `scripts/vm-keys`, `grab-on-hover`, the virtiofs share and `rebuild` all
-  describe the host/guest seam and stop meaning anything on metal. The
+- `scripts/vm-keys`, `grab-on-hover`, sshd on loopback, `vm-deploy` and
+  `rebuild`'s VM variant all describe the host/guest seam and stop meaning
+  anything on metal. The
   compositor, shell, keyboard, 1Password and Firefox work transfers as-is.
 
 Each shortcut in the config is marked `ROAD TO METAL` in its comment, so

@@ -130,9 +130,9 @@ in
   # would have made the lock screen decorative — anyone at the keyboard, two
   # keystrokes, a root shell via passwordless sudo.
 
-  # The machine needs flakes so it can rebuild itself from this repo. In the
-  # VM the repo is shared at /mnt/maxnix and `rebuild` (./vm.nix) activates
-  # the result without a reboot; on metal it is plain nixos-rebuild.
+  # The machine needs flakes so it can rebuild itself from a clone of this
+  # repo. In the VM, `rebuild` (./vm.nix) activates the result without a
+  # reboot; on metal it is plain nixos-rebuild.
   nix.settings.experimental-features = [
     "nix-command"
     "flakes"

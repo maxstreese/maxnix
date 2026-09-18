@@ -14,7 +14,6 @@
 #   -display     build-vm wants a gtk window; the test wants egl-headless
 #   -vnc         coupled to -display, see below
 #   diskImage    only meaningful for build-vm
-#   repo share   depends on a launch directory, which a test does not have
 #
 # On -vnc specifically: only ONE thing may own QEMU's GL context. A window and
 # a VNC server are therefore mutually exclusive while GL is on —
