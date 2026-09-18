@@ -14,6 +14,7 @@
     ./niri.nix
     ./hyprland.nix
     ./onepassword.nix
+    ./gpu-check.nix
   ];
 
   # The login screen lives in ./greeter.nix. It used to be configured here as

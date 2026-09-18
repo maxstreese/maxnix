@@ -75,7 +75,7 @@
       # released its overlay key — see the note in ./niri.nix and
       # scripts/vm-keys.
       "$mod" = "SUPER";
-      # +new-window: through ghostty's D-Bus service, see ./default.nix. The
+      # +new-window: through ghostty's D-Bus service, see ./ghostty.nix. The
       # `uwsm app --` in the bind then wraps only the short-lived client; the
       # window belongs to ghostty's own unit either way.
       "$terminal" = "ghostty +new-window";

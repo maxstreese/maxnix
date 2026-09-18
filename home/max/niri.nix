@@ -79,7 +79,7 @@
       binds = {
         "Mod+T" = {
           _props.hotkey-overlay-title = "Open a Terminal";
-          # +new-window: through ghostty's D-Bus service, see ./default.nix.
+          # +new-window: through ghostty's D-Bus service, see ./ghostty.nix.
           spawn = [
             "ghostty"
             "+new-window"

@@ -91,9 +91,11 @@ hosts/maxnix/
   configuration.nix          the machine: user, locale, keyboard, home-manager
   vm.nix                     build-vm specifics: window, disk images, sshd, `rebuild`
 modules/
-  desktop/{default,niri,hyprland,greeter,onepassword}.nix  system-level enable
+  desktop/{default,niri,hyprland,greeter,onepassword,gpu-check}.nix  system layer
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
-home/max/{default,niri,hyprland,dms,firefox,apps,ssh}.nix  user-level config
+home/max/*.nix               user layer, one file per program: default (the
+                             layer itself), niri, hyprland, dms, ghostty,
+                             firefox, apps, dev, git, ssh
 tests/{desktop,compositor,vnc}.nix               integration tests
 scripts/vm-keys              host tooling: release/restore GNOME shortcuts
 ```
