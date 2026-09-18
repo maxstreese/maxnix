@@ -87,7 +87,7 @@
           machine.succeed("command -v 1password op firefox spotify slack claude")
           # git is system-wide (the guest clones this repo with it); the dev
           # tools are in the user profile. twingate ships with its daemon.
-          machine.succeed("command -v git kubectl scala twingate wootility")
+          machine.succeed("command -v git duckdb kubectl scala twingate wootility")
           # The udev rules are what let a normal user talk to the keyboard;
           # without them wootility finds the device and cannot open it.
           machine.succeed("grep -rq 31e3 /etc/udev/rules.d/")

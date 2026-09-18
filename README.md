@@ -79,7 +79,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | browser | Firefox, 1Password extension preinstalled by policy, default for links |
 | apps | Spotify, Slack, Claude Code — each signs in once via the browser |
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
-| dev tools | git (system-wide, needed to clone), kubectl, Scala 3 |
+| dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3 |
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |

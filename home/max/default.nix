@@ -73,6 +73,9 @@
     # carries OpenJDK 21. The `scala` command itself is scala-cli underneath
     # (it reports its own version 1.16), so a separate scala-cli is
     # redundant; sbt is not installed — add it here if a project wants it.
+    # duckdb brings the `duckdb` CLI; the library rides along for anything
+    # that links it. No server to run — it is in-process by design.
+    duckdb
     kubectl
     scala
 
