@@ -23,5 +23,10 @@
     # token is kept in ~/.claude, since Linux gets no keychain integration.
     # An API key via `op read` works too, if that is ever preferred.
     claude-code
+
+    # Slack. Electron, so it follows NIXOS_OZONE_WL onto Wayland like the
+    # others. Sign-in is the usual workspace URL and email link, handled in
+    # Firefox; the session then lives in ~/.config/Slack.
+    slack
   ];
 }

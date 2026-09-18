@@ -83,8 +83,11 @@
           entry = machine.succeed(f"cat {desktops}/hyprland-uwsm.desktop")
           assert "uwsm start" in entry, entry
 
-      with subtest("1Password, Firefox, Spotify and Claude Code are installed and wired up"):
-          machine.succeed("command -v 1password op firefox spotify claude")
+      with subtest("the daily-driver software is installed and wired up"):
+          machine.succeed("command -v 1password op firefox spotify slack claude")
+          # git is system-wide (the guest clones this repo with it); the dev
+          # tools are in the user profile. twingate ships with its daemon.
+          machine.succeed("command -v git kubectl scala twingate")
           # Chromium-based apps read this to pick Wayland; it travels through
           # PAM like the keyboard layout does.
           machine.succeed("grep -q '^NIXOS_OZONE_WL' /etc/pam/environment")

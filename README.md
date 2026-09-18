@@ -77,7 +77,9 @@ credentials from there. No credential is in this repo, and none ever should be.
 | greeter | Dank Greeter (Quickshell UI hosted in niri) |
 | terminal | ghostty, opened through its D-Bus-activated systemd service |
 | browser | Firefox, 1Password extension preinstalled by policy, default for links |
-| apps | Spotify, Claude Code — each signs in once via the browser |
+| apps | Spotify, Slack, Claude Code — each signs in once via the browser |
+| vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
+| dev tools | git (system-wide, needed to clone), kubectl, Scala 3 |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
 
@@ -237,6 +239,13 @@ systemd mounts anything.
 session niri puts every `spawn` into its own transient scope (its spawning
 code says why). Hyprland launches binds as children of the compositor, so its
 launcher binds carry `uwsm app --`, per the Hyprland wiki's UWSM page.
+
+**An unconfigured Twingate daemon respawns forever.** Its unit pairs
+`Restart=always` with `StartLimitIntervalSec=0`, which turns off systemd's
+rate limit — and before `twingate setup` has named a network the daemon exits
+at once, so it restarts every 2 s indefinitely (655 journal lines in the first
+few minutes). `hosts/maxnix/configuration.nix` gives the limit back, so it
+gives up after five tries and stays in `failed` until configured.
 
 **Do not run `dms-greeter sync`.** Upstream's documented path symlinks the
 greeter cache at live DMS config; the Nix module makes root-owned copies in

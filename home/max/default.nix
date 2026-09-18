@@ -61,6 +61,21 @@
     fuzzel
     wl-clipboard
 
+    # ── Development tools ────────────────────────────────────────────────
+    #
+    # User-level, like the rest of this file: they are preferences, not
+    # something the machine needs in order to work. git is the exception and
+    # sits in environment.systemPackages — the guest needs it to clone and
+    # rebuild this repo before any user profile exists.
+    #
+    # `scala` is Scala 3 (3.9 here; `scala_3` is the same derivation), and
+    # brings scalac and scaladoc with it. No JDK alongside: the wrapper
+    # carries OpenJDK 21. The `scala` command itself is scala-cli underneath
+    # (it reports its own version 1.16), so a separate scala-cli is
+    # redundant; sbt is not installed — add it here if a project wants it.
+    kubectl
+    scala
+
     # wev prints every Wayland key event its window receives, with the keysym.
     #
     # This is the debugger for a whole class of problem this setup keeps

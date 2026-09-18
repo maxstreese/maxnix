@@ -141,13 +141,42 @@ in
   # Mesa, and the userspace bits a Wayland compositor expects to find.
   hardware.graphics.enable = true;
 
-  # Unfree packages installed by the *user* layer. Home Manager modules cannot
-  # declare these themselves: with useGlobalPkgs (below) they borrow the
-  # system's nixpkgs config, so the allow-list has to be made here. Each name
-  # is a pname; see home/max/apps.nix for why each is wanted.
+  # Twingate — the zero-trust VPN client, as a system daemon.
+  #
+  # The module runs the daemon, seeds /etc/twingate from the package on first
+  # start, relaxes reverse-path filtering (the tunnel's replies arrive on a
+  # different interface than the kernel's strict check expects) and turns on
+  # systemd-resolved, since the client publishes split-DNS for the networks it
+  # serves. It also puts the `twingate` CLI on PATH.
+  #
+  # No credential here, and none possible: you run `twingate setup` once to
+  # name the network, then `twingate start`, which opens a browser to
+  # authenticate. The network name lands in /etc/twingate, which is on the
+  # disposable root disk — so a root-image reset means running setup again.
+  services.twingate.enable = true;
+
+  # Until setup has been run, the daemon exits immediately ("There is no
+  # default profile"). Upstream's unit pairs Restart=always with
+  # StartLimitIntervalSec=0, which disables the rate limit — so on an
+  # unconfigured machine it respawns every 2 s forever, burning CPU and
+  # filling the journal (655 lines in the first few minutes, measured). Give
+  # the limit back: five tries, then the unit gives up and sits in `failed`,
+  # where it is visible and quiet. `twingate setup` followed by
+  # `systemctl start twingate` is the way back, and a configured daemon does
+  # not exit, so this never triggers once it is in use.
+  systemd.services.twingate.unitConfig.StartLimitIntervalSec = 30;
+
+  # Unfree packages. `allowUnfreePackages` is a list matched against pname and
+  # concatenated across modules, so each module names what it needs (see
+  # ../../modules/desktop/onepassword.nix for the reasoning). Two groups land
+  # here: twingate just above, and the *user* layer's — Home Manager modules
+  # cannot declare their own, because with useGlobalPkgs (below) they borrow
+  # the system's nixpkgs config. See home/max/apps.nix for why each is wanted.
   nixpkgs.config.allowUnfreePackages = [
+    "twingate"
     "spotify"
     "claude-code"
+    "slack"
   ];
 
   # Home Manager as a NixOS module, so one `nix build` rebuilds the machine and
