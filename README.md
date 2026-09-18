@@ -79,7 +79,8 @@ credentials from there. No credential is in this repo, and none ever should be.
 | browser | Firefox, 1Password extension preinstalled by policy, default for links |
 | apps | Spotify, Slack, Claude Code — each signs in once via the browser |
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
-| dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3 |
+| dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf |
+| git config | identity, aliases and ignores declared in Home Manager, carried over from the host |
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
@@ -123,6 +124,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17; not on the road to metal |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
+| git config | declared, not `git config --global` | a fresh guest had no identity at all, so the first commit inside would have failed. The cost is that the file is a store symlink, so `git config --global` no longer works |
 | app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
 | terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup on both compositors |
 | VM access | sshd in the guest, host loopback 2222, password auth | `vm-deploy` and `vm-ssh` drive the running VM from the host; loopback-only, and the password is public by decision, so a key would add nothing |
@@ -286,6 +288,13 @@ Hard-won lessons encoded in them:
 - **A passing test is not evidence.** The render check asserted PNG file size,
   which a solid-black 1920×1080 screen satisfies. It now counts distinct
   colours.
+- **`command -v a b c` checks `a` and stops.** It prints the first name it
+  resolves and exits 0, so a one-line "are these installed" assertion passes
+  while every other name is missing. Three such checks here sat green for a
+  while. They are a loop now, one name at a time.
+- **User-profile binaries are not on root's PATH.** The driver's shell is
+  root's, so anything Home Manager installed has to be resolved through the
+  user's own login shell.
 - **Poll, don't sleep.** DMS takes ~30 s to draw; a fixed wait caught an empty
   screen and called it success.
 - **Thresholds are calibrations that expire.** `colours > 1` was right for

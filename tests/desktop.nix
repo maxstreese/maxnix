@@ -84,10 +84,34 @@
           assert "uwsm start" in entry, entry
 
       with subtest("the daily-driver software is installed and wired up"):
-          machine.succeed("command -v 1password op firefox spotify slack claude")
-          # git is system-wide (the guest clones this repo with it); the dev
-          # tools are in the user profile. twingate ships with its daemon.
-          machine.succeed("command -v git duckdb kubectl scala twingate wootility")
+          # One `command -v` per name, in a loop that exits on the first
+          # miss. NOT `command -v a b c`: that reports only the first name it
+          # resolves and returns 0, so such a check passes while every other
+          # name is missing — which is how three of these assertions here sat
+          # green while asserting almost nothing.
+          def installed(progs, user):
+              names = " ".join(progs)
+              cmd = f"for b in {names}; do command -v $b || exit 1; done"
+              # User-profile binaries are not on root's PATH, so the user's
+              # own login shell has to resolve them.
+              machine.succeed(f"su - max -c '{cmd}'" if user else cmd)
+
+          # System profile: installed by NixOS modules, available before any
+          # user logs in. git is here because the guest clones this repo with
+          # it, before a user profile exists.
+          installed(["git", "1password", "op", "twingate", "wootility"], user=False)
+
+          # User profile: preferences, installed by Home Manager.
+          installed(
+              [
+                  "firefox", "spotify", "slack", "claude", "ghostty",
+                  # duckdb/kubectl/scala are the dev tools; delta is git's
+                  # pager and fzf backs its `cleanup` alias, so a missing one
+                  # of those two breaks git itself.
+                  "duckdb", "kubectl", "scala", "delta", "fzf",
+              ],
+              user=True,
+          )
           # The udev rules are what let a normal user talk to the keyboard;
           # without them wootility finds the device and cannot open it.
           machine.succeed("grep -rq 31e3 /etc/udev/rules.d/")
@@ -98,6 +122,11 @@
           # Manager's, so it exists only once the user's activation has run.
           machine.wait_for_unit("home-manager-max.service")
           machine.succeed("grep -q '1password/agent.sock' /home/max/.ssh/config")
+          # A guest with no git identity cannot commit. Assert what git
+          # resolves, not merely that a file exists.
+          machine.succeed(
+              "su max -c 'HOME=/home/max git config --global user.email' | grep -qx max@streese.com"
+          )
           # The extension only ever connects if the wrapped Firefox's real
           # executable name is on 1Password's allow-list. Asserting the file's
           # content, not merely its presence: an empty file is the failure
