@@ -141,6 +141,24 @@ in
   # Mesa, and the userspace bits a Wayland compositor expects to find.
   hardware.graphics.enable = true;
 
+  # Wootility — configuration software for Wooting keyboards.
+  #
+  # The module installs it and, more importantly, the udev rules that tag the
+  # keyboard's hidraw and usb nodes with uaccess, so the logged-in user may
+  # talk to it without root. System-level because udev rules are.
+  #
+  # In the VM it will find no keyboard: the guest sees QEMU's emulated input
+  # devices, not the real USB one. Pass the hardware through for a session
+  # with (from the host, no root needed — the device node is root:input and
+  # you are in that group):
+  #
+  #   QEMU_OPTS="-device usb-host,vendorid=0x31e3,productid=0x1312" nix run .#vm
+  #
+  # The host gives up the keyboard while that VM runs. On metal none of this
+  # applies and the tool just works, which is the point of configuring it
+  # here rather than leaving it to the host.
+  hardware.wooting.enable = true;
+
   # Twingate — the zero-trust VPN client, as a system daemon.
   #
   # The module runs the daemon, seeds /etc/twingate from the package on first
@@ -169,10 +187,12 @@ in
   # Unfree packages. `allowUnfreePackages` is a list matched against pname and
   # concatenated across modules, so each module names what it needs (see
   # ../../modules/desktop/onepassword.nix for the reasoning). Two groups land
-  # here: twingate just above, and the *user* layer's — Home Manager modules
+  # here: wootility and twingate just above, and the *user* layer's — Home
+  # Manager modules
   # cannot declare their own, because with useGlobalPkgs (below) they borrow
   # the system's nixpkgs config. See home/max/apps.nix for why each is wanted.
   nixpkgs.config.allowUnfreePackages = [
+    "wootility"
     "twingate"
     "spotify"
     "claude-code"

@@ -80,6 +80,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | apps | Spotify, Slack, Claude Code — each signs in once via the browser |
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
 | dev tools | git (system-wide, needed to clone), kubectl, Scala 3 |
+| keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
 
@@ -239,6 +240,13 @@ systemd mounts anything.
 session niri puts every `spawn` into its own transient scope (its spawning
 code says why). Hyprland launches binds as children of the compositor, so its
 launcher binds carry `uwsm app --`, per the Hyprland wiki's UWSM page.
+
+**A VM sees QEMU's emulated keyboard, not your real one.** So Wootility runs
+in the guest but finds no device. Passing the hardware through works and needs
+no root, because the USB node is `root:input` and you are in that group:
+`QEMU_OPTS="-device usb-host,vendorid=0x31e3,productid=0x1312" nix run .#vm`.
+The host has no keyboard for as long as that VM runs. On metal the udev rules
+alone are enough.
 
 **An unconfigured Twingate daemon respawns forever.** Its unit pairs
 `Restart=always` with `StartLimitIntervalSec=0`, which turns off systemd's
