@@ -77,10 +77,10 @@
             inherit hostModules;
             name = "niri";
             session = "niri";
-            # niri scopes what *it* spawns; a client the test starts by hand
-            # is just a client, so no unit to look for.
-            launch = "alacritty";
-            appUnit = null;
+            # ghostty opens its window from its D-Bus-activated service, so
+            # even a client the test starts by hand lands in that unit.
+            launch = "ghostty +new-window";
+            appUnit = "app-com.mitchellh.ghostty.service";
             ipcReady = "ls /run/user/1000/niri.wayland-*.sock";
             outputs = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1) niri msg outputs";
             layout = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1) niri msg keyboard-layouts";
@@ -94,10 +94,10 @@
             # The UWSM-managed entry, not the plain one: that is the session
             # meant to be used, see modules/desktop/hyprland.nix.
             session = "hyprland-uwsm";
-            # Launch the way the binds do, and expect the app in its own
-            # systemd unit rather than inside the compositor's.
-            launch = "uwsm app -- alacritty";
-            appUnit = "app-*alacritty*";
+            # Launch the way the binds do, and expect the window in ghostty's
+            # own unit rather than inside the compositor's.
+            launch = "uwsm app -- ghostty +new-window";
+            appUnit = "app-com.mitchellh.ghostty.service";
             # Wait for the *command* socket, not just the instance directory.
             # The directory and .socket2.sock (events) appear well before
             # .socket.sock, so watching the directory races and hyprctl then

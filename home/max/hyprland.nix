@@ -75,7 +75,10 @@
       # released its overlay key — see the note in ./niri.nix and
       # scripts/vm-keys.
       "$mod" = "SUPER";
-      "$terminal" = "alacritty";
+      # +new-window: through ghostty's D-Bus service, see ./default.nix. The
+      # `uwsm app --` in the bind then wraps only the short-lived client; the
+      # window belongs to ghostty's own unit either way.
+      "$terminal" = "ghostty +new-window";
       "$menu" = "fuzzel";
 
       # Hyprland ignores XKB_DEFAULT_LAYOUT.

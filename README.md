@@ -57,6 +57,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | shell toolkit | Quickshell 0.3.0 |
 | shell | DankMaterialShell (bar, launcher, notifications, power menu) |
 | greeter | Dank Greeter (Quickshell UI hosted in niri) |
+| terminal | ghostty, opened through its D-Bus-activated systemd service |
 | browser | Firefox, 1Password extension preinstalled by policy, default for links |
 | apps | Spotify, Claude Code — each signs in once via the browser |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
@@ -101,6 +102,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17; not on the road to metal |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
 | app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
+| terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup on both compositors |
 | credentials | 1Password in the guest | the repo installs, you sign in once; browser extension, SSH agent and `op` then serve every other login. Nothing secret in Nix or git |
 | unfree packages | per-module `allowUnfreePackages` list | matched on pname and concatenated across modules, so each unfree package is named next to its reason and a new one still fails evaluation |
 

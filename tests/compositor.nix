@@ -133,14 +133,29 @@ compositor:
               """export WAYLAND_DISPLAY=$(cd "$XDG_RUNTIME_DIR" && ls -1 wayland-[0-9] | head -1); """
               """nohup ${compositor.launch} >/tmp/client.log 2>&1 &'"""
           )
-          machine.wait_until_succeeds("pgrep -u max -f alacrit[t]y")
+          # Bounded wait, and on failure show what the client and its service
+          # said — a terminal that never appears otherwise fails as a silent
+          # fifteen-minute timeout. Match on the command line, not the process
+          # name: like Hyprland, ghostty runs through a Nix wrapper whose comm
+          # is truncated to `.ghostty-wrappe`, so `pgrep -x ghostty` finds
+          # nothing even while the window is on screen.
+          try:
+              machine.wait_until_succeeds("pgrep -u max -f 'bin/ghostt[y]'", timeout=120)
+          except Exception:
+              machine.log(machine.succeed("cat /tmp/client.log || true"))
+              machine.log(machine.succeed(
+                  "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user status app-com.mitchellh.ghostty.service --no-pager -l' || true"
+              ))
+              machine.log(machine.succeed("journalctl -b --no-pager _UID=1000 | tail -n 60"))
+              raise
     ''
     + lib.optionalString (compositor.appUnit != null) ''
 
-          # `uwsm app --` must have handed the client to systemd as a unit of
-          # its own — that is the whole point of the prefix in the binds.
+          # The terminal must be running as a systemd unit of its own, not as
+          # a child inside the compositor's — that is the point of ghostty's
+          # D-Bus service and, on Hyprland, of `uwsm app --` in the binds.
           units = machine.wait_until_succeeds(
-              "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user list-units --plain --no-legend \"${compositor.appUnit}\"' | grep ."
+              "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user list-units --plain --no-legend \"${compositor.appUnit}\"' | grep -E 'active +running'"
           )
           machine.log(units)
     ''

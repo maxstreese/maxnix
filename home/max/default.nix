@@ -27,7 +27,27 @@
   # defaults this config was written against. Set once, then leave alone.
   home.stateVersion = "26.11";
 
-  # The terminal and launcher both compositor configs spawn.
+  # ── The terminal: ghostty ────────────────────────────────────────────
+  #
+  # Both compositor configs spawn it as `ghostty +new-window`. Home Manager
+  # installs ghostty's D-Bus-activatable systemd user service by default, and
+  # `+new-window` talks to it directly: if no instance is running, the session
+  # bus asks systemd to start the service; if one is, it opens a window in
+  # ~20 ms instead of the ~300 ms a fresh process needs. Every window then
+  # lives in ghostty's own unit, app-com.mitchellh.ghostty.service — outside
+  # the compositor's cgroup on both compositors, which is the separation
+  # `uwsm app --` (Hyprland) and niri's per-spawn scopes exist for.
+  #
+  # Do not set `class` in ghostty's config: the docs warn it breaks the D-Bus
+  # activation the service relies on. Nothing else is configured yet; the
+  # defaults are what the tests' colour thresholds were checked against.
+  #
+  # ghostty replaced alacritty (2026-09-18). It renders through OpenGL, which
+  # virgl provides in the guest; the compositor tests draw a terminal and
+  # count colours, so a renderer that fails to come up fails the test.
+  programs.ghostty.enable = true;
+
+  # The launcher both compositor configs spawn, and the clipboard tools.
   #
   # These were in environment.systemPackages until now — installed machine-wide
   # purely so the compositors' default keybinds would not dead-end. They are
@@ -38,7 +58,6 @@
   # terminal and one launcher serve both, which is also one less thing to
   # keep consistent between them.
   home.packages = with pkgs; [
-    alacritty
     fuzzel
     wl-clipboard
 
