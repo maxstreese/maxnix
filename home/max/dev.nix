@@ -67,4 +67,21 @@
     # redundant; sbt is not installed — add it here if a project wants it.
     scala
   ];
+
+  # marimo checks PyPI on startup and nags when it is behind. On a
+  # Nix-installed package that advice is unusable: the store path is
+  # immutable, there is no pip, and the version is whatever the pinned
+  # nixpkgs carries — today 0.24.0 against 0.24.2 upstream, and nixpkgs
+  # master has 0.24.0 too, so the lag is nixpkgs', not this repo's. It
+  # closes when nixpkgs' updater bot bumps it and `nix flake update` picks
+  # it up.
+  #
+  # This generalises: any Nix-installed tool with a self-update check will
+  # nag forever, because the action it asks for cannot be taken. Silence
+  # them rather than chase them.
+  #
+  # The variable that silences it is NOT here, and not a home.sessionVariables
+  # entry either, because that option only reaches login shells. It is set at
+  # the system level in ../../hosts/maxnix/configuration.nix, which is the
+  # one route that reaches a terminal inside the compositor.
 }

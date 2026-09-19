@@ -148,6 +148,11 @@
           # The 1Password agent must be told which account a vault lives in;
           # both accounts have a vault called Private.
           machine.succeed("grep -q '^account = ' /home/max/.config/1Password/ssh/agent.toml")
+          # Silencing marimo's update nag only works if the variable travels
+          # the PAM route; Home Manager's home.sessionVariables would reach a
+          # login shell and not a terminal window. There is no logged-in user
+          # session in this test, so PAM's file is what can be checked here.
+          machine.succeed("grep -q '^MARIMO_SKIP_UPDATE_CHECK' /etc/pam/environment")
           # The extension only ever connects if the wrapped Firefox's real
           # executable name is on 1Password's allow-list. Asserting the file's
           # content, not merely its presence: an empty file is the failure

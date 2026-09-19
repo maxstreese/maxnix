@@ -294,6 +294,23 @@ declaration at all: with an agent the server challenges and the agent offers
 keys until one is recognised, so nothing local says which key belongs to
 GitHub. Signing is the reverse, because nothing challenges a commit.
 
+**`home.sessionVariables` reaches login shells and nothing else**, exactly as
+its description says: "set at login". Home Manager writes them into
+`hm-session-vars.sh` and only `~/.profile` sources it, so under Wayland, where
+nothing sources a profile, the option sets a variable where nobody looks.
+Measured in the guest: present under `bash -l`, absent under `bash -i`, absent
+from `/etc/pam/environment` and from the systemd user environment. The gap is
+long-standing upstream (home-manager#1011, and #3100 open since 2022 for the
+Wayland case) with no blessed fix; the workarounds in the wild are sourcing
+that file from `.bashrc`, `environment.extraInit`, or
+`systemd.user.sessionVariables`.
+
+NixOS' own `environment.sessionVariables` avoids the question: it writes
+`/etc/pam/environment`, and pam_env applies that to the systemd **user**
+manager too, so every app it starts inherits it — ghostty included. That is
+how `XKB_DEFAULT_LAYOUT` and `NIXOS_OZONE_WL` already travel here, and the
+`.bashrc` workaround was tried and dropped in favour of it.
+
 **A business 1Password account gives you a second vault called Private.** So
 `vault = "Private"` in `agent.toml` is ambiguous once two accounts are signed
 in, and the entry needs `account` naming the sign-in address.

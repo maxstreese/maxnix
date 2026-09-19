@@ -145,6 +145,27 @@
     "slack"
   ];
 
+  # Environment for the *user* layer that can only be set here.
+  #
+  # marimo checks PyPI on startup and nags when it is behind, which on a
+  # Nix-installed package is advice that cannot be followed: the store path
+  # is immutable and the version is whatever the pinned nixpkgs carries.
+  # ../../home/max/dev.nix explains the lag.
+  #
+  # This looks like it belongs in the user layer, and Home Manager's
+  # home.sessionVariables is the obvious option — but that option means
+  # exactly what it says, "set at login", and lands in a file only
+  # ~/.profile sources. A terminal window is an interactive shell, and under
+  # Wayland nothing sources a profile, so the variable would be set where
+  # nobody looks. Measured in the guest: present under `bash -l`, absent
+  # under `bash -i`, absent from the systemd user environment.
+  #
+  # sessionVariables here goes through /etc/pam/environment instead, which
+  # pam_env applies to the whole session — including the systemd *user*
+  # manager, and therefore every app it starts, ghostty among them. Verified
+  # the same way XKB_DEFAULT_LAYOUT was, which travels this exact route.
+  environment.sessionVariables.MARIMO_SKIP_UPDATE_CHECK = "1";
+
   # Home Manager as a NixOS module, so one `nix build` rebuilds the machine and
   # the user layer together into a single generation — no separate
   # `home-manager switch`. The user config itself lives in ../../home/max.
