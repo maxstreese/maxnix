@@ -16,12 +16,35 @@
 # "gitdir:~/work/" with its own `contents`, so the address follows the
 # directory rather than the machine.
 #
-# Commit signing is deliberately absent. It would sign with an SSH key
-# from 1Password, served by the agent in ./ssh.nix, and no such key
-# exists yet. When one does: signing.format = "ssh", signing.key = the
-# *public* key (not a secret, so it can live here), and signing.signer
-# pointed at op-ssh-sign, which the 1Password package ships.
-{ pkgs, ... }:
+# ── Commit signing ───────────────────────────────────────────────────
+#
+# SSH rather than GPG: git has supported it since 2.34, GitHub, GitLab and
+# Bitbucket all verify it, and the key can live in 1Password and be used
+# without ever touching disk. The private half never leaves the vault; the
+# agent in ./ssh.nix serves it and op-ssh-sign asks the app to sign.
+#
+# Everything below is a *public* key, which is not a secret, which is the
+# only reason signing can be declared in a repo at all.
+#
+# Two keys exist, scoped along different axes:
+#
+#   auth     "GitHub SSH Auth (maxstreese)"    one account on one host
+#   signing  "Git Signing (max@streese.com)"   one identity, every host
+#
+# The auth key needs no configuration here: with an agent, the server
+# challenges and the agent offers keys until one is recognised, so nothing
+# local has to say which key belongs to GitHub. Signing is the opposite —
+# nobody challenges, so the key has to be named.
+#
+# `allowedSigners` is what makes local verification work. Without it even
+# your own commits cannot be verified on this machine and you are trusting
+# the forge's badge alone; Home Manager writes the file and points
+# gpg.ssh.allowedSignersFile at it. `signByDefault` covers both
+# commit.gpgSign and tag.gpgSign.
+#
+# When a second identity appears, it gets its own line in allowedSigners
+# and its own key, selected per directory by the `includes` above.
+{ osConfig, pkgs, ... }:
 {
   programs.git = {
     # This installs git into the user profile as well. It is the same store
@@ -29,6 +52,29 @@
     # stays: the guest needs git to clone this repo before a user profile
     # exists at all.
     enable = true;
+
+    signing = {
+      format = "ssh";
+
+      # The public half, as git wants it. The `key::` prefix is the current
+      # spelling; a bare "ssh-ed25519 ..." still works but git's own docs
+      # call that form deprecated.
+      key = "key::ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICpkKkztOSruWMC2XiaEgTxn9atTVXws50qEN1cCuMpe";
+
+      signByDefault = true;
+
+      # op-ssh-sign from the very package the system installs, rather than a
+      # second copy resolved from pkgs or a hardcoded /opt path as on a
+      # conventional distribution.
+      signer = "${osConfig.programs._1password-gui.package}/bin/op-ssh-sign";
+
+      # Who this key speaks for. `namespaces="git"` restricts it to git
+      # signatures, so the same key cannot be used to verify signatures made
+      # for some other purpose.
+      allowedSigners = ''
+        max@streese.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICpkKkztOSruWMC2XiaEgTxn9atTVXws50qEN1cCuMpe
+      '';
+    };
 
     # Becomes ~/.config/git/ignore, which git reads as the global excludes
     # file on its own — no core.excludesFile needed. Same list as the

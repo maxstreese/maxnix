@@ -81,7 +81,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
 | dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf |
 | notebooks | marimo, inside a declared `python3.withPackages` with polars, duckdb, pyarrow, altair, numpy |
-| git config | identity, aliases and ignores declared in Home Manager, carried over from the host |
+| git config | identity, aliases, ignores and SSH commit signing declared in Home Manager |
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
@@ -128,6 +128,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17; not on the road to metal |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
 | git config | declared, not `git config --global` | a fresh guest had no identity at all, so the first commit inside would have failed. The cost is that the file is a store symlink, so `git config --global` no longer works |
+| commit signing | SSH keys via 1Password, not GPG | supported by git since 2.34 and verified by GitHub, GitLab and Bitbucket; the private half never leaves the vault, and only public keys appear in this repo. Two keys: auth is scoped to an account on one host, signing to one identity everywhere |
 | app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
 | terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup on both compositors |
 | VM access | sshd in the guest, host loopback 2222, password auth | `vm-deploy` and `vm-ssh` drive the running VM from the host; loopback-only, and the password is public by decision, so a key would add nothing |
@@ -284,6 +285,18 @@ rate limit — and before `twingate setup` has named a network the daemon exits
 at once, so it restarts every 2 s indefinitely (655 journal lines in the first
 few minutes). `hosts/maxnix/configuration.nix` gives the limit back, so it
 gives up after five tries and stays in `failed` until configured.
+
+**Only public keys can be declared, which is exactly enough for signing.**
+An SSH signing setup needs the public key, the signer program and an
+allowed-signers file, none of them secret, so the whole thing lives in the
+repo while the private half stays in 1Password. The auth key needs no
+declaration at all: with an agent the server challenges and the agent offers
+keys until one is recognised, so nothing local says which key belongs to
+GitHub. Signing is the reverse, because nothing challenges a commit.
+
+**A business 1Password account gives you a second vault called Private.** So
+`vault = "Private"` in `agent.toml` is ambiguous once two accounts are signed
+in, and the entry needs `account` naming the sign-in address.
 
 **Do not run `dms-greeter sync`.** Upstream's documented path symlinks the
 greeter cache at live DMS config; the Nix module makes root-owned copies in

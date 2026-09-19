@@ -24,9 +24,24 @@
 # become the way to hand a secret to anything CLI-shaped without writing it
 # down. Shell completion is the only declarative part.
 #
-# Commit signing with an SSH key from the vault is one step further
-# (gpg.format = ssh, gpg.ssh.program = op-ssh-sign, which the app package
-# ships). Not wired: it needs the public key of a specific vault item.
+# Commit signing uses the same agent and is configured in ./git.nix.
+#
+# ── Which keys the agent offers ──────────────────────────────────────────
+#
+# agent.toml selects them. Without it the agent offers every key in every
+# vault of every signed-in account, and servers cap authentication attempts,
+# so that stops scaling once the vault fills up. Entries are offered in the
+# order written, so the auth key comes first.
+#
+# `account` matters here and is easy to miss: a business account gives each
+# member a Private vault too, so a bare `vault = "Private"` is ambiguous
+# across two signed-in accounts. Naming the sign-in address settles it, and
+# a work key later is a third entry pointing at the other account.
+#
+# What agent.toml cannot do is choose a key per host — every listed key is
+# offered to every server. If that ever matters, ssh_config does it, with an
+# IdentityFile naming the public key plus IdentitiesOnly. Not done here: with
+# two keys there is nothing to gain, and a wrong guess breaks authentication.
 { ... }:
 {
   programs.ssh = {
@@ -36,6 +51,21 @@
     enableDefaultConfig = false;
     settings."*".IdentityAgent = "~/.1password/agent.sock";
   };
+
+  # The auth key, for reference; the agent serves it and nothing here needs
+  # to name it:
+  #   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINwdtUM7OJgowEZ1bP8EDspvnvKJucZhmqkibDZ1srpz
+  xdg.configFile."1Password/ssh/agent.toml".text = ''
+    [[ssh-keys]]
+    item = "GitHub SSH Auth (maxstreese)"
+    vault = "Private"
+    account = "my.1password.com"
+
+    [[ssh-keys]]
+    item = "Git Signing (max@streese.com)"
+    vault = "Private"
+    account = "my.1password.com"
+  '';
 
   programs.bash = {
     enable = true;

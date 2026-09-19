@@ -134,6 +134,20 @@
           machine.succeed(
               "su max -c 'HOME=/home/max git config --global user.email' | grep -qx max@streese.com"
           )
+          # Commit signing: the signer must exist as a real file (it is a
+          # store path, so a wrong reference is a dangling symlink rather
+          # than an error), and the allowed-signers file is what makes
+          # verification work locally rather than only on the forge.
+          machine.succeed(
+              "test -x \"$(su max -c 'HOME=/home/max git config --global gpg.ssh.program')\""
+          )
+          machine.succeed(
+              "grep -q 'namespaces=\"git\"' "
+              "\"$(su max -c 'HOME=/home/max git config --global gpg.ssh.allowedSignersFile')\""
+          )
+          # The 1Password agent must be told which account a vault lives in;
+          # both accounts have a vault called Private.
+          machine.succeed("grep -q '^account = ' /home/max/.config/1Password/ssh/agent.toml")
           # The extension only ever connects if the wrapped Firefox's real
           # executable name is on 1Password's allow-list. Asserting the file's
           # content, not merely its presence: an empty file is the failure
