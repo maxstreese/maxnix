@@ -28,5 +28,11 @@
     # others. Sign-in is the usual workspace URL and email link, handled in
     # Firefox; the session then lives in ~/.config/Slack.
     slack
+
+    # Discord, also Electron. Home Manager has a programs.discord module,
+    # unused on purpose: all it adds is writing settings.json, and Discord
+    # rewrites that file itself — the same fight the greeter's colour file
+    # lost. The package alone is what is wanted.
+    discord
   ];
 }

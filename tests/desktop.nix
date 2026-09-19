@@ -99,16 +99,20 @@
           # System profile: installed by NixOS modules, available before any
           # user logs in. git is here because the guest clones this repo with
           # it, before a user profile exists.
-          installed(["git", "1password", "op", "twingate", "wootility"], user=False)
+          installed(
+              ["git", "1password", "op", "twingate", "wootility", "steam", "steam-run"],
+              user=False,
+          )
 
           # User profile: preferences, installed by Home Manager.
           installed(
               [
-                  "firefox", "spotify", "slack", "claude", "ghostty",
+                  "firefox", "spotify", "slack", "discord", "claude", "ghostty",
                   # duckdb/kubectl/scala are the dev tools; delta is git's
                   # pager and fzf backs its `cleanup` alias, so a missing one
                   # of those two breaks git itself.
                   "duckdb", "kubectl", "scala", "marimo", "delta", "fzf",
+                  "gh", "aws", "steampipe",
               ],
               user=True,
           )
@@ -153,6 +157,16 @@
           # login shell and not a terminal window. There is no logged-in user
           # session in this test, so PAM's file is what can be checked here.
           machine.succeed("grep -q '^MARIMO_SKIP_UPDATE_CHECK' /etc/pam/environment")
+          # Steam is a system module, not a package: without the 32-bit
+          # graphics stack it installs but cannot draw.
+          machine.succeed("test -e /run/opengl-driver-32/lib")
+          # Vimium alongside 1Password, both force-installed by policy. Run
+          # as max: firefox lives in the user profile, so root cannot resolve
+          # it, and the policy file sits beside the binary in the store.
+          machine.succeed(
+              "su - max -c 'grep -q vimium-ff "
+              "\"$(dirname \"$(readlink -f \"$(command -v firefox)\")\")\"/../lib/firefox/distribution/policies.json'"
+          )
           # The extension only ever connects if the wrapped Firefox's real
           # executable name is on 1Password's allow-list. Asserting the file's
           # content, not merely its presence: an empty file is the failure

@@ -143,6 +143,11 @@
     "spotify"
     "claude-code"
     "slack"
+    # Both halves: the wrapper and the derivation it wraps each carry the
+    # licence, and the allow-list matches on pname, so listing one leaves
+    # the other refused.
+    "discord"
+    "discord-unwrapped"
   ];
 
   # Environment for the *user* layer that can only be set here.

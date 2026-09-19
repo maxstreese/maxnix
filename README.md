@@ -76,10 +76,11 @@ credentials from there. No credential is in this repo, and none ever should be.
 | shell | DankMaterialShell (bar, launcher, notifications, power menu) |
 | greeter | Dank Greeter (Quickshell UI hosted in niri) |
 | terminal | ghostty, opened through its D-Bus-activated systemd service |
-| browser | Firefox, 1Password extension preinstalled by policy, default for links |
-| apps | Spotify, Slack, Claude Code — each signs in once via the browser |
+| browser | Firefox, 1Password and Vimium preinstalled by policy, default for links |
+| apps | Spotify, Slack, Discord, Claude Code — each signs in once via the browser |
+| games | Steam, as a system module: it needs the 32-bit graphics stack and controller udev rules |
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
-| dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf |
+| dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf, gh, awscli2, steampipe |
 | notebooks | marimo, inside a declared `python3.withPackages` with polars, duckdb, pyarrow, altair, numpy |
 | git config | identity, aliases, ignores and SSH commit signing declared in Home Manager |
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |

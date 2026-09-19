@@ -7,12 +7,34 @@
 # in ./git.nix.
 { pkgs, ... }:
 {
+  # gh, through its module rather than as a bare package, for one setting:
+  # `gh repo clone` and friends default to HTTPS, which would ignore the SSH
+  # auth key entirely and ask for a token instead. This points them at the
+  # 1Password agent like every other git operation.
+  programs.gh = {
+    enable = true;
+    settings.git_protocol = "ssh";
+  };
+
   home.packages = with pkgs; [
     # duckdb brings the `duckdb` CLI; the library rides along for anything
     # that links it. No server to run — it is in-process by design.
     duckdb
 
     kubectl
+
+    # awscli2, the v2 line. Home Manager has a programs.awscli module for
+    # ~/.aws/config and credentials, deliberately unused: there are no
+    # profiles to declare yet, and when there are, its own advice is to use
+    # `credential_process` to pull them from a password manager at runtime
+    # rather than write them down — which is what ../../modules/desktop/
+    # onepassword.nix already provides.
+    awscli2
+
+    # steampipe queries APIs as if they were Postgres tables. It embeds its
+    # own database and starts it on demand, so there is no service to enable
+    # here.
+    steampipe
 
     # ── marimo, in a Python that can actually import things ──────────────
     #
