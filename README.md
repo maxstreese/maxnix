@@ -88,6 +88,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
 
 ```
+.github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
 statix.toml                  the two statix lints this repo switches off, with reasons
@@ -388,7 +389,7 @@ Two static checks sit alongside the VM tests in the portable tier:
 | check | what it asserts | fix it with |
 | --- | --- | --- |
 | `formatting` | every `.nix` file is nixfmt-clean | `nix fmt` |
-| `lint` | statix and deadnix find nothing | by hand — see below |
+| `lint` | statix, deadnix and actionlint find nothing | by hand — see below |
 
 `nix fmt` is treefmt driving nixfmt, configured in `treefmt.nix`, which also
 records why shfmt and a Markdown formatter are deliberately absent. The linters
@@ -407,12 +408,38 @@ applies deliberately — `empty_pattern` (`{ ... }:` over `_:`) and
 `repeated_keys` (sibling options separated by their explanations). Everything
 else statix checks stays on; the file says why for each.
 
+`.github/workflows/checks.yml` is the whole of CI: free disk space, check out,
+install Nix, `nix run .#ci`. One `run:` step, deliberately — everything about
+*what* gets tested lives in the flake, so the workflow never needs to know
+what a tier is. It is named for what it verifies rather than for being CI —
+every workflow would be "ci" — and its single job is `portable`, so the PR
+status reads `checks / portable` and says in passing that the GPU tier is not
+covered here. Three details in it are load-bearing:
+
+- **Actions are pinned to full-length commit SHAs**, tag in a trailing
+  comment. Tags are mutable; `tj-actions/changed-files` had all of its
+  rewritten to malicious commits in March 2025. The `lint` check runs
+  `actionlint` over the workflow, which also shellchecks every `run:` block.
+- **`install_url` pins Nix itself.** Pinning the action's SHA pins the
+  installer *script*, not the Nix it fetches at run time. The URL names
+  2.34.8, matching `nix --version` here, so both environments run the same
+  Nix.
+- **Freeing disk is required, not an optimisation.** The guest closure is
+  12.5 GiB and a runner has roughly 14 GB free.
+
+No binary cache, on purpose. The Actions cache is 10 GB and the closure is
+12.5 GiB, so it does not fit; and the bulk of that is upstream packages
+`cache.nixos.org` already serves, so a second cache would move the same bytes
+from a different host. Only our own derivations would benefit, and those are
+small.
+
 `nix develop` gives you the tools those checks assume, so "what does this repo
 need installed" has a declared answer rather than being whatever the host
 happens to have: `treefmt` (for one file, where `nix fmt` does the tree),
 `statix` and `deadnix` (the `lint` check only reports, so `statix fix` and
-`deadnix --edit` are deliberate acts), `vncdotool` and `magick` for looking at
-a running VM and recalibrating a colour threshold, and `jq`. Note treefmt
+`deadnix --edit` are deliberate acts), `actionlint` for the workflow,
+`vncdotool` and `magick` for looking at a running VM and recalibrating a
+colour threshold, and `jq`. Note treefmt
 caches on mtime — `treefmt --no-cache` to force the whole tree.
 
 Hard-won lessons encoded in them:

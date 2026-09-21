@@ -1,0 +1,71 @@
+# What CI runs, which is one command.
+#
+# Named for what it verifies rather than for the fact that it is CI: every
+# workflow here would be "ci", and this one builds the flake's `checks`
+# output. The job is `portable` because that is the tier a hosted runner can
+# reach, which puts the limitation in the PR status list — `checks / portable`
+# — rather than only in this comment.
+#
+# Everything this repo knows about testing itself lives in the flake:
+# `nix run .#ci` probes for a GPU, builds the static checks, then the VM
+# suites, and names whatever it had to skip. This file exists only to get a
+# machine into a state where that command can run. If you find yourself adding
+# a second `run:` here, the knowledge probably belongs in flake.nix instead.
+#
+# What this cannot cover, and why: a hosted runner has KVM but no /dev/dri, so
+# the six subtests that look at the screen are skipped here and run on the
+# development machine via `nix run .#test-*`. See the tier table in README.md.
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A superseded push should not keep a runner busy for twenty minutes.
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+# It only reads the repo. Nothing here publishes, comments or tags.
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      # The guest closure is 12.5 GiB and a standard runner has roughly 14 GB
+      # free, so this is load-bearing rather than an optimisation. The v2
+      # defaults clear the Android, .NET and Haskell runtimes, Docker images
+      # and the large apt packages — about 30 GB, which is the headroom we
+      # need. Two defaults are deliberately left alone: `preinstalled-runtimes`
+      # would remove the Node the Actions runner itself uses, and
+      # `swap-storage` matters here because the VM suites run an 8 GiB guest.
+      - uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Upstream Nix, pinned to the version this repo is developed against.
+      #
+      # Pinning the action's SHA pins the installer *script*, not the Nix it
+      # installs — the script resolves a release at run time. `install_url`
+      # is what actually pins the version, and it is set to match the local
+      # `nix --version` so the two environments run the same Nix.
+      #
+      # enable_kvm defaults to true and is named anyway: the VM suites are
+      # three real QEMU boots, and losing acceleration silently would turn a
+      # twenty-minute job into a timeout.
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.34.8/install
+          enable_kvm: true
+          # nixos-test/kvm are what nixosTest derivations require to be
+          # schedulable at all; without them the VM suites are simply refused.
+          extra_nix_config: |
+            system-features = nixos-test benchmark big-parallel kvm
+            experimental-features = nix-command flakes
+
+      - run: nix run .#ci

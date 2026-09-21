@@ -138,12 +138,19 @@
       tests = mkTests true;
 
       # Everything that runs on any machine. Named once here so the `checks`
-      # output and the `ci` runner cannot drift apart: ci iterates exactly the
-      # attribute names that `checks` exposes.
-      portableChecks = mkTests false // {
+      # Everything that runs on any machine, in two groups because `ci`
+      # builds them in that order: the seconds-long static checks first,
+      # then the VM suites. A formatting typo should not be discovered after
+      # a 12.5 GiB download. The split lives here and not in the workflow, so
+      # CI stays one command and never has to know what a tier is.
+      #
+      # `checks` is their union, so the two cannot drift apart.
+      staticChecks = {
         formatting = treefmtEval.config.build.check inputs.self;
         lint = lintCheck;
       };
+      portableVmTests = mkTests false;
+      portableChecks = portableVmTests // staticChecks;
 
       # nix run .#vm-headless
       #
@@ -317,6 +324,13 @@
       #            does not mount /sys and Mesa cannot identify a render node
       #            without it — eglInitialize fails even with the device
       #            world-readable. Measured 2026-09-21.
+      # `.#checks.<system>.<name>` for every name in an attrset, as one
+      # space-separated argument list. Both tiers are spelled from the same
+      # attrsets `checks` exposes, so neither can name a check that is not
+      # there or miss one that is.
+      checkArgs =
+        set: lib.concatMapStringsSep " " (n: ".#checks.${system}.${n}") (builtins.attrNames set);
+
       ciRunner =
         let
           gpuSuites = lib.mapAttrsToList (name: test: {
@@ -341,9 +355,6 @@
             fi
             echo "gpu: $have_gpu (/dev/dri/renderD128)" >&2
 
-            echo >&2
-            echo "-- portable tier --" >&2
-
             # Builds the checks by name rather than running `nix flake check`.
             #
             # `nix flake check` would be the obvious command and is the one to
@@ -353,10 +364,20 @@
             # layout. So `nix flake check` fails on something that has nothing
             # to do with the checks. Once disko lands, this can become the
             # one-liner it wants to be.
-            nix build --print-build-logs \
-              ${lib.concatMapStringsSep " \\\n              " (n: ".#checks.${system}.${n}") (
-                builtins.attrNames portableChecks
-              )}
+
+            echo >&2
+            echo "-- static checks --" >&2
+            nix build --print-build-logs ${checkArgs staticChecks}
+
+            echo >&2
+            echo "-- vm suites, portable tier --" >&2
+            # --max-jobs 1 because each guest is 8192 MiB and there are three
+            # of them: in parallel that is 24 GB, and a GitHub runner has 16.
+            # This host carries max-jobs = 1 in nix.conf, which is why it
+            # never bit locally — and leaning on a local setting for
+            # correctness in CI is precisely the divergence this runner
+            # exists to prevent, so it is stated rather than assumed.
+            nix build --max-jobs 1 --print-build-logs ${checkArgs portableVmTests}
 
             if [ "$have_gpu" = no ]; then
               echo >&2
@@ -407,6 +428,10 @@
           # statix.toml when run from the root.
           pkgs.statix
           pkgs.deadnix
+
+          # The `lint` check runs this over .github/workflows; it is here for
+          # editing one.
+          pkgs.actionlint
 
           # Looking at a running VM from the host. `nix run .#vm-headless`
           # prints a vncdotool line to capture its screen; imagemagick is how
@@ -476,6 +501,7 @@
             nativeBuildInputs = [
               pkgs.statix
               pkgs.deadnix
+              pkgs.actionlint
             ];
           }
           ''
@@ -484,6 +510,15 @@
             statix check .
             echo "== deadnix ==" >&2
             deadnix --fail .
+            # The workflow is the one tracked file that is neither Nix nor
+            # covered by anything else, and its failure mode is a push that
+            # dies on the runner. actionlint also runs shellcheck over every
+            # `run:` block.
+            #
+            # Given an explicit path because actionlint otherwise discovers
+            # workflows by walking up to a .git, and the store copy has none.
+            echo "== actionlint ==" >&2
+            actionlint .github/workflows/*.yml
             touch "$out"
           '';
     in
