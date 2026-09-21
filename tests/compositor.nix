@@ -151,20 +151,20 @@ compositor:
     ''
     + lib.optionalString (compositor.appUnit != null) ''
 
-          # The terminal must be running as a systemd unit of its own, not as
-          # a child inside the compositor's — that is the point of ghostty's
-          # D-Bus service and, on Hyprland, of `uwsm app --` in the binds.
-          units = machine.wait_until_succeeds(
-              "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user list-units --plain --no-legend \"${compositor.appUnit}\"' | grep -E 'active +running'"
-          )
-          machine.log(units)
+      # The terminal must be running as a systemd unit of its own, not as
+      # a child inside the compositor's — that is the point of ghostty's
+      # D-Bus service and, on Hyprland, of `uwsm app --` in the binds.
+      units = machine.wait_until_succeeds(
+          "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user list-units --plain --no-legend \"${compositor.appUnit}\"' | grep -E 'active +running'"
+      )
+      machine.log(units)
     ''
     + ''
 
-          # 3000 sits well above a bare compositor with one terminal (measured
-          # 533-545) and well below DankMaterialShell once it has drawn its bar
-          # and wallpaper (~6500). So this asserts the whole stack is on screen,
-          # not merely that the compositor is not black.
-          wait_for_rich_screen(machine, "${compositor.name}-session", minimum=3000)
+      # 3000 sits well above a bare compositor with one terminal (measured
+      # 533-545) and well below DankMaterialShell once it has drawn its bar
+      # and wallpaper (~6500). So this asserts the whole stack is on screen,
+      # not merely that the compositor is not black.
+      wait_for_rich_screen(machine, "${compositor.name}-session", minimum=3000)
     '';
 }

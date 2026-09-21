@@ -41,7 +41,7 @@ let
   #
   # LIBGL_DRIVERS_PATH does NOT work — nixpkgs Mesa ignores it for the GBM
   # loader. GBM_BACKENDS_PATH is the one that is honoured.
-  mesa = hostPkgs.mesa;
+  inherit (hostPkgs) mesa;
 
   # QEMU's GTK window otherwise prints, on every start:
   #   Gtk-Message: Failed to load module "canberra-gtk-module"

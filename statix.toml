@@ -1,0 +1,23 @@
+# statix lints that are switched off, and why.
+#
+# Both disagree with a convention this repo applies on purpose, so they would
+# report the same handful of sites forever. Everything else statix checks is
+# left on, and `nix build .#checks.<system>.lint` fails on it.
+#
+#   empty_pattern   wants `_:` instead of `{ ... }:` for a module that uses
+#                   none of its arguments. `{ ... }:` is the spelling nixpkgs
+#                   uses for NixOS modules and it says what the file *is* —
+#                   a module taking the standard argument set — where `_:`
+#                   says only that this one takes nothing. Seven files.
+#
+#   repeated_keys   wants `environment.systemPackages` and
+#                   `environment.sessionVariables` merged into one
+#                   `environment = { … }`. In this repo those siblings are
+#                   routinely separated by a dozen lines of comment
+#                   explaining each one; merging them would put the prose
+#                   inside an attrset and break the ordering that makes the
+#                   file readable. Three sites.
+disabled = [
+  "empty_pattern",
+  "repeated_keys",
+]

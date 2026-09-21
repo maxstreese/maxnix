@@ -63,7 +63,6 @@
     wev
   ];
 
-
   # Enabling both compositors' Home Manager modules collides here: niri's sets
   # xdg.portal.enable = true and Hyprland's sets it false, and the module
   # system has no way to pick.

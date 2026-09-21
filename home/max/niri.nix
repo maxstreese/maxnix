@@ -129,66 +129,147 @@
         #   Mod+V           Mod+C             Mod+V      toggle-window-floating
         "Mod+Space" = {
           _props.hotkey-overlay-title = "Toggle Application Launcher";
-          spawn = [ "dms" "ipc" "spotlight" "toggle" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "spotlight"
+            "toggle"
+          ];
         };
         "Mod+N" = {
           _props.hotkey-overlay-title = "Toggle Notification Center";
-          spawn = [ "dms" "ipc" "notifications" "toggle" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "notifications"
+            "toggle"
+          ];
         };
         "Mod+Shift+Comma" = {
           _props.hotkey-overlay-title = "Toggle Settings";
-          spawn = [ "dms" "ipc" "settings" "toggle" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "settings"
+            "toggle"
+          ];
         };
         "Mod+P" = {
           _props.hotkey-overlay-title = "Toggle Notepad";
-          spawn = [ "dms" "ipc" "notepad" "toggle" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "notepad"
+            "toggle"
+          ];
         };
         "Mod+X" = {
           _props.hotkey-overlay-title = "Toggle Power Menu";
-          spawn = [ "dms" "ipc" "powermenu" "toggle" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "powermenu"
+            "toggle"
+          ];
         };
         "Mod+C" = {
           _props.hotkey-overlay-title = "Toggle Clipboard Manager";
-          spawn = [ "dms" "ipc" "clipboard" "toggle" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "clipboard"
+            "toggle"
+          ];
         };
         "Mod+M" = {
           _props.hotkey-overlay-title = "Toggle Process List";
-          spawn = [ "dms" "ipc" "processlist" "toggle" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "processlist"
+            "toggle"
+          ];
         };
         "Mod+Alt+N" = {
           _props.hotkey-overlay-title = "Toggle Night Mode";
-          spawn = [ "dms" "ipc" "night" "toggle" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "night"
+            "toggle"
+          ];
         };
         "Mod+Alt+L" = {
           _props.hotkey-overlay-title = "Lock the Screen";
-          spawn = [ "dms" "ipc" "lock" "lock" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "lock"
+            "lock"
+          ];
         };
 
         # Media and brightness keys. Portable across layouts, and allowed
         # while the screen is locked.
         "XF86AudioRaiseVolume" = {
           _props.allow-when-locked = true;
-          spawn = [ "dms" "ipc" "audio" "increment" "3" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "audio"
+            "increment"
+            "3"
+          ];
         };
         "XF86AudioLowerVolume" = {
           _props.allow-when-locked = true;
-          spawn = [ "dms" "ipc" "audio" "decrement" "3" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "audio"
+            "decrement"
+            "3"
+          ];
         };
         "XF86AudioMute" = {
           _props.allow-when-locked = true;
-          spawn = [ "dms" "ipc" "audio" "mute" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "audio"
+            "mute"
+          ];
         };
         "XF86AudioMicMute" = {
           _props.allow-when-locked = true;
-          spawn = [ "dms" "ipc" "audio" "micmute" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "audio"
+            "micmute"
+          ];
         };
         "XF86MonBrightnessUp" = {
           _props.allow-when-locked = true;
-          spawn = [ "dms" "ipc" "brightness" "increment" "5" "" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "brightness"
+            "increment"
+            "5"
+            ""
+          ];
         };
         "XF86MonBrightnessDown" = {
           _props.allow-when-locked = true;
-          spawn = [ "dms" "ipc" "brightness" "decrement" "5" "" ];
+          spawn = [
+            "dms"
+            "ipc"
+            "brightness"
+            "decrement"
+            "5"
+            ""
+          ];
         };
         "Print".screenshot = { };
         "Mod+Shift+7".show-hotkey-overlay = { };
@@ -204,8 +285,7 @@
       # or the day this Home Manager module starts emitting one. Both
       # compositors now state the layout, and both read it from the same place,
       # so neither depends on an upstream default staying absent.
-      input.keyboard.xkb.layout =
-        osConfig.environment.sessionVariables.XKB_DEFAULT_LAYOUT;
+      input.keyboard.xkb.layout = osConfig.environment.sessionVariables.XKB_DEFAULT_LAYOUT;
 
       # Client-side decorations off: niri draws its own focus ring, and CSD
       # title bars waste a row in a tiling layout.

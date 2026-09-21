@@ -89,11 +89,13 @@ credentials from there. No credential is in this repo, and none ever should be.
 
 ```
 flake.nix                    inputs, hostModules, packages + apps + checks
+treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
+statix.toml                  the two statix lints this repo switches off, with reasons
 hosts/maxnix/
   configuration.nix          the machine: user, locale, keyboard, home-manager
   vm.nix                     build-vm specifics: window, disk images, sshd, `rebuild`
 modules/
-  desktop/{default,niri,hyprland,greeter,onepassword,gpu-check}.nix  system layer
+  desktop/{default,niri,hyprland,greeter,onepassword,gpu-check,steam}.nix  system layer
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
 home/max/*.nix               user layer, one file per program: default (the
                              layer itself), niri, hyprland, dms, ghostty,
@@ -340,6 +342,25 @@ reports that as exit 124, and any other status means QEMU bailed. It needs a
 graphical session and flashes a window; that is inherent to testing
 `-display gtk`.
 
+Two static checks sit alongside them and, unlike the VM tests, *do* run under
+`nix flake check`, because they need neither `/dev/kvm` nor `/dev/dri`:
+
+| check | what it asserts | fix it with |
+| --- | --- | --- |
+| `formatting` | every `.nix` file is nixfmt-clean | `nix fmt` |
+| `lint` | statix and deadnix find nothing | by hand — see below |
+
+`nix fmt` is treefmt driving nixfmt, configured in `treefmt.nix`, which also
+records why shfmt and a Markdown formatter are deliberately absent. The linters
+are kept *out* of `nix fmt` on purpose: treefmt can run them, but only in
+`--fix` mode, and deadnix's fix is to delete a function argument. A formatter
+that rewrites code is not a formatter, so `lint` only ever reports.
+
+`statix.toml` switches off two lints that disagree with conventions this repo
+applies deliberately — `empty_pattern` (`{ ... }:` over `_:`) and
+`repeated_keys` (sibling options separated by their explanations). Everything
+else statix checks stays on; the file says why for each.
+
 Hard-won lessons encoded in them:
 
 - **Assert the observable, not the input.** `XKB_DEFAULT_LAYOUT=de` reached both
@@ -360,8 +381,12 @@ Hard-won lessons encoded in them:
   tuigreet's text console and would have passed on a blank graphical greeter.
 - **Verify the verifier.** Every check here was run against a deliberately
   broken config to confirm it fails — the layout test with the layout flipped
-  to `us`, `test-vm-starts` with `-vnc` put back. A test only ever seen passing
-  is indistinguishable from one that asserts nothing.
+  to `us`, `test-vm-starts` with `-vnc` put back, `formatting` against a
+  mangled file, `lint` against an unused argument and a manual `inherit`. A
+  test only ever seen passing is indistinguishable from one that asserts
+  nothing. The first attempt at that last one was itself vacuous: it injected
+  `x = pkgs.hello`, which statix correctly ignores because the binding is not
+  named after the attribute.
 
 ---
 

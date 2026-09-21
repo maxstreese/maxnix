@@ -120,7 +120,7 @@
 
       alias = {
         # Fetch a .gitignore from gitignore.io: `git ignore scala,java`.
-        ignore = ''!gi() { curl -sL https://www.gitignore.io/api/$@ ;}; gi'';
+        ignore = "!gi() { curl -sL https://www.gitignore.io/api/$@ ;}; gi";
 
         # Pick a branch with fzf, delete it, prune the remote. Needs fzf.
         cleanup = ''!BRANCH=$(git branch -l --format='%(refname:short)' | grep -v 'main\|master' | fzf --prompt='Branch to delete: ') && git switch main && git pull && git branch -d $BRANCH && git remote prune origin'';

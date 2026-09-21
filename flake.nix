@@ -25,6 +25,12 @@
       # closure and lets the user layer drift from the system layer.
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # Drives `nix fmt` and the formatting check. Config in ./treefmt.nix.
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -290,9 +296,44 @@
               --no-interactive -o "$out" "$@"
           '';
         };
+
+      # `nix fmt`, and the check that asserts the tree is already formatted.
+      # ./treefmt.nix documents what runs and what is deliberately left out.
+      treefmtEval = inputs.treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
+
+      # statix and deadnix, report-only.
+      #
+      # Kept out of treefmt on purpose. treefmt-nix can run both, but only in
+      # their --fix modes, which would make `nix fmt` a command that deletes
+      # code: deadnix's fix is to remove an unused function argument. Pointing
+      # something out and rewriting it are different acts, so the formatter
+      # only reformats and this only reports.
+      #
+      # statix looks for statix.toml in the directory it is run from, which is
+      # why this cds into the source instead of passing paths. That file lists
+      # the two lints this repo switches off, and why.
+      lintCheck =
+        pkgs.runCommand "maxnix-lint"
+          {
+            nativeBuildInputs = [
+              pkgs.statix
+              pkgs.deadnix
+            ];
+          }
+          ''
+            cd ${inputs.self}
+            echo "== statix ==" >&2
+            statix check .
+            echo "== deadnix ==" >&2
+            deadnix --fail .
+            touch "$out"
+          '';
     in
     {
       nixosConfigurations.maxnix = maxnix;
+
+      # nix fmt
+      formatter.${system} = treefmtEval.config.build.wrapper;
 
       # nix run .#vm      — or just `nix run .`
       #
@@ -314,7 +355,14 @@
         default = maxnix.config.system.build.vm;
       };
 
-      checks.${system} = tests;
+      # The three nixosTests, plus the two static checks. Only the latter two
+      # can run under `nix flake check`: a sandboxed build reaches neither
+      # /dev/kvm nor /dev/dri, which is why the VM tests have their own
+      # runners instead (testRunner, above).
+      checks.${system} = tests // {
+        formatting = treefmtEval.config.build.check inputs.self;
+        lint = lintCheck;
+      };
 
       # nix run .#test-desktop | .#test-niri | .#test-hyprland
       #
