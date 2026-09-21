@@ -383,6 +383,45 @@
           '';
         };
 
+      # nix develop
+      #
+      # What you need on PATH to work *on* this repo. Nothing here is needed
+      # to build the machine, and nothing here duplicates an app: the entry
+      # points stay `nix run .#ci | .#vm | .#vm-ssh | .#vm-deploy | .#test-*`,
+      # which are pinned by the flake and cannot drift from what CI runs.
+      #
+      # This exists so "what tools does this repo assume" has a declared
+      # answer rather than being whatever the host happens to have installed
+      # — the same reason everything else here is declared.
+      devShell = pkgs.mkShellNoCC {
+        name = "maxnix";
+        packages = [
+          # The very thing `nix fmt` runs. Having it directly is for the
+          # narrower jobs the flake output cannot express: formatting or
+          # checking one file rather than the tree.
+          treefmtEval.config.build.wrapper
+
+          # The `lint` check only ever reports, deliberately (see
+          # ../treefmt.nix), so fixing is a thing you do on purpose:
+          # `statix fix` and `deadnix --edit`. Both read the repo's own
+          # statix.toml when run from the root.
+          pkgs.statix
+          pkgs.deadnix
+
+          # Looking at a running VM from the host. `nix run .#vm-headless`
+          # prints a vncdotool line to capture its screen; imagemagick is how
+          # you count colours the way tests/vnc.nix does, which is what
+          # recalibrating one of those thresholds by hand needs.
+          pkgs.vncdotool
+          pkgs.imagemagick
+
+          # `nix eval --json … | jq` is how most of this config gets
+          # inspected — which module set an option, what a node's QEMU line
+          # ended up being.
+          pkgs.jq
+        ];
+      };
+
       # One-step runner for a test's interactive driver.
       #
       # This is how the GPU tier runs, and it has to be: a sandboxed build
@@ -453,6 +492,9 @@
 
       # nix fmt
       formatter.${system} = treefmtEval.config.build.wrapper;
+
+      # nix develop
+      devShells.${system}.default = devShell;
 
       # nix run .#vm      — or just `nix run .`
       #

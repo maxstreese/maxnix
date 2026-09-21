@@ -88,7 +88,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
 
 ```
-flake.nix                    inputs, hostModules, packages + apps + checks
+flake.nix                    inputs, hostModules, packages + apps + checks + devShell
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
 statix.toml                  the two statix lints this repo switches off, with reasons
 hosts/maxnix/
@@ -406,6 +406,14 @@ back to a one-liner the day a disk layout lands.
 applies deliberately — `empty_pattern` (`{ ... }:` over `_:`) and
 `repeated_keys` (sibling options separated by their explanations). Everything
 else statix checks stays on; the file says why for each.
+
+`nix develop` gives you the tools those checks assume, so "what does this repo
+need installed" has a declared answer rather than being whatever the host
+happens to have: `treefmt` (for one file, where `nix fmt` does the tree),
+`statix` and `deadnix` (the `lint` check only reports, so `statix fix` and
+`deadnix --edit` are deliberate acts), `vncdotool` and `magick` for looking at
+a running VM and recalibrating a colour threshold, and `jq`. Note treefmt
+caches on mtime — `treefmt --no-cache` to force the whole tree.
 
 Hard-won lessons encoded in them:
 
