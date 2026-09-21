@@ -30,6 +30,8 @@
 let
   hostPkgs = config.virtualisation.host.pkgs;
 
+  gpu = config.maxnix.vm.gpu;
+
   # nixpkgs' Mesa is patched to look for drivers under /run/opengl-driver/lib,
   # a path that only exists on NixOS. On Ubuntu, Nix-built QEMU therefore fails
   # to initialise GL ("MESA-LOADER: failed to open dri", "egl: render node init
@@ -69,7 +71,35 @@ let
   };
 in
 {
-  virtualisation = {
+  # Whether this VM gets a GL-capable GPU.
+  #
+  # On (the default) the guest gets virtio-vga-gl backed by the host's real
+  # GPU, which is what niri and Hyprland need to draw anything at all.
+  #
+  # Off, the guest still boots and both compositors still *start* — the
+  # Wayland IPC socket appears — but they enumerate no outputs and nothing is
+  # ever drawn. Measured 2026-09-21 on both `-device virtio-gpu` and
+  # `-device virtio-vga`: `niri msg outputs` returns empty and the screen
+  # stays a 2-3 colour text console. Without virgl there is no GL driver for
+  # the virtio GPU, so niri finds no render device ("error getting the render
+  # node for the primary GPU") and comes up headless.
+  #
+  # So this is not a performance knob. Off means every assertion about what is
+  # on screen has to be skipped, which is exactly what tests/desktop.nix and
+  # tests/compositor.nix do with their own `gpu` flag.
+  #
+  # It exists because a GitHub-hosted runner has KVM but no /dev/dri, and
+  # because a sandboxed `nix build` cannot do GL on this host either: the Nix
+  # sandbox does not mount /sys, so Mesa cannot identify the render node and
+  # eglInitialize fails even with the device world-readable. Both of those are
+  # the same tier, and this option is how a node opts into it.
+  options.maxnix.vm.gpu = lib.mkOption {
+    type = lib.types.bool;
+    default = true;
+    description = "Give the guest a GL-capable virtio GPU backed by the host's.";
+  };
+
+  config.virtualisation = {
     cores = 4;
     memorySize = 8192; # MiB
     diskSize = 16384; # MiB — a ceiling; the image grows into it
@@ -82,7 +112,9 @@ in
     #   - interactive mode assigns plain hostPkgs.qemu, which cannot find Mesa
     #     on a non-NixOS host
     # This machine always needs the wrapper, so it insists.
-    qemu.package = lib.mkForce qemuWithGL;
+    # Only when GL is wanted. Without it the stock qemu_test the framework
+    # picks is correct and the Mesa wrapper would be dead weight.
+    qemu.package = lib.mkIf gpu (lib.mkForce qemuWithGL);
 
     # ── Workaround for a nixpkgs bug; remove once upstream fixes it ─────
     #
@@ -112,18 +144,27 @@ in
     # and look for a `default = useVirtiofs` rather than `mkEnableOption`.
     qemu.enableSharedMemory = true;
 
+    # xres/yres set the preferred mode in both branches. Note that
+    # virtualisation.resolution does NOT do this — that option only feeds
+    # services.xserver, and nothing here runs X.
     qemu.options = [
-      # virtio-gpu + VGA compatibility + GL: gives the guest /dev/dri/card0 and
-      # a renderD128 render node. niri and Hyprland both refuse to start
-      # without one ("Could not successfully create backend on any GPU"), and
-      # niri has no software-rendering fallback — unlike wlroots compositors,
-      # which is how upstream's nixos/tests/sway.nix gets away with
-      # WLR_RENDERER=pixman.
-      #
-      # xres/yres set the preferred mode. Note virtualisation.resolution does
-      # NOT do this — that option only feeds services.xserver, and nothing here
-      # runs X.
-      "-device virtio-vga-gl,xres=1920,yres=1080"
+      (
+        if gpu then
+          # virtio-gpu + VGA compatibility + GL: gives the guest
+          # /dev/dri/card0 and a renderD128 render node with virgl, which is
+          # the only way either compositor puts anything on screen.
+          "-device virtio-vga-gl,xres=1920,yres=1080"
+        else
+          # The same device without GL. The guest still gets a framebuffer,
+          # so it boots and the console is readable, but the kernel reports
+          # `[drm] features: -virgl` and neither compositor enumerates an
+          # output. Everything that does not look at the screen still works.
+          #
+          # Earlier revisions of this comment claimed niri "refuses to start"
+          # without a GPU. Measured 2026-09-21: it starts fine and serves its
+          # IPC socket. What it does not do is render.
+          "-device virtio-vga,xres=1920,yres=1080"
+      )
     ];
   };
 }

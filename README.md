@@ -69,7 +69,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 
 | layer | what |
 |---|---|
-| host, for now | Ubuntu 24.04, GNOME Wayland. Only needs a Nix daemon and `/dev/kvm` |
+| host, for now | Ubuntu 24.04, GNOME Wayland. Needs a Nix daemon, `/dev/kvm` and — for the GPU tier — a render node; both at mode 0666 so sandboxed builds can use KVM |
 | distro | NixOS, `nixpkgs-unstable`, pinned by `flake.lock` |
 | compositors | niri 26.04, Hyprland 0.56.2 — both in use, switched between at login |
 | shell toolkit | Quickshell 0.3.0 |
@@ -157,14 +157,29 @@ VNC, never both. Hence `vm-headless` as a separate app.
 driver's `machine.screenshot()` and `get_screen_text()` are unusable here. VNC
 readback works, which is what `tests/vnc.nix` does.
 
-**The build sandbox can open neither `/dev/kvm` nor `/dev/dri`** on this host:
-both are `crw-rw----` and the only grant is an ACL for the human user, which
-does not apply to `nixbld`. `--option extra-sandbox-paths /dev/dri` exposes the
-path but not access. So `nix build .#checks…` is useless here; the interactive
-driver runs as you, outside the sandbox.
+**The build sandbox denies `setgroups`, so only the `other` permission bits
+reach a build.** `/dev/kvm` and `/dev/dri/renderD128` are `root:kvm` /
+`root:render`, and adding the 32 `nixbld` users to those groups changes
+nothing: Nix writes `deny` to `/proc/self/setgroups` before its gid map, which
+the kernel requires without `CAP_SETGID` and which permanently forbids
+supplementary groups. Inside a build, `id` reports `groups=100(nixbld)` alone.
+That is why every CI recipe ships a udev rule with `MODE="0666"` rather than a
+group — measured the hard way on 2026-09-21, after the group route was tried
+and did nothing.
+
+**Even world-readable, the sandbox cannot do GL: it does not mount `/sys`.**
+With `/dev/kvm` and `/dev/dri/renderD128` at `0666` and
+`extra-sandbox-paths = /dev/dri`, both open fine and KVM works — but Mesa
+resolves a render node's driver through `/sys/dev/char/<major>:<minor>`, which
+is absent, and `eglinfo` reports `eglInitialize failed`. So KVM-only tests are
+ordinary sandboxed checks and GPU tests are not, at any permission. This is
+the line the two test tiers are drawn along.
 
 **niri has no software renderer.** Without virgl it starts, opens its socket,
 and enumerates zero outputs. Mesa's `GBM_ALWAYS_SOFTWARE` does not rescue it.
+Re-measured 2026-09-21 on both `-device virtio-gpu` and `-device virtio-vga`:
+`niri msg outputs` returns empty and the screen stays a 2-3 colour text
+console. This is the fact the portable test tier is built on.
 wlroots compositors have pixman, which is how upstream's `nixos/tests/sway.nix`
 gets away with no GPU; smithay-based niri does not.
 
@@ -330,8 +345,34 @@ greetd's `preStart`. They fight.
 share `hostModules` with the real machine, so a test node cannot drift from what
 `nix run .#vm` builds.
 
-Run them with `nix run .#test-<name>`, **not** `nix build .#checks…` — see the
-sandbox finding above.
+**One command runs all of it, here and in CI:**
+
+```
+nix run .#ci
+```
+
+It probes for a usable render node, prints what it found, builds the portable
+tier, and — only where a GPU exists — runs the full suites too, naming every
+subtest it skipped. There is no "am I in CI" flag: the only difference between
+a local run and a runner's is which line that probe prints.
+
+The tiers come from one definition instantiated twice, differing only in a
+`gpu` argument (`mkTests` in `flake.nix`):
+
+| | `nix build .#checks…` / CI | `nix run .#test-<name>` |
+| --- | --- | --- |
+| `gpu` | `false` | `true` |
+| QEMU | `-device virtio-vga` | `-device virtio-vga-gl` + `egl-headless` + `-vnc` |
+| desktop | 4 subtests | 6 |
+| niri / hyprland | 2 subtests each | all |
+| sandboxed | yes, and cached | no — needs `/sys`, see above |
+
+The portable tier is everything that does not look at the screen. It is not a
+guess: without virgl both compositors *start* and serve their IPC but
+enumerate zero outputs and draw nothing, so every screen assertion, and
+everything downstream of having a surface, is gated. Verified 2026-09-21 by
+running all three portable suites sandboxed (8 subtests, green) and the full
+desktop suite with `+virgl` (6 subtests, green).
 
 `test-vm-starts` is the odd one out and covers what the other three
 structurally cannot. They all override `-display` to `egl-headless`, so the
@@ -342,8 +383,7 @@ reports that as exit 124, and any other status means QEMU bailed. It needs a
 graphical session and flashes a window; that is inherent to testing
 `-display gtk`.
 
-Two static checks sit alongside them and, unlike the VM tests, *do* run under
-`nix flake check`, because they need neither `/dev/kvm` nor `/dev/dri`:
+Two static checks sit alongside the VM tests in the portable tier:
 
 | check | what it asserts | fix it with |
 | --- | --- | --- |
@@ -355,6 +395,12 @@ records why shfmt and a Markdown formatter are deliberately absent. The linters
 are kept *out* of `nix fmt` on purpose: treefmt can run them, but only in
 `--fix` mode, and deadnix's fix is to delete a function argument. A formatter
 that rewrites code is not a formatter, so `lint` only ever reports.
+
+`nix flake check` is **not** the entry point, though it ought to be. It also
+validates `nixosConfigurations`, and the metal configuration does not evaluate
+yet — no `fileSystems`, no `boot.loader` — so it fails on something unrelated
+to any check. `nix run .#ci` builds the checks by name instead, and collapses
+back to a one-liner the day a disk layout lands.
 
 `statix.toml` switches off two lints that disagree with conventions this repo
 applies deliberately — `empty_pattern` (`{ ... }:` over `_:`) and

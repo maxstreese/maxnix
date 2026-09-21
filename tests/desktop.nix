@@ -6,19 +6,36 @@
 #
 # HOW TO RUN:
 #
-#   nix run .#test-desktop
+#   nix run .#test-desktop                    every subtest, needs a GPU
+#   nix build .#checks.x86_64-linux.desktop   the portable subtests, sandboxed
 #
-# NOT `nix build .#checks.x86_64-linux.desktop`. A sandboxed build on this
-# Ubuntu host can open neither /dev/kvm nor /dev/dri: both are crw-rw---- owned
-# by root:kvm / root:render, and the only grant is an ACL for the human user,
-# which does not apply to the nixbld build users (the sandbox also drops
-# supplementary groups). So a sandboxed run gets no GPU — meaning niri cannot
-# render at all — and silently falls back to TCG emulation for want of KVM.
-# The interactive driver runs as you, outside the sandbox, where the ACL
-# applies and both devices are available — which is what the app in flake.nix
-# wraps.
-{ hostModules, ... }:
-{ hostPkgs, ... }:
+# The two differ only in the `gpu` argument; see the gate further down.
+#
+# Why the split, and why the full suite is not a `nix build`:
+#
+#   KVM      a sandboxed build CAN use it, but only because /dev/kvm is mode
+#            0666 on this host. Group membership does not work: the Nix
+#            sandbox denies setgroups, so a build's supplementary groups are
+#            dropped and only the `other` bits are reachable. That is also
+#            why every CI recipe ships a udev rule rather than a group.
+#   GPU      a sandboxed build CANNOT use it, at any permission. The sandbox
+#            does not mount /sys, so Mesa cannot resolve the render node's
+#            driver and eglInitialize fails even with the device world
+#            readable. Measured 2026-09-21.
+#
+# So the GPU tier needs the interactive driver, which runs as you, outside the
+# sandbox — that is what the app in flake.nix wraps. The portable tier has no
+# such need and is an ordinary check.
+{
+  hostModules,
+  gpu,
+  ...
+}:
+{
+  hostPkgs,
+  lib,
+  ...
+}:
 {
   name = "maxnix-desktop";
 
@@ -38,6 +55,9 @@
       # flake.nix so this node is the same definition `nix run .#vm` builds.
       imports = hostModules ++ [ ../modules/vm/qemu-guest.nix ];
 
+      # Which virtio device the guest gets; see that module.
+      maxnix.vm.gpu = gpu;
+
       # The driver appends -nographic when it finds no DISPLAY in its own
       # environment, which would leave virtio-vga-gl without a GL-capable
       # backend and silently kill acceleration.
@@ -46,7 +66,10 @@
       # driver's machine.screenshot() and get_screen_text()) fails with "Error:
       # no surface" on a GL scanout. These two flags go together — a gtk window
       # instead of egl-headless would make QEMU refuse -vnc entirely.
-      virtualisation.qemu.options = [
+      #
+      # Both are pointless without GL, so with gpu = false the framework's own
+      # -nographic is left alone.
+      virtualisation.qemu.options = lib.optionals gpu [
         "-display egl-headless"
         "-vnc 127.0.0.1:9"
       ];
@@ -57,7 +80,7 @@
 
   testScript =
     { nodes, ... }:
-    (import ./vnc.nix { inherit hostPkgs; })
+    lib.optionalString gpu (import ./vnc.nix { inherit hostPkgs; })
     + ''
       start_all()
 
@@ -177,6 +200,11 @@
           # keyring module — both halves of that chain are asserted.
           machine.succeed("grep -q pam_gnome_keyring /etc/pam.d/login")
           machine.succeed("grep -Eq '^auth[[:space:]]+substack[[:space:]]+login' /etc/pam.d/greetd")
+    ''
+    # Everything past here looks at the screen, which needs a real GPU:
+    # without virgl the greeter never draws and gpu-check reports no
+    # acceleration. See ../modules/vm/qemu-guest.nix for the measurement.
+    + lib.optionalString gpu ''
 
       with subtest("the guest has a GPU with working virgl"):
           gpu = machine.succeed("gpu-check")

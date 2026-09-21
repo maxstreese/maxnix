@@ -75,12 +75,26 @@
       # tests differ only in how you ask a compositor what it is doing, so the
       # test body is shared — see tests/compositor.nix. `session` is the
       # desktop entry the greeter would offer; the test runs its real Exec.
-      tests = {
-        desktop = pkgs.testers.runNixOSTest (import ./tests/desktop.nix { inherit hostModules; });
+      #
+      # Each is built twice, from one definition, differing only in `gpu`:
+      #
+      #   gpu = true    every subtest, including the four that look at the
+      #                 screen. Needs a real GPU, so it needs this machine and
+      #                 the interactive driver (see testRunner).
+      #   gpu = false   the same machine and the same assertions minus those
+      #                 four. Runs anywhere — a sandboxed `nix build` here, or
+      #                 a GitHub runner that has KVM and no /dev/dri.
+      #
+      # Only the portable set goes in `checks`, so `nix flake check` passes on
+      # any machine. The full set is what `nix run .#test-*` and `nix run .#ci`
+      # reach for when a GPU is actually present. Both are declared here, so
+      # nothing is hidden behind a flag you cannot see.
+      mkTests = gpu: {
+        desktop = pkgs.testers.runNixOSTest (import ./tests/desktop.nix { inherit hostModules gpu; });
 
         niri = pkgs.testers.runNixOSTest (
           import ./tests/compositor.nix {
-            inherit hostModules;
+            inherit hostModules gpu;
             name = "niri";
             session = "niri";
             # ghostty opens its window from its D-Bus-activated service, so
@@ -95,7 +109,7 @@
 
         hyprland = pkgs.testers.runNixOSTest (
           import ./tests/compositor.nix {
-            inherit hostModules;
+            inherit hostModules gpu;
             name = "hyprland";
             # The UWSM-managed entry, not the plain one: that is the session
             # meant to be used, see modules/desktop/hyprland.nix.
@@ -116,6 +130,19 @@
             layout = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl devices";
           }
         );
+      };
+
+      # The two instantiations. `tests` keeps its old meaning — the full,
+      # GPU-requiring suites — so the runners and app names below are
+      # unchanged.
+      tests = mkTests true;
+
+      # Everything that runs on any machine. Named once here so the `checks`
+      # output and the `ci` runner cannot drift apart: ci iterates exactly the
+      # attribute names that `checks` exposes.
+      portableChecks = mkTests false // {
+        formatting = treefmtEval.config.build.check inputs.self;
+        lint = lintCheck;
       };
 
       # nix run .#vm-headless
@@ -268,18 +295,110 @@
           '';
         };
 
+      # nix run .#ci
+      #
+      # The single entry point, and the same command in CI as on this desk.
+      #
+      # The premise: anything CI runs must be runnable locally, with one
+      # command, and nothing may differ between the two except facts about the
+      # hardware. So this does not branch on "am I in CI" — there is no such
+      # flag. It probes for a usable GPU and says what it found, and the only
+      # difference between a local run and a runner's is which line that probe
+      # prints and which suites follow it.
+      #
+      # Two tiers, both declared in this flake:
+      #
+      #   always   `nix flake check` — formatting, lint, and the three VM
+      #            suites without their screen assertions. Sandboxed, so
+      #            results are cached: a second run of an unchanged tree is
+      #            nearly free.
+      #   with a   the same three suites with every subtest, through the
+      #   GPU      interactive driver. Not sandboxed, because the Nix sandbox
+      #            does not mount /sys and Mesa cannot identify a render node
+      #            without it — eglInitialize fails even with the device
+      #            world-readable. Measured 2026-09-21.
+      ciRunner =
+        let
+          gpuSuites = lib.mapAttrsToList (name: test: {
+            inherit name;
+            runner = testRunner name test;
+          }) tests;
+        in
+        pkgs.writeShellApplication {
+          name = "ci";
+          runtimeInputs = [ pkgs.nix ];
+          text = ''
+            echo "== maxnix ci ==" >&2
+
+            # The probe. A render node that exists but cannot be opened is the
+            # same as no render node, so this opens it rather than stat-ing
+            # it — that distinction is exactly what bit this host before the
+            # device was made world-readable.
+            if [ -e /dev/dri/renderD128 ] && (: <>/dev/dri/renderD128) 2>/dev/null; then
+              have_gpu=yes
+            else
+              have_gpu=no
+            fi
+            echo "gpu: $have_gpu (/dev/dri/renderD128)" >&2
+
+            echo >&2
+            echo "-- portable tier --" >&2
+
+            # Builds the checks by name rather than running `nix flake check`.
+            #
+            # `nix flake check` would be the obvious command and is the one to
+            # return to, but it also validates `nixosConfigurations`, and this
+            # flake's metal configuration does not evaluate yet: it has no
+            # root filesystem and no bootloader, because those wait on a disk
+            # layout. So `nix flake check` fails on something that has nothing
+            # to do with the checks. Once disko lands, this can become the
+            # one-liner it wants to be.
+            nix build --print-build-logs \
+              ${lib.concatMapStringsSep " \\\n              " (n: ".#checks.${system}.${n}") (
+                builtins.attrNames portableChecks
+              )}
+
+            if [ "$have_gpu" = no ]; then
+              echo >&2
+              echo "SKIPPED, no render node — these need a GPU:" >&2
+              echo "  desktop:  the guest has a GPU with working virgl" >&2
+              echo "  desktop:  the greeter renders" >&2
+              echo "  niri/hyprland: drives the virtual display" >&2
+              echo "  niri/hyprland: starts the DankMaterialShell service" >&2
+              echo "  niri/hyprland: renders a client window" >&2
+              echo "  niri/hyprland: the session renders a rich screen" >&2
+              echo >&2
+              echo "ok (portable tier only)" >&2
+              exit 0
+            fi
+
+            ${lib.concatMapStringsSep "\n" (s: ''
+              echo >&2
+              echo "-- ${s.name} (full suite) --" >&2
+              ${lib.getExe s.runner}
+            '') gpuSuites}
+
+            echo >&2
+            echo "ok (everything)" >&2
+          '';
+        };
+
       # One-step runner for a test's interactive driver.
       #
-      # `nix build .#checks.<system>.<name>` cannot work on this host: a
-      # sandboxed build can open neither /dev/kvm nor /dev/dri, because both are
-      # crw-rw---- root:kvm / root:render and the only grant is an ACL for the
-      # human user, which does not apply to the nixbld build users. So a
-      # sandboxed run gets no GPU (niri cannot render at all) and silently falls
-      # back to TCG for want of KVM.
+      # This is how the GPU tier runs, and it has to be: a sandboxed build
+      # cannot do GL at all. Not for want of permission — the Nix sandbox does
+      # not mount /sys, so Mesa cannot resolve a render node's driver and
+      # eglInitialize fails even with the device world readable. Exposing /sys
+      # would be a far larger hole than exposing the device.
       #
-      # The interactive driver runs as you, outside the sandbox, where those
-      # ACLs apply. Wrapping it here puts that knowledge in the entry point
-      # instead of a comment nobody rereads.
+      # KVM is a different story and no longer a blocker: /dev/kvm is mode
+      # 0666 on this host, which a sandboxed build can use. Group membership
+      # would not have worked — the sandbox denies setgroups, so only the
+      # `other` bits are reachable from inside a build.
+      #
+      # The interactive driver runs as you, outside the sandbox, where both
+      # devices are simply available. Wrapping it here puts that knowledge in
+      # the entry point instead of a comment nobody rereads.
       testRunner =
         name: test:
         pkgs.writeShellApplication {
@@ -353,16 +472,23 @@
       packages.${system} = {
         vm = maxnix.config.system.build.vm;
         default = maxnix.config.system.build.vm;
+
+        # Exposed so `nix build .#ci` checks the runner itself without
+        # running it — writeShellApplication puts shellcheck in its build, so
+        # this is how a typo in that script is caught before CI hits it.
+        ci = ciRunner;
       };
 
-      # The three nixosTests, plus the two static checks. Only the latter two
-      # can run under `nix flake check`: a sandboxed build reaches neither
-      # /dev/kvm nor /dev/dri, which is why the VM tests have their own
-      # runners instead (testRunner, above).
-      checks.${system} = tests // {
-        formatting = treefmtEval.config.build.check inputs.self;
-        lint = lintCheck;
-      };
+      # Everything that runs on any machine: the two static checks and the
+      # three VM suites minus their screen assertions. `nix flake check` is
+      # therefore meaningful here and on a GPU-less runner alike.
+      #
+      # The GPU suites are deliberately absent. They are not hidden — they are
+      # `nix run .#test-desktop|test-niri|test-hyprland`, and `nix run .#ci`
+      # runs them automatically wherever a render node exists. Keeping them
+      # out of `checks` is what lets `nix flake check` be a command that
+      # passes everywhere rather than one you have to qualify.
+      checks.${system} = portableChecks;
 
       # nix run .#test-desktop | .#test-niri | .#test-hyprland
       #
@@ -383,6 +509,10 @@
         vm-deploy = {
           type = "app";
           program = lib.getExe vmDeploy;
+        };
+        ci = {
+          type = "app";
+          program = lib.getExe ciRunner;
         };
       }
       // lib.mapAttrs' (name: test: {

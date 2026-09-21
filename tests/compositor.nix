@@ -4,9 +4,11 @@
 # Parameterised because niri and Hyprland differ only in how you ask them what
 # they are doing. Instantiated once per compositor in flake.nix.
 #
-# HOW TO RUN — the sandboxed path does not work, see tests/desktop.nix:
-#   nix run .#test-niri
-#   nix run .#test-hyprland
+# HOW TO RUN:
+#   nix run .#test-niri                    every subtest, needs a GPU
+#   nix build .#checks.x86_64-linux.niri   the portable subtests, sandboxed
+# and the same two for hyprland. See tests/desktop.nix for why the GPU tier
+# cannot be a sandboxed build.
 compositor:
 { hostPkgs, lib, ... }:
 {
@@ -44,6 +46,10 @@ compositor:
       # flake.nix so this node is the same definition `nix run .#vm` builds.
       imports = compositor.hostModules ++ [ ../modules/vm/qemu-guest.nix ];
 
+      # Drives which virtio device the guest gets; see that module. With it
+      # off every subtest that looks at the screen is skipped below.
+      maxnix.vm.gpu = compositor.gpu;
+
       # The driver appends -nographic when it finds no DISPLAY in its own
       # environment, which would leave virtio-vga-gl without a GL-capable
       # backend and silently kill acceleration.
@@ -52,7 +58,11 @@ compositor:
       # driver's machine.screenshot() and get_screen_text()) fails with "Error:
       # no surface" on a GL scanout. These two flags go together — a gtk window
       # instead of egl-headless would make QEMU refuse -vnc entirely.
-      virtualisation.qemu.options = [
+      #
+      # Both are pointless without GL — egl-headless needs a host render node,
+      # and there is no GL scanout to capture — so with gpu = false the
+      # framework's own -nographic is left alone.
+      virtualisation.qemu.options = lib.optionals compositor.gpu [
         "-display egl-headless"
         "-vnc 127.0.0.1:9"
       ];
@@ -72,8 +82,23 @@ compositor:
       users.users.root.initialPassword = lib.mkForce null;
     };
 
+  # Two tiers, and the split is measured rather than guessed.
+  #
+  # Anything that inspects the screen, or that is downstream of the
+  # compositor having an output at all, needs a real GPU: without virgl the
+  # compositor starts and serves its IPC but enumerates nothing and draws
+  # nothing (see ../modules/vm/qemu-guest.nix). Those subtests sit behind
+  # `compositor.gpu`, so this same test also runs on a machine with no GPU,
+  # which is what CI is.
+  #
+  # Measured 2026-09-21 with gpu = false: the IPC socket appears, and
+  # `niri msg outputs` succeeds but returns empty. The portable tier is
+  # therefore the two subtests that only talk to the IPC. Everything else is
+  # gated, DMS and the client window included: neither was measured without
+  # a GPU, and both are downstream of having a surface to draw on, so they
+  # are classed with the screen assertions rather than assumed to work.
   testScript =
-    (import ./vnc.nix { inherit hostPkgs; })
+    lib.optionalString compositor.gpu (import ./vnc.nix { inherit hostPkgs; })
     + ''
       start_all()
       machine.wait_for_unit("multi-user.target")
@@ -84,13 +109,6 @@ compositor:
           # chars in comm), so `pgrep -x Hyprland` finds nothing. The IPC
           # appearing is also the more meaningful signal.
           machine.wait_until_succeeds("${compositor.ipcReady}")
-
-      with subtest("${compositor.name} drives the virtual display"):
-          outputs = machine.succeed("${compositor.outputs}")
-          machine.log(outputs)
-          assert "Virtual-1" in outputs, (
-              "${compositor.name} enumerated no output:\n" + outputs
-          )
 
       with subtest("${compositor.name} uses the configured keyboard layout"):
           # Asserts the *observable* layout rather than that the input was set.
@@ -105,6 +123,15 @@ compositor:
           machine.log(layout)
           assert "German" in layout, (
               "${compositor.name} is not on the configured layout:\n" + layout
+          )
+    ''
+    + lib.optionalString compositor.gpu ''
+
+      with subtest("${compositor.name} drives the virtual display"):
+          outputs = machine.succeed("${compositor.outputs}")
+          machine.log(outputs)
+          assert "Virtual-1" in outputs, (
+              "${compositor.name} enumerated no output:\n" + outputs
           )
 
       with subtest("${compositor.name} starts the DankMaterialShell service"):
@@ -149,7 +176,7 @@ compositor:
               machine.log(machine.succeed("journalctl -b --no-pager _UID=1000 | tail -n 60"))
               raise
     ''
-    + lib.optionalString (compositor.appUnit != null) ''
+    + lib.optionalString (compositor.gpu && compositor.appUnit != null) ''
 
       # The terminal must be running as a systemd unit of its own, not as
       # a child inside the compositor's — that is the point of ghostty's
@@ -159,7 +186,7 @@ compositor:
       )
       machine.log(units)
     ''
-    + ''
+    + lib.optionalString compositor.gpu ''
 
       # 3000 sits well above a bare compositor with one terminal (measured
       # 533-545) and well below DankMaterialShell once it has drawn its bar
