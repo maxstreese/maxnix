@@ -543,9 +543,16 @@ since it doubles it.
 Deferred deliberately 2026-09-22 rather than guessed at. The mechanism and its
 test are in place, so turning it on is two option values.
 
-**Bind reachability is not checked.** The dead German binds were found by a
-hand-run audit, not by anything in the repo. A build-time check comparing bind
-keysyms against the compiled keymap would catch the whole class.
+**Bind reachability is only partly checked.** The dead German binds were found
+by a hand-run audit, not by anything in the repo. The seventeen bindings shared
+between the compositors are now covered at both ends — niri's module runs
+`niri validate` while building `config.kdl`, so a bad keysym fails the build,
+and the compositor suites ask Hyprland what it actually bound via
+`hyprctl binds`. Both were verified by injecting a bogus keysym and watching
+each fail. What is still unchecked is the rest: niri's own window-management
+binds are validated, but nothing compares any keysym against the *compiled
+keymap*, which is the check that would have caught `Mod+BracketLeft` being
+unreachable on a German layout.
 
 **Colour thresholds are magic numbers** calibrated against today's screenshots.
 

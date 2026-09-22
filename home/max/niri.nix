@@ -13,7 +13,40 @@
 #
 # The Home Manager option sits under wayland.windowManager, matching Hyprland —
 # so despite both being "niri config", the two never collide.
-{ osConfig, pkgs, ... }:
+{
+  lib,
+  osConfig,
+  pkgs,
+  ...
+}:
+let
+  # The bindings shared with ./hyprland.nix, rendered into niri's shape.
+  # ./binds.nix explains why they live in one place.
+  #
+  # niri spells modifiers Mod/Shift/Alt/Ctrl and joins them to the key with
+  # "+", where Hyprland writes them as a separate comma-separated field. Both
+  # spellings stay in their own renderer so neither leaks into the list.
+  niriMods = {
+    mod = "Mod";
+    shift = "Shift";
+    alt = "Alt";
+    ctrl = "Ctrl";
+  };
+  sharedBinds = lib.listToAttrs (
+    map (b: {
+      name = lib.concatStringsSep "+" (map (m: niriMods.${m}) b.mods ++ [ b.key ]);
+      value = {
+        _props =
+          lib.optionalAttrs (b ? title) { hotkey-overlay-title = b.title; }
+          // lib.optionalAttrs (b.locked or false) { allow-when-locked = true; };
+        # Kept as a list: niri's spawn is argv, so an empty string here is a
+        # real argument rather than whitespace. ./hyprland.nix has to drop
+        # those because a shell string cannot express one.
+        inherit (b) spawn;
+      };
+    }) (import ./binds.nix)
+  );
+in
 {
   wayland.windowManager.niri = {
     enable = true;
@@ -77,18 +110,6 @@
       # with `xkbcli compile-keymap --layout de` before trusting a key name
       # taken from documentation.
       binds = {
-        "Mod+T" = {
-          _props.hotkey-overlay-title = "Open a Terminal";
-          # +new-window: through ghostty's D-Bus service, see ./ghostty.nix.
-          spawn = [
-            "ghostty"
-            "+new-window"
-          ];
-        };
-        "Mod+D" = {
-          _props.hotkey-overlay-title = "Run an Application";
-          spawn = [ "fuzzel" ];
-        };
         "Mod+Q".close-window = { };
 
         # Focus: columns left/right, windows within a column up/down.
@@ -127,154 +148,15 @@
         #   upstream        here              collided with
         #   Mod+Comma       Mod+Shift+Comma   Mod+Comma  consume-or-expel-left
         #   Mod+V           Mod+C             Mod+V      toggle-window-floating
-        "Mod+Space" = {
-          _props.hotkey-overlay-title = "Toggle Application Launcher";
-          spawn = [
-            "dms"
-            "ipc"
-            "spotlight"
-            "toggle"
-          ];
-        };
-        "Mod+N" = {
-          _props.hotkey-overlay-title = "Toggle Notification Center";
-          spawn = [
-            "dms"
-            "ipc"
-            "notifications"
-            "toggle"
-          ];
-        };
-        "Mod+Shift+Comma" = {
-          _props.hotkey-overlay-title = "Toggle Settings";
-          spawn = [
-            "dms"
-            "ipc"
-            "settings"
-            "toggle"
-          ];
-        };
-        "Mod+P" = {
-          _props.hotkey-overlay-title = "Toggle Notepad";
-          spawn = [
-            "dms"
-            "ipc"
-            "notepad"
-            "toggle"
-          ];
-        };
-        "Mod+X" = {
-          _props.hotkey-overlay-title = "Toggle Power Menu";
-          spawn = [
-            "dms"
-            "ipc"
-            "powermenu"
-            "toggle"
-          ];
-        };
-        "Mod+C" = {
-          _props.hotkey-overlay-title = "Toggle Clipboard Manager";
-          spawn = [
-            "dms"
-            "ipc"
-            "clipboard"
-            "toggle"
-          ];
-        };
-        "Mod+M" = {
-          _props.hotkey-overlay-title = "Toggle Process List";
-          spawn = [
-            "dms"
-            "ipc"
-            "processlist"
-            "toggle"
-          ];
-        };
-        "Mod+Alt+N" = {
-          _props.hotkey-overlay-title = "Toggle Night Mode";
-          spawn = [
-            "dms"
-            "ipc"
-            "night"
-            "toggle"
-          ];
-        };
-        "Mod+Alt+L" = {
-          _props.hotkey-overlay-title = "Lock the Screen";
-          spawn = [
-            "dms"
-            "ipc"
-            "lock"
-            "lock"
-          ];
-        };
-
         # Media and brightness keys. Portable across layouts, and allowed
         # while the screen is locked.
-        "XF86AudioRaiseVolume" = {
-          _props.allow-when-locked = true;
-          spawn = [
-            "dms"
-            "ipc"
-            "audio"
-            "increment"
-            "3"
-          ];
-        };
-        "XF86AudioLowerVolume" = {
-          _props.allow-when-locked = true;
-          spawn = [
-            "dms"
-            "ipc"
-            "audio"
-            "decrement"
-            "3"
-          ];
-        };
-        "XF86AudioMute" = {
-          _props.allow-when-locked = true;
-          spawn = [
-            "dms"
-            "ipc"
-            "audio"
-            "mute"
-          ];
-        };
-        "XF86AudioMicMute" = {
-          _props.allow-when-locked = true;
-          spawn = [
-            "dms"
-            "ipc"
-            "audio"
-            "micmute"
-          ];
-        };
-        "XF86MonBrightnessUp" = {
-          _props.allow-when-locked = true;
-          spawn = [
-            "dms"
-            "ipc"
-            "brightness"
-            "increment"
-            "5"
-            ""
-          ];
-        };
-        "XF86MonBrightnessDown" = {
-          _props.allow-when-locked = true;
-          spawn = [
-            "dms"
-            "ipc"
-            "brightness"
-            "decrement"
-            "5"
-            ""
-          ];
-        };
         "Print".screenshot = { };
         "Mod+Shift+7".show-hotkey-overlay = { };
         "Mod+Shift+E".quit = { };
-      };
+      }
+      # Everything that runs a command comes from ./binds.nix, rendered
+      # above, so these are identical to Hyprland's by construction.
+      // sharedBinds;
 
       # Stated explicitly, even though niri would pick this up from
       # XKB_DEFAULT_LAYOUT on its own — it leaves the field empty, so

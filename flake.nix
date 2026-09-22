@@ -149,6 +149,19 @@
             ipcReady = "ls /run/user/1000/niri.wayland-*.sock";
             outputs = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1) niri msg outputs";
             layout = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1) niri msg keyboard-layouts";
+            # niri has no IPC for listing binds — `niri msg binds` is not a
+            # subcommand. It needs none, and that is measured rather than
+            # assumed: the home-manager module runs `niri validate` while
+            # building config.kdl, so an unusable key fails the *build* with
+            # "error loading config". Hyprland accepts the same config
+            # happily and simply does not fire the bind, which is why it gets
+            # a runtime assertion and niri does not.
+            #
+            # Injecting a bogus keysym into home/max/binds.nix was checked
+            # both ways: the niri config derivation fails, and the Hyprland
+            # subtest fails. Between them the shared list is covered at both
+            # ends.
+            binds = null;
           }
         );
 
@@ -173,6 +186,7 @@
             # backdoor is a bare root shell that has none.
             outputs = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl monitors";
             layout = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl devices";
+            binds = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl binds";
           }
         );
       };

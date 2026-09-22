@@ -110,6 +110,32 @@ compositor:
           # appearing is also the more meaningful signal.
           machine.wait_until_succeeds("${compositor.ipcReady}")
 
+    ''
+    + lib.optionalString (compositor.binds != null) ''
+
+      with subtest("${compositor.name} registered the shared bindings"):
+          # Asks the compositor what it actually bound, rather than trusting
+          # that a config it accepted means what it says.
+          #
+          # This is the failure mode worth guarding: a key name the compositor
+          # cannot resolve is not fatal. It logs, if anything, and carries on
+          # with one bind silently missing — the compositor still starts, the
+          # IPC still answers, and every other assertion here still passes.
+          # The repo has a whole class of dead binds from exactly that.
+          #
+          # It also guards the one thing the shared list in home/max/binds.nix
+          # could plausibly get wrong. niri spells that key "Space" and the
+          # hand-written Hyprland config said "SPACE"; unifying them picked
+          # one spelling for both, and this is what proves the other
+          # compositor accepts it.
+          registered = machine.succeed("${compositor.binds}")
+          machine.log(registered)
+          assert "spotlight" in registered, (
+              "the DMS spotlight bind is not registered:\n" + registered
+          )
+    ''
+    + ''
+
       with subtest("${compositor.name} uses the configured keyboard layout"):
           # Asserts the *observable* layout rather than that the input was set.
           # XKB_DEFAULT_LAYOUT=de reaches both compositors' environments, but

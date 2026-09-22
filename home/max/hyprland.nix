@@ -4,7 +4,39 @@
 # only generates config. package and portalPackage are null so nothing is
 # installed twice (the module's own docs say to null them when the NixOS module
 # provides Hyprland).
-{ osConfig, ... }:
+{ lib, osConfig, ... }:
+let
+  # The bindings shared with ./niri.nix, rendered into Hyprland's syntax.
+  # ./binds.nix explains why they live in one place; this turns each entry
+  # into "MODS, KEY, exec, COMMAND".
+  #
+  # mods = [] renders an empty modifier field, which is exactly the leading
+  # comma Hyprland wants for an unmodified key: ", XF86AudioMute, exec, …".
+  hyprMods = {
+    mod = "$mod";
+    shift = "SHIFT";
+    alt = "ALT";
+    ctrl = "CTRL";
+  };
+  renderBind =
+    b:
+    let
+      mods = lib.concatStringsSep " " (map (m: hyprMods.${m}) b.mods);
+      # uwsm for long-lived apps only; see the note at the bind list below.
+      prefix = lib.optionalString (b.uwsm or false) "uwsm app -- ";
+      # Empty arguments are dropped, which is not cosmetic. niri's `spawn` is
+      # an argv list, so an empty string there is a real sixth argument and
+      # the brightness binds pass one. Hyprland's `exec` is a shell string
+      # where no such argument can be expressed — the hand-written config
+      # never had it — so joining naively appended a trailing space and
+      # changed the command. Filtering keeps each compositor doing exactly
+      # what it did before.
+      words = lib.filter (w: w != "") b.spawn;
+    in
+    "${mods}, ${b.key}, exec, ${prefix}${lib.concatStringsSep " " words}";
+
+  shared = lib.partition (b: b.locked or false) (import ./binds.nix);
+in
 {
   wayland.windowManager.hyprland = {
     enable = true;
@@ -75,11 +107,6 @@
       # released its overlay key — see the note in ./niri.nix and
       # scripts/vm-keys.
       "$mod" = "SUPER";
-      # +new-window: through ghostty's D-Bus service, see ./ghostty.nix. The
-      # `uwsm app --` in the bind then wraps only the short-lived client; the
-      # window belongs to ghostty's own unit either way.
-      "$terminal" = "ghostty +new-window";
-      "$menu" = "fuzzel";
 
       # Hyprland ignores XKB_DEFAULT_LAYOUT.
       #
@@ -129,8 +156,6 @@
         # does the equivalent on its own for every `spawn`; Hyprland needs
         # the prefix. The `dms ipc` binds below are short-lived commands to
         # an already-running service, so they do not need it.
-        "$mod, T, exec, uwsm app -- $terminal"
-        "$mod, D, exec, uwsm app -- $menu"
         "$mod, Q, killactive,"
         "$mod SHIFT, E, exit,"
 
@@ -157,30 +182,15 @@
         "$mod, F, fullscreen,"
         "$mod, V, togglefloating,"
 
-        # DankMaterialShell — deliberately the same key combinations as
-        # ./niri.nix. Both compositors are in use and switching between them
-        # is routine, so it must not also mean relearning the shell.
-        "$mod, SPACE, exec, dms ipc spotlight toggle"
-        "$mod, N, exec, dms ipc notifications toggle"
-        "$mod SHIFT, comma, exec, dms ipc settings toggle"
-        "$mod, P, exec, dms ipc notepad toggle"
-        "$mod, X, exec, dms ipc powermenu toggle"
-        "$mod, C, exec, dms ipc clipboard toggle"
-        "$mod, M, exec, dms ipc processlist toggle"
-        "$mod ALT, N, exec, dms ipc night toggle"
-        "$mod ALT, L, exec, dms ipc lock lock"
-      ];
+      ]
+      # The terminal, the launcher and every DMS binding, from ./binds.nix.
+      # They are identical to niri's by construction now rather than by
+      # somebody remembering to edit both files.
+      ++ map renderBind shared.wrong;
 
       # bindl = active even when the session is locked, which is what the
       # media keys want.
-      bindl = [
-        ", XF86AudioRaiseVolume, exec, dms ipc audio increment 3"
-        ", XF86AudioLowerVolume, exec, dms ipc audio decrement 3"
-        ", XF86AudioMute, exec, dms ipc audio mute"
-        ", XF86AudioMicMute, exec, dms ipc audio micmute"
-        ", XF86MonBrightnessUp, exec, dms ipc brightness increment 5"
-        ", XF86MonBrightnessDown, exec, dms ipc brightness decrement 5"
-      ];
+      bindl = map renderBind shared.right;
 
       bindm = [
         "$mod, mouse:272, movewindow"
