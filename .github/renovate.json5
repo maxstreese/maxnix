@@ -1,0 +1,58 @@
+// Dependency updates, as pull requests that CI has already judged.
+//
+// JSON5 rather than JSON so this can be commented, which matters here because
+// three of the five settings below are switched on to work around a default
+// that silently does nothing.
+//
+// Renovate is a GitHub App and has to be installed on the repository by hand;
+// this file only configures it. Until it is installed, nothing here runs.
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  extends: [
+    "config:recommended",
+
+    // Rewrites every `uses:` in .github/workflows from a tag to the commit
+    // SHA it resolves to, keeping the tag as a trailing comment, and
+    // maintains it from then on. Tags are mutable: tj-actions/changed-files
+    // had all of its rewritten to malicious commits in March 2025. Doing this
+    // through a preset rather than by hand also means an action added later
+    // gets pinned without anyone remembering to.
+    "helpers:pinGitHubActionDigests",
+  ],
+
+  // Schedules below are read in this zone rather than UTC.
+  timezone: "Europe/Berlin",
+
+  // The nix manager is in beta and ships disabled. Without this, Renovate
+  // runs happily and never touches flake.nix or flake.lock at all — it is a
+  // silent no-op, not an error.
+  nix: {
+    enabled: true,
+  },
+
+  // And this is the second half of the same trap: lockFileMaintenance is off
+  // by default and config:recommended does not turn it on, so even with the
+  // nix manager enabled flake.lock would never move. This is the setting that
+  // runs `nix flake update` and opens one PR with every input at its head —
+  // the automated form of what was previously done by hand.
+  //
+  // Not scoped under `nix` because flake.lock is the only lock file in the
+  // repository; if another ever appears, scope it then.
+  //
+  // Known upstream quirk (renovate#29721): this only refreshes flake.lock
+  // when flake.nix contains a `github:NixOS/nixpkgs/...` style input string.
+  // Ours does — `nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable"` — so
+  // it applies here, but that is a thing to re-check if that line changes.
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 6am on monday"],
+  },
+
+  // No automerge anywhere, deliberately. A green `checks / portable` proves
+  // the machine builds, boots and has its software, and proves nothing about
+  // what is on screen — the GPU tier cannot run on a hosted runner. An update
+  // that breaks the greeter would pass CI. So every PR is read by a human and
+  // the render suites run locally before it lands.
+  automerge: false,
+}

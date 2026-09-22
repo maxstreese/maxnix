@@ -89,6 +89,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 
 ```
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
+.github/renovate.json5       flake.lock and action-SHA updates, as PRs
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
 statix.toml                  the two statix lints this repo switches off, with reasons
@@ -389,7 +390,7 @@ Two static checks sit alongside the VM tests in the portable tier:
 | check | what it asserts | fix it with |
 | --- | --- | --- |
 | `formatting` | every `.nix` file is nixfmt-clean | `nix fmt` |
-| `lint` | statix, deadnix and actionlint find nothing | by hand — see below |
+| `lint` | statix, deadnix, actionlint and the Renovate config validator find nothing | by hand — see below |
 
 `nix fmt` is treefmt driving nixfmt, configured in `treefmt.nix`, which also
 records why shfmt and a Markdown formatter are deliberately absent. The linters
@@ -427,6 +428,22 @@ covered here. Three details in it are load-bearing:
 - **Freeing disk is required, not an optimisation.** The guest closure is
   12.5 GiB and a runner has roughly 14 GB free.
 
+`.github/renovate.json5` keeps the two pinned things moving: `flake.lock` and
+the workflow's action SHAs. Three of its five settings exist only to defeat a
+default that silently does nothing — the nix manager is beta and ships
+disabled, `lockFileMaintenance` is off and `config:recommended` does not turn
+it on, and either omission makes Renovate run happily while never touching
+`flake.lock`. `helpers:pinGitHubActionDigests` maintains the SHA pins and
+pins any action added later, so the policy is enforced rather than
+remembered. Nothing automerges: a green `checks / portable` says the machine
+builds, boots and has its software, and says nothing about what is on screen,
+so an update that breaks the greeter would pass. Renovate is a GitHub App and
+has to be installed on the repo by hand; until it is, that file does nothing.
+
+The `lint` check validates it with `renovate-config-validator`, for the same
+reason it runs `actionlint`: a mistake in either surfaces as a bot or a runner
+quietly not doing its job, which is the kind of failure nobody notices.
+
 No binary cache, on purpose. The Actions cache is 10 GB and the closure is
 12.5 GiB, so it does not fit; and the bulk of that is upstream packages
 `cache.nixos.org` already serves, so a second cache would move the same bytes
@@ -437,7 +454,7 @@ small.
 need installed" has a declared answer rather than being whatever the host
 happens to have: `treefmt` (for one file, where `nix fmt` does the tree),
 `statix` and `deadnix` (the `lint` check only reports, so `statix fix` and
-`deadnix --edit` are deliberate acts), `actionlint` for the workflow,
+`deadnix --edit` are deliberate acts), `actionlint` and `renovate` for the two files under `.github/`,
 `vncdotool` and `magick` for looking at a running VM and recalibrating a
 colour threshold, and `jq`. Note treefmt
 caches on mtime — `treefmt --no-cache` to force the whole tree.
