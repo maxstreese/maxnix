@@ -26,6 +26,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Declarative disk partitioning. The one install step that was still
+    # manual; see hosts/maxnix/disk.nix.
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Drives `nix fmt` and the formatting check. Config in ./treefmt.nix.
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
@@ -57,6 +64,8 @@
       # test node importing the former without the latter fails to evaluate.
       hostModules = [
         ./hosts/maxnix/configuration.nix
+        ./hosts/maxnix/disk.nix
+        inputs.disko.nixosModules.disko
         ./modules/desktop
         home-manager.nixosModules.home-manager
         inputs.dank-greeter.nixosModules.default

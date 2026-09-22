@@ -95,6 +95,7 @@ treefmt.nix                  what `nix fmt` runs, and what it deliberately does 
 statix.toml                  the two statix lints this repo switches off, with reasons
 hosts/maxnix/
   configuration.nix          the machine: user, locale, keyboard, home-manager
+  disk.nix                   bootloader + LUKS2/btrfs layout, via disko
   vm.nix                     build-vm specifics: window, disk images, sshd, `rebuild`
 modules/
   desktop/{default,niri,hyprland,greeter,onepassword,gpu-check,steam}.nix  system layer
@@ -527,9 +528,15 @@ undone or replaced when this becomes the host install:
 
 - `security.sudo.wheelNeedsPassword = false`, purely to skip typing in a
   throwaway guest.
-- No hardware module. The VM gets its disks, GPU and network from
-  `qemu-vm.nix`; metal needs `hardware-configuration.nix`, a bootloader, and a
-  disk layout, probably via disko so the layout is declarative too.
+- ~~No disk layout or bootloader.~~ Done: `hosts/maxnix/disk.nix` declares
+  systemd-boot plus a LUKS2 + btrfs layout through disko, so the metal
+  configuration now evaluates *and builds*. What remains is the one fact that
+  needs the machine — `disko.devices.disk.main.device` is a placeholder until
+  `nixos-facter` on the target yields its `/dev/disk/by-id/…` path. Still
+  missing: a hardware module (`nixos-hardware` profiles or a facter report)
+  and swap, which wants RAM-sized hibernation space and is therefore also a
+  fact about the unchosen machine. A swapfile on btrfs is just a file, so it
+  costs nothing to defer; the partition layout around it does not.
 - No machine secrets. Nothing needs one yet, but a laptop wants a Wi‑Fi PSK
   at least; that is when sops-nix or agenix earns its place.
 - No networking beyond QEMU's user-mode DHCP. A laptop needs NetworkManager,
