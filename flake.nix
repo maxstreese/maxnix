@@ -26,6 +26,15 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Declarative state: bind-mounts what must survive a wiped root.
+    # See hosts/maxnix/persistence.nix.
+    #
+    # No `inputs.nixpkgs.follows` here, unlike every other input: preservation
+    # declares no inputs at all — it is a module and nothing else — so the
+    # override would name something that does not exist and Nix warns about it
+    # on every evaluation.
+    preservation.url = "github:nix-community/preservation";
+
     # Secure Boot: signs a Unified Kernel Image and replaces systemd-boot.
     # Off unless maxnix.boot.secureBoot is set; see hosts/maxnix/disk.nix.
     lanzaboote = {
@@ -81,7 +90,9 @@
       hostModules = [
         ./hosts/maxnix/configuration.nix
         ./hosts/maxnix/disk.nix
+        ./hosts/maxnix/persistence.nix
         inputs.disko.nixosModules.disko
+        inputs.preservation.nixosModules.preservation
         inputs.lanzaboote.nixosModules.lanzaboote
         ./modules/desktop
         home-manager.nixosModules.home-manager
@@ -202,7 +213,7 @@
         # boots. See ./tests/disk.nix for why that is a separate claim.
         metal-boots = import ./tests/disk.nix {
           inherit pkgs;
-          inherit (inputs) disko;
+          inherit (inputs) disko preservation;
         };
       };
 

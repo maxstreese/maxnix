@@ -15,7 +15,11 @@
 #
 # It needs KVM and no GPU, so it belongs to the portable tier and runs in CI.
 # It is also by some way the slowest check here: a full install, not a boot.
-{ pkgs, disko }:
+{
+  pkgs,
+  disko,
+  preservation,
+}:
 disko.lib.testLib.makeDiskoTest {
   inherit pkgs;
   name = "maxnix-metal-boots";
@@ -37,7 +41,18 @@ disko.lib.testLib.makeDiskoTest {
   # ../hosts/maxnix/disk.nix, so anything set there is invisible to this test.
   # That is not a guess — adding the option to disk.nix alone left this test's
   # derivation hash byte-identical.
-  extraSystemConfig = import ../hosts/maxnix/luks-tpm.nix;
+  extraSystemConfig = {
+    imports = [
+      ../hosts/maxnix/luks-tpm.nix
+
+      # Impermanence's bind mounts, and the module that implements them. The
+      # installed system this harness builds imports none of the host's
+      # modules, so both have to be handed over explicitly or the test would
+      # judge a machine that has no persistence at all.
+      preservation.nixosModules.preservation
+      ../hosts/maxnix/persistence.nix
+    ];
+  };
 
   # The machine still asks for the passphrase at boot, because the layout puts
   # nothing in settings.keyFile — which is exactly the behaviour the real
@@ -73,5 +88,74 @@ disko.lib.testLib.makeDiskoTest {
     # an installer-written ESP and never again is a real failure mode.
     machine.succeed("findmnt -no FSTYPE /boot | grep -qx vfat")
     machine.succeed("test -d /boot/EFI/systemd -o -d /boot/EFI/BOOT")
+
+    # ── Second boot ────────────────────────────────────────────────────
+    #
+    # Groundwork for impermanence, and deliberately written before any of it
+    # exists. Impermanence's failure mode is "the second boot lost
+    # something", which a test that boots once cannot detect at all — so the
+    # harness has to be able to tell survival from loss *before* it is used
+    # to judge either.
+    #
+    # Hence two markers with opposite expectations. Today the root is an
+    # ordinary subvolume, so a file written to / survives; /run is a tmpfs,
+    # so a file there cannot. Asserting both means a broken reboot — one
+    # that silently kept the same running machine, or never came back —
+    # fails rather than passing quietly, which a survival-only assertion
+    # would do.
+    #
+    # When the root becomes ephemeral, the first expectation inverts and the
+    # marker moves to /persist. That edit is the point of all this.
+    machine.succeed("echo marker > /root-marker")
+    machine.succeed("echo marker > /run/run-marker")
+
+    # The one that distinguishes step 1 from having changed nothing.
+    #
+    # Without the wipe, a file under /var/lib/sbctl would survive a reboot
+    # anyway — the root is still an ordinary subvolume — so "it survived"
+    # proves nothing about preservation. What proves it is where the bytes
+    # physically are: if the bind mount is real, the same file is visible
+    # under /persist. If preservation silently did nothing, it is not.
+    machine.succeed("echo marker > /var/lib/sbctl/preserved-marker")
+    machine.succeed("test -f /persist/var/lib/sbctl/preserved-marker")
+    first_machine_id = machine.succeed("cat /etc/machine-id").strip()
+
+    machine.succeed("sync")
+    machine.shutdown()
+
+    # shutdown() then start() re-runs the same QEMU command against the same
+    # disk files, so this is the installed system booting a second time.
+    #
+    # NOT create_test_machine(oldmachine=machine): that builds its disk paths
+    # from oldmachine.state_dir, and the harness already used it once to go
+    # from installer to booted machine. The booted machine is running the
+    # *installer's* qcow2, and has none of its own, so asking for a third
+    # machine based on it points QEMU at a file that does not exist and it
+    # dies at once with a QMP ConnectionResetError. Found by writing it that
+    # way first.
+    machine.start()
+    machine.wait_for_text("[Pp]assphrase for")
+    machine.send_chars("secretsecret\n")
+    machine.wait_for_unit("local-fs.target")
+
+    # Survives today: the root persists. Inverts under impermanence.
+    machine.succeed("test -f /root-marker")
+    # Cannot survive, ever: /run is a tmpfs. This is what proves the reboot
+    # actually happened.
+    machine.fail("test -f /run/run-marker")
+
+    # Preserved state comes back, and still through /persist rather than
+    # having quietly reverted to a plain directory on the root.
+    machine.succeed("test -f /var/lib/sbctl/preserved-marker")
+    machine.succeed("test -f /persist/var/lib/sbctl/preserved-marker")
+    machine.succeed("findmnt -no SOURCE /var/lib/sbctl | grep -q '\\[/persist/'")
+
+    # machine-id is the one preserved *file*, and it is read in the initrd.
+    # Assert it is the same one across the reboot rather than regenerated,
+    # which is what would happen if the initrd mount had not worked.
+    mid = machine.succeed("cat /etc/machine-id").strip()
+    assert mid == first_machine_id, (
+        f"machine-id changed across reboot: {first_machine_id} -> {mid}"
+    )
   '';
 }
