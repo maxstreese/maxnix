@@ -106,6 +106,35 @@
           entry = machine.succeed(f"cat {desktops}/hyprland-uwsm.desktop")
           assert "uwsm start" in entry, entry
 
+      with subtest("the store is kept from growing without bound"):
+          # Timers rather than the options that create them: an option set to
+          # true that produced no unit would pass an option check and change
+          # nothing on the machine.
+          machine.succeed("systemctl is-enabled nix-gc.timer")
+          machine.succeed("systemctl is-enabled nix-optimise.timer")
+          # The collection is near-pointless without this flag — it would
+          # remove build leftovers and never a generation, which is where the
+          # space is. So assert the flag reached the thing that actually runs.
+          #
+          # That is NOT the unit file: NixOS compiles `script =` into its own
+          # derivation and the unit only carries
+          # `ExecStart=…/unit-script-nix-gc-start`. Asserting against
+          # `systemctl cat` therefore fails even when the flag is set
+          # correctly, which is how this was first written.
+          unit = machine.succeed("systemctl cat nix-gc.service")
+          start = [
+              line.split("=", 1)[1]
+              for line in unit.splitlines()
+              if line.startswith("ExecStart=")
+          ][0]
+          gc = machine.succeed(f"cat {start}")
+          assert "--delete-older-than 30d" in gc, gc
+          # And the mid-build safety net, which is VM-shaped: the root image
+          # is 16 GiB and one closure is 12.5 GiB.
+          conf = machine.succeed("cat /etc/nix/nix.conf")
+          assert "min-free = 1073741824" in conf, conf
+          assert "max-free = 3221225472" in conf, conf
+
       with subtest("the daily-driver software is installed and wired up"):
           # One `command -v` per name, in a loop that exits on the first
           # miss. NOT `command -v a b c`: that reports only the first name it

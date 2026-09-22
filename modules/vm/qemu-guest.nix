@@ -99,6 +99,27 @@ in
     description = "Give the guest a GL-capable virtio GPU backed by the host's.";
   };
 
+  # Collect garbage during a build when the disk gets tight, rather than only
+  # on the weekly timer in ../../hosts/maxnix/configuration.nix.
+  #
+  # This is here and not there because it is a fact about *being a VM*: the
+  # root image above is capped at 16 GiB and one system closure is 12.5 GiB,
+  # so a deploy of a meaningfully different closure has roughly 3.5 GiB to
+  # land in. A weekly timer can easily fire too late for that; these two
+  # settings make the daemon free space at the moment it runs out.
+  #
+  # When free space drops below min-free mid-build, the daemon collects until
+  # max-free is available, then carries on. It is best-effort — it cannot free
+  # what is still rooted — so a build can still fail on a full disk; it just
+  # will not fail on a disk full of garbage.
+  #
+  # Metal will want its own numbers, and a bigger disk makes them less
+  # interesting; that belongs with the disk layout whenever that lands.
+  config.nix.settings = {
+    min-free = 1024 * 1024 * 1024; # 1 GiB
+    max-free = 3 * 1024 * 1024 * 1024; # 3 GiB
+  };
+
   config.virtualisation = {
     cores = 4;
     memorySize = 8192; # MiB

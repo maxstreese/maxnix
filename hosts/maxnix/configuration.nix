@@ -84,6 +84,65 @@
     "flakes"
   ];
 
+  # Keeping the store from growing without bound.
+  #
+  # Nix never overwrites: every rebuild writes new store paths and leaves the
+  # old ones alone. What keeps them alive is the system profile, which retains
+  # every generation you have activated — that retention is exactly what makes
+  # `nixos-rebuild --rollback` and the boot menu work. So the store grows with
+  # every rebuild and nothing shrinks it unless asked.
+  #
+  # The measurements this is sized against: one system closure here is 12.5
+  # GiB, and the Ubuntu host's hand-managed store had reached 60 GB by the
+  # time this was written.
+  # Monday 09:00 rather than the small hours, on purpose.
+  #
+  # Both timers are Persistent (the NixOS default, and it is what you want):
+  # systemd records the last run, so a trigger missed while the machine was
+  # off fires shortly after the next boot instead of being skipped. The
+  # consequence is that scheduling this for 03:15 on a Sunday — which looks
+  # considerate — means a machine that sleeps at night never runs it *then*
+  # and instead runs it at Monday's first boot, with no jitter
+  # (randomizedDelaySec defaults to "0" for the collector), i.e. the moment
+  # you open the lid.
+  #
+  # Picking an hour the machine is plausibly already awake makes the timer
+  # fire when it says it will. The cost is that it runs during working hours;
+  # the collection is mostly I/O and the optimiser is deferred 90 minutes so
+  # the two never overlap.
+  nix.gc = {
+    automatic = true;
+    dates = "Mon 09:00";
+    # Without this the collection only removes what nothing points at —
+    # build leftovers and old nix-shell inputs — and never touches a
+    # generation, which is where the space actually is. This deletes
+    # generations older than 30 days *first*, un-rooting their closures so
+    # they become collectable.
+    #
+    # 30 days is a deliberate trade, not a default: those generations are
+    # what you roll back *to*, and on a machine changed as often and as
+    # experimentally as this one, that history is the safety net. A month of
+    # it costs little on a real disk.
+    options = "--delete-older-than 30d";
+  };
+
+  # Deduplicates the store by replacing byte-identical files across different
+  # paths with hardlinks; typically reclaims 25-35%.
+  #
+  # Scheduled 90 minutes after the collection above, on purpose: running it
+  # afterwards means it only hardlinks paths that survived, instead of doing
+  # that work for paths about to be deleted. This one already carries 30
+  # minutes of jitter by default (randomizedDelaySec = "1800").
+  #
+  # The alternative is nix.settings.auto-optimise-store, which does the same
+  # deduplication inline as each path is added. That spreads the cost across
+  # every build rather than concentrating it in one timer; this way round the
+  # cost is predictable and off-peak.
+  nix.optimise = {
+    automatic = true;
+    dates = [ "Mon 10:30" ];
+  };
+
   # Mesa, and the userspace bits a Wayland compositor expects to find.
   hardware.graphics.enable = true;
 
