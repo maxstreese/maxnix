@@ -26,6 +26,15 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Installs this flake onto a machine over SSH. Pinned like everything
+    # else, so install day runs a known version rather than whatever is
+    # current; see the `install` app below.
+    nixos-anywhere = {
+      url = "github:nix-community/nixos-anywhere";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.disko.follows = "disko";
+    };
+
     # Declarative disk partitioning. The one install step that was still
     # manual; see hosts/maxnix/disk.nix.
     disko = {
@@ -497,6 +506,83 @@
         ];
       };
 
+      # nix run .#install -- root@<target>
+      #
+      # Install this flake onto a machine, over SSH, from here.
+      #
+      # It kexecs the target into a NixOS installer (so the target can be
+      # running any Linux — including the Ubuntu this repo is developed on),
+      # runs disko against hosts/maxnix/disk-layout.nix to partition and
+      # format, then installs and reboots. That is the same sequence
+      # checks.metal-boots exercises against a virtual disk; this is the one
+      # that writes to a real one.
+      #
+      # Wrapped rather than left to `nix run github:...` for the usual reason
+      # apps exist here: the flake reference and the host attribute are part
+      # of the invocation, and install day is a bad time to be reconstructing
+      # them from memory. The input is pinned, so it also runs a known
+      # version rather than whatever is current that morning.
+      #
+      # ── Before running this ───────────────────────────────────────────
+      #
+      # THIS DESTROYS THE TARGET'S DISK. Everything on it.
+      #
+      # 1. hosts/maxnix/disk-layout.nix still names a placeholder device.
+      #    Replace it with the target's /dev/disk/by-id/… path first, or
+      #    disko will refuse to find it.
+      # 2. The layout is encrypted and takes no passphrase from the config
+      #    (maxnix.disk.passwordFile is null), so supply one for the
+      #    formatting step:
+      #
+      #      nix run .#install -- \
+      #        --disk-encryption-keys /tmp/secret.key <(pass maxnix/luks) \
+      #        root@<target>
+      #
+      #    and set maxnix.disk.passwordFile = "/tmp/secret.key" so disko
+      #    knows where to look. The *installed* machine still prompts at every
+      #    boot, because nothing lands in settings.keyFile — which is the
+      #    behaviour checks.metal-boots demonstrates.
+      # 3. Worth knowing: --generate-hardware-config nixos-facter <path> runs
+      #    nixos-facter on the target and writes the report back here, which
+      #    is the same report hardware.facter.reportPath wants. It removes the
+      #    separate installer-USB trip described in
+      #    hosts/maxnix/configuration.nix.
+      #
+      # Everything after `--` is passed straight through, so any flag in
+      # `nix run .#install -- --help` is available.
+      #
+      # ── No `install-vm-test` app, deliberately ───────────────────────
+      #
+      # nixos-anywhere has a --vm-test flag that rehearses the install
+      # against a throwaway VM, and it looked like the obvious companion to
+      # this. Two reasons it is not here.
+      #
+      # It is redundant: checks.metal-boots already formats, installs and
+      # boots this exact layout, from the same disk-layout.nix, on every CI
+      # run.
+      #
+      # And it does not work on a layout like this one. --vm-test builds its
+      # own disko-destroy-format-mount script (a different derivation from
+      # the system.build.diskoScript this flake uses, which builds fine) and
+      # that harness injects `export password=disko` in three places. disko
+      # runs shellcheck over its generated scripts, and the injection trips
+      # SC2030/SC2031 — "password was modified in a subshell" — so the build
+      # fails before any VM starts. Measured 2026-09-22; it is an upstream
+      # defect in the test harness, not a problem with this configuration.
+      installRunner = pkgs.writeShellApplication {
+        name = "install";
+        runtimeInputs = [ inputs.nixos-anywhere.packages.${system}.default ];
+        text = ''
+          if [ "$#" -eq 0 ]; then
+            echo "usage: nix run .#install -- [flags] root@<target>" >&2
+            echo "this DESTROYS the target's disk; see flake.nix for the" >&2
+            echo "two things to do first (device path, encryption key)." >&2
+            exit 2
+          fi
+          exec nixos-anywhere --flake "${inputs.self}#maxnix" "$@"
+        '';
+      };
+
       # One-step runner for a test's interactive driver.
       #
       # This is how the GPU tier runs, and it has to be: a sandboxed build
@@ -650,6 +736,10 @@
         ci = {
           type = "app";
           program = lib.getExe ciRunner;
+        };
+        install = {
+          type = "app";
+          program = lib.getExe installRunner;
         };
       }
       // lib.mapAttrs' (name: test: {

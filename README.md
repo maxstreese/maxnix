@@ -91,6 +91,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
 .github/renovate.json5       flake.lock and action-SHA updates, as PRs
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
+                             `nix run .#install -- root@host` installs it for real
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
 statix.toml                  the two statix lints this repo switches off, with reasons
 hosts/maxnix/
@@ -547,6 +548,21 @@ clone for live editing, then fold it into the store once the design settles.
 wired and the copy is verified byte-identical, but repainting `colors.json`
 changed nothing on screen. Upstream documents `settings.json` as the file
 carrying appearance; DMS has not written one here yet.
+
+Install day itself is `nix run .#install -- root@<target>`: nixos-anywhere
+kexecs the target into an installer, runs disko against
+`hosts/maxnix/disk-layout.nix`, installs and reboots — the same sequence
+`checks.metal-boots` rehearses against a virtual disk. Two things must be done
+first, both noted at the app in `flake.nix`: replace the placeholder device,
+and supply an encryption key for the formatting step. Its
+`--generate-hardware-config nixos-facter <path>` flag produces the facter
+report from the target as part of the run, which removes the separate
+installer-USB trip.
+
+There is deliberately no `install-vm-test` app. `--vm-test` is redundant with
+`checks.metal-boots`, and on a LUKS layout it fails upstream before starting:
+its harness injects `export password=disko` into the generated disko script
+and disko's own shellcheck rejects it (SC2030/SC2031).
 
 **Road to metal.** Everything the config does *because it is only a VM*, to be
 undone or replaced when this becomes the host install:
