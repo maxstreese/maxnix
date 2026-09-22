@@ -147,19 +147,43 @@
       tests = mkTests true;
 
       # Everything that runs on any machine. Named once here so the `checks`
-      # Everything that runs on any machine, in two groups because `ci`
-      # builds them in that order: the seconds-long static checks first,
-      # then the VM suites. A formatting typo should not be discovered after
-      # a 12.5 GiB download. The split lives here and not in the workflow, so
-      # CI stays one command and never has to know what a tier is.
+      # Everything that runs on any machine, in three groups because `ci`
+      # builds them in that order, cheapest first. A formatting typo should
+      # not be discovered after a 12.5 GiB download. The split lives here and
+      # not in the workflow, so CI stays one command and never has to know
+      # what a tier is.
       #
-      # `checks` is their union, so the two cannot drift apart.
+      # `checks` is their union, so the groups cannot drift from what CI
+      # actually runs.
       staticChecks = {
         formatting = treefmtEval.config.build.check inputs.self;
         lint = lintCheck;
       };
+
+      # The machine as it would be installed, built.
+      #
+      # This is the configuration hosts/maxnix/configuration.nix claims to
+      # describe, and until hosts/maxnix/disk.nix existed it could not even be
+      # evaluated — it failed on having no root filesystem and no bootloader.
+      # Nothing built it, so nothing checked it: `packages.vm` builds the
+      # vmVariant's toplevel and the suites build a third variant again, all
+      # of which get their disks from qemu-vm.nix and therefore prove nothing
+      # about the metal path.
+      #
+      # Cheap to add now that it evaluates: its closure is very nearly the
+      # same as the one the VM suites already realise, so on a warm store this
+      # is a few seconds, and it is ordered before them so a metal-only
+      # breakage is reported before anything boots.
+      #
+      # It catches a build, not a boot. Whether the layout in disk.nix would
+      # actually partition, format and come up is a different question, and
+      # the answer to it is a disko VM test.
+      metalChecks = {
+        metal = maxnix.config.system.build.toplevel;
+      };
+
       portableVmTests = mkTests false;
-      portableChecks = portableVmTests // staticChecks;
+      portableChecks = portableVmTests // staticChecks // metalChecks;
 
       # nix run .#vm-headless
       #
@@ -366,17 +390,26 @@
 
             # Builds the checks by name rather than running `nix flake check`.
             #
-            # `nix flake check` would be the obvious command and is the one to
-            # return to, but it also validates `nixosConfigurations`, and this
-            # flake's metal configuration does not evaluate yet: it has no
-            # root filesystem and no bootloader, because those wait on a disk
-            # layout. So `nix flake check` fails on something that has nothing
-            # to do with the checks. Once disko lands, this can become the
-            # one-liner it wants to be.
+            # `nix flake check` does now pass — it validates
+            # `nixosConfigurations` too, and that only started working when
+            # hosts/maxnix/disk.nix gave the metal configuration a root
+            # filesystem and a bootloader. So this is no longer a workaround
+            # for a broken flake, and `nix flake check --max-jobs 1` would be
+            # a correct one-line replacement.
+            #
+            # It is still not used, for one reason: it builds in dependency
+            # order, not cheapest-first. A formatting typo would be reported
+            # after the VM suites rather than in the second before them. The
+            # ordering below is the whole value this script adds over that
+            # one-liner.
 
             echo >&2
             echo "-- static checks --" >&2
             nix build --print-build-logs ${checkArgs staticChecks}
+
+            echo >&2
+            echo "-- the metal system builds --" >&2
+            nix build --print-build-logs ${checkArgs metalChecks}
 
             echo >&2
             echo "-- vm suites, portable tier --" >&2

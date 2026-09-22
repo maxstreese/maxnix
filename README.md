@@ -392,6 +392,16 @@ Two static checks sit alongside the VM tests in the portable tier:
 | --- | --- | --- |
 | `formatting` | every `.nix` file is nixfmt-clean | `nix fmt` |
 | `lint` | statix, deadnix, actionlint and the Renovate config validator find nothing | by hand — see below |
+| `metal` | the machine as it would be *installed* builds | by hand |
+
+`metal` is the one check nothing else can stand in for. `packages.vm` builds
+the vmVariant's toplevel and the three suites build a third variant again —
+all of them get their disks and bootloader from `qemu-vm.nix`, so none of them
+touches the metal path. Demonstrated by deleting
+`boot.loader.systemd-boot.enable`: `checks.metal` fails, `nix build .#vm`
+still succeeds. It catches a build, not a boot; whether the layout in
+`disk.nix` would actually partition and come up is a disko VM test, and is
+not yet written.
 
 `nix fmt` is treefmt driving nixfmt, configured in `treefmt.nix`, which also
 records why shfmt and a Markdown formatter are deliberately absent. The linters
@@ -399,11 +409,14 @@ are kept *out* of `nix fmt` on purpose: treefmt can run them, but only in
 `--fix` mode, and deadnix's fix is to delete a function argument. A formatter
 that rewrites code is not a formatter, so `lint` only ever reports.
 
-`nix flake check` is **not** the entry point, though it ought to be. It also
-validates `nixosConfigurations`, and the metal configuration does not evaluate
-yet — no `fileSystems`, no `boot.loader` — so it fails on something unrelated
-to any check. `nix run .#ci` builds the checks by name instead, and collapses
-back to a one-liner the day a disk layout lands.
+`nix flake check` **passes** as of the disko commit — it validates
+`nixosConfigurations` too, and that only started working once the metal
+configuration had a root filesystem and a bootloader. So
+`nix flake check --max-jobs 1` is now a correct one-line replacement for
+`nix run .#ci`. It is still not what CI runs, for one reason: it builds in
+dependency order rather than cheapest-first, so a formatting typo would be
+reported *after* the VM suites instead of in the second before them. That
+ordering is the only thing `ci` adds over the one-liner.
 
 `statix.toml` switches off two lints that disagree with conventions this repo
 applies deliberately — `empty_pattern` (`{ ... }:` over `_:`) and
