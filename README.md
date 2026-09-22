@@ -95,7 +95,8 @@ treefmt.nix                  what `nix fmt` runs, and what it deliberately does 
 statix.toml                  the two statix lints this repo switches off, with reasons
 hosts/maxnix/
   configuration.nix          the machine: user, locale, keyboard, home-manager
-  disk.nix                   bootloader + LUKS2/btrfs layout, via disko
+  disk.nix                   bootloader, and the layout wired into NixOS
+  disk-layout.nix            the LUKS2/btrfs layout as data, shared with its test
   vm.nix                     build-vm specifics: window, disk images, sshd, `rebuild`
 modules/
   desktop/{default,niri,hyprland,greeter,onepassword,gpu-check,steam}.nix  system layer
@@ -104,6 +105,7 @@ home/max/*.nix               user layer, one file per program: default (the
                              layer itself), niri, hyprland, dms, ghostty,
                              firefox, apps, dev, git, ssh
 tests/{desktop,compositor,vnc}.nix               integration tests
+tests/disk.nix               formats, installs and boots the real disk layout
 scripts/vm-keys              host tooling: release/restore GNOME shortcuts
 ```
 
@@ -393,6 +395,7 @@ Two static checks sit alongside the VM tests in the portable tier:
 | `formatting` | every `.nix` file is nixfmt-clean | `nix fmt` |
 | `lint` | statix, deadnix, actionlint and the Renovate config validator find nothing | by hand — see below |
 | `metal` | the machine as it would be *installed* builds | by hand |
+| `metal-boots` | that layout partitions, formats and boots | by hand |
 
 `metal` is the one check nothing else can stand in for. `packages.vm` builds
 the vmVariant's toplevel and the three suites build a third variant again —
@@ -400,8 +403,17 @@ all of them get their disks and bootloader from `qemu-vm.nix`, so none of them
 touches the metal path. Demonstrated by deleting
 `boot.loader.systemd-boot.enable`: `checks.metal` fails, `nix build .#vm`
 still succeeds. It catches a build, not a boot; whether the layout in
-`disk.nix` would actually partition and come up is a disko VM test, and is
-not yet written.
+`disk.nix` would actually partition and come up is `metal-boots`.
+
+`metal-boots` is disko's `makeDiskoTest`: it formats a blank virtual disk from
+`hosts/maxnix/disk-layout.nix`, installs NixOS onto it and reboots into the
+result. It reads the *same* layout file the real machine does — that is why
+the layout is plain data in its own file, since `makeDiskoTest` calls its
+config with `lib` alone and cannot be handed a NixOS module. It also exercises
+the real unlock path: the guest prints `Please enter passphrase for disk
+disk-main-luks`, and the test reads that off the console with OCR and types
+the answer, rather than taking a keyfile shortcut that the metal machine will
+not have. Slowest check here by some way — a full install, not a boot.
 
 `nix fmt` is treefmt driving nixfmt, configured in `treefmt.nix`, which also
 records why shfmt and a Markdown formatter are deliberately absent. The linters
@@ -543,7 +555,8 @@ undone or replaced when this becomes the host install:
   throwaway guest.
 - ~~No disk layout or bootloader.~~ Done: `hosts/maxnix/disk.nix` declares
   systemd-boot plus a LUKS2 + btrfs layout through disko, so the metal
-  configuration now evaluates *and builds*. What remains is the one fact that
+  configuration now evaluates, *builds*, and — via `checks.metal-boots` —
+  formats a disk and boots from it. What remains is the one fact that
   needs the machine — `disko.devices.disk.main.device` is a placeholder until
   `nixos-facter` on the target yields its `/dev/disk/by-id/…` path. Still
   missing: a hardware module (`nixos-hardware` profiles or a facter report)

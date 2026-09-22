@@ -180,6 +180,13 @@
       # the answer to it is a disko VM test.
       metalChecks = {
         metal = maxnix.config.system.build.toplevel;
+
+        # And that the layout it describes actually partitions, formats and
+        # boots. See ./tests/disk.nix for why that is a separate claim.
+        metal-boots = import ./tests/disk.nix {
+          inherit pkgs;
+          inherit (inputs) disko;
+        };
       };
 
       portableVmTests = mkTests false;
