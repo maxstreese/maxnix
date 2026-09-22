@@ -1,15 +1,19 @@
 // Dependency updates, as pull requests that CI has already judged.
 //
-// JSON5 rather than JSON so this can be commented, which matters here because
+// JSONC rather than JSON so this can be commented, which matters here because
 // three of the five settings below are switched on to work around a default
-// that silently does nothing.
+// that silently does nothing. Renovate accepts .json5 too, but its docs name
+// .jsonc as the one to reach for when you want comments.
+//
+// At the repository root rather than under .github/: both are supported, and
+// the root filenames come first in Renovate's search order.
 //
 // Renovate is a GitHub App and has to be installed on the repository by hand;
 // this file only configures it. Until it is installed, nothing here runs.
 {
-  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
 
-  extends: [
+  "extends": [
     "config:recommended",
 
     // Rewrites every `uses:` in .github/workflows from a tag to the commit
@@ -18,17 +22,17 @@
     // had all of its rewritten to malicious commits in March 2025. Doing this
     // through a preset rather than by hand also means an action added later
     // gets pinned without anyone remembering to.
-    "helpers:pinGitHubActionDigests",
+    "helpers:pinGitHubActionDigests"
   ],
 
   // Schedules below are read in this zone rather than UTC.
-  timezone: "Europe/Berlin",
+  "timezone": "Europe/Berlin",
 
   // The nix manager is in beta and ships disabled. Without this, Renovate
   // runs happily and never touches flake.nix or flake.lock at all — it is a
   // silent no-op, not an error.
-  nix: {
-    enabled: true,
+  "nix": {
+    "enabled": true
   },
 
   // And this is the second half of the same trap: lockFileMaintenance is off
@@ -44,9 +48,9 @@
   // when flake.nix contains a `github:NixOS/nixpkgs/...` style input string.
   // Ours does — `nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable"` — so
   // it applies here, but that is a thing to re-check if that line changes.
-  lockFileMaintenance: {
-    enabled: true,
-    schedule: ["before 6am on monday"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
   },
 
   // No automerge anywhere, deliberately. A green `checks / portable` proves
@@ -54,5 +58,5 @@
   // what is on screen — the GPU tier cannot run on a hosted runner. An update
   // that breaks the greeter would pass CI. So every PR is read by a human and
   // the render suites run locally before it lands.
-  automerge: false,
+  "automerge": false
 }

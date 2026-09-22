@@ -89,7 +89,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 
 ```
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
-.github/renovate.json5       flake.lock and action-SHA updates, as PRs
+renovate.jsonc               flake.lock and action-SHA updates, as PRs
 hosts/maxnix/backup.nix      restic: what to back up, and what to skip
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
@@ -456,7 +456,7 @@ covered here. Three details in it are load-bearing:
 - **Freeing disk is required, not an optimisation.** The guest closure is
   12.5 GiB and a runner has roughly 14 GB free.
 
-`.github/renovate.json5` keeps the two pinned things moving: `flake.lock` and
+`renovate.jsonc` keeps the two pinned things moving: `flake.lock` and
 the workflow's action SHAs. Three of its five settings exist only to defeat a
 default that silently does nothing — the nix manager is beta and ships
 disabled, `lockFileMaintenance` is off and `config:recommended` does not turn

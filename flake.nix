@@ -710,9 +710,9 @@
             # mistake in its config surfaces as "the bot quietly does nothing"
             # rather than as a failure anyone sees. Validating it locally is
             # the only feedback loop there is. No argument: the validator
-            # auto-discovers .github/renovate.json5 and checks it as a
-            # repository config, where an explicit path makes it fall back to
-            # the laxer global schema.
+            # auto-discovers renovate.jsonc and checks it as a repository
+            # config, where an explicit path makes it fall back to the laxer
+            # global schema.
             echo "== renovate-config-validator ==" >&2
             renovate-config-validator
             touch "$out"
