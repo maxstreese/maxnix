@@ -135,7 +135,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | modifier key | Super, as upstream | QEMU's keyboard grab makes Mutter inhibit its shortcuts for the window; `scripts/vm-keys` covers the two things the grab cannot: the overlay key, and GNOME's remembered permission |
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
-| login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17; not on the road to metal |
+| login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17 — but impermanence has since changed what that *means*; see the open point below |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
 | git config | declared, not `git config --global` | a fresh guest had no identity at all, so the first commit inside would have failed. The cost is that the file is a store symlink, so `git config --global` no longer works |
 | commit signing | SSH keys via 1Password, not GPG | supported by git since 2.34 and verified by GitHub, GitLab and Bitbucket; the private half never leaves the vault, and only public keys appear in this repo. Two keys: auth is scoped to an account on one host, signing to one identity everywhere |
@@ -554,6 +554,36 @@ binds are validated, but nothing compares any keysym against the *compiled
 keymap*, which is the check that would have caught `Mod+BracketLeft` being
 unreachable on a German layout.
 
+**The login password is probably reset on every boot, and that is a defect
+introduced here.** `/etc/shadow` lives on the root, the root is now wiped on
+every boot, and `users.users.max.initialPassword` is a plaintext value in the
+store. So the account is very likely recreated from `initialPassword` each
+boot and any `passwd` change is lost. The inputs are verified —
+`mutableUsers = true`, `hashedPasswordFile = null`, and `/etc/shadow` is not
+in `hosts/maxnix/persistence.nix` — but the *outcome* has never been
+observed, and the two-boot harness in `tests/disk.nix` could settle it in one
+run by changing the password on the first boot and checking on the second.
+The fix, if confirmed, is `hashedPasswordFile` pointing at a secret, which
+makes it the second customer for the secrets layer below.
+
+**No secrets layer, deliberately.** sops-nix was researched and skipped rather
+than forgotten. Nothing on this machine needs a secret *at boot* today: the
+whole credential story is 1Password, which a human unlocks. The two things
+that would need one are the backup repository password above and a Wi-Fi PSK
+once NetworkManager lands — and adding sops before either exists would mean
+building a mechanism with nothing to put in it. Two constraints worth keeping
+in view when it does land: sops-nix conventionally decrypts with the host SSH
+key, and `services.openssh.enable` is `false` on metal, so it would need a
+dedicated age key on `/persist`; and the LUKS passphrase can never be a sops
+secret, because the key would live on the disk it unlocks.
+
+**The generation diff has never been seen.** Both rebuild paths call `nvd
+diff` before activating, and `nvd` itself was verified against two real
+toplevels — but neither path has been watched actually printing it, because
+that needs a running VM and a real activation. The wiring is two lines
+guarded with `|| true`, so the risk is low; it is inference rather than
+observation.
+
 **Colour thresholds are magic numbers** calibrated against today's screenshots.
 
 **The greeter sometimes never draws in the desktop test.** Roughly one run in
@@ -643,10 +673,11 @@ Each shortcut in the config is marked `ROAD TO METAL` in its comment, so
 should follow the grab now. Not yet verified with a keypress.
 
 **Two compositor configs to keep in step.** Both compositors stay, so their
-configs are a permanent pair rather than a temporary one. Switching is a logout
-and a session pick, and both carry identical DMS bindings (`Super+Space`,
-`Super+N`, `Super+X`, `Super+Shift+Comma`) precisely so muscle memory
-transfers. The cost is ~170 lines of compositor-specific config, of which 30
-are the same 15 bindings written twice, and it grows per feature added rather
-than sitting still. Today a bind added to one file has to be added to the other
-by hand; generating both from a single binding list would remove that.
+configs are a permanent pair rather than a temporary one. The seventeen
+command bindings are no longer the problem: they live once in
+`home/max/binds.nix` and each compositor renders them, so muscle memory
+transfers by construction. What still diverges is everything *else* — niri's
+37 native window-management binds have no Hyprland equivalent, and the two
+files differ in animation, layout and gap settings that nothing compares.
+That divergence is legitimate rather than accidental, but nothing would tell
+you if it stopped being.
