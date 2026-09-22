@@ -143,6 +143,46 @@
     dates = [ "Mon 10:30" ];
   };
 
+  # ROAD TO METAL. Hardware detection, unconfigured because there is no
+  # machine to detect yet.
+  #
+  # nixos-facter snapshots a machine to JSON — controllers, firmware, CPU,
+  # graphics — and nixpkgs' own modules under nixos/modules/hardware/facter
+  # turn that report into configuration. It is the modern replacement for
+  # `nixos-generate-config`, which writes Nix that you then hand-maintain
+  # forever.
+  #
+  # Nothing extra is needed to use it: the modules ship in nixpkgs and this
+  # option already exists. On install day the whole change is to drop the
+  # report next to this file and point at it:
+  #
+  #   # on the target, booted from a NixOS installer USB:
+  #   sudo nix run nixpkgs#nixos-facter -- -o facter.json
+  #   ls -l /dev/disk/by-id            # for disk-layout.nix's device
+  #
+  #   # here:
+  #   hardware.facter.reportPath = ./facter.json;
+  #
+  # Note the second command. The report does NOT decide which disk to install
+  # onto — that is a choice a human makes from the by-id listing, and it goes
+  # in ./disk-layout.nix. Facter answers "what is this machine", not "where
+  # should the system live". Verified rather than assumed: a config carrying a
+  # complete report and no fileSystems still fails with "The 'fileSystems'
+  # option does not specify your root file system".
+  #
+  # The consuming side is exercised, on this desktop, 2026-09-22: pointing
+  # reportPath at a real report flipped hardware.cpu.amd.updateMicrocode and
+  # hardware.enableRedistributableFirmware from false to true, left the Intel
+  # equivalent false, and populated boot.initrd.availableKernelModules with 36
+  # entries including nvme and tpm-crb. The report itself was thrown away —
+  # this machine's hardware is not the target's — but the wiring is known to
+  # work, which is the part that would be expensive to get wrong on the day.
+  #
+  # Left null rather than pointed at a placeholder file: with null the facter
+  # modules evaluate to nothing at all, so the metal configuration still
+  # builds, which is what keeps checks.metal honest in the meantime.
+  hardware.facter.reportPath = null;
+
   # Mesa, and the userspace bits a Wayland compositor expects to find.
   hardware.graphics.enable = true;
 

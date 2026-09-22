@@ -563,6 +563,14 @@ undone or replaced when this becomes the host install:
   and swap, which wants RAM-sized hibernation space and is therefore also a
   fact about the unchosen machine. A swapfile on btrfs is just a file, so it
   costs nothing to defer; the partition layout around it does not.
+- No hardware report. `hardware.facter.reportPath` is `null`; nixpkgs ships
+  the facter modules, so install day is one line plus a JSON file — see the
+  ROAD TO METAL note in `hosts/maxnix/configuration.nix` for both commands.
+  The wiring is verified against a real report from the Ubuntu host: it turned
+  on AMD microcode and redistributable firmware and filled in the initrd
+  module list. It does *not* choose the disk — a report with no `fileSystems`
+  still fails the root-filesystem assertion — so `disk-layout.nix`'s `device`
+  stays a separate human decision from `ls /dev/disk/by-id`.
 - No machine secrets. Nothing needs one yet, but a laptop wants a Wi‑Fi PSK
   at least; that is when sops-nix or agenix earns its place.
 - No networking beyond QEMU's user-mode DHCP. A laptop needs NetworkManager,
