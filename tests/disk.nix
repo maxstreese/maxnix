@@ -51,6 +51,23 @@ disko.lib.testLib.makeDiskoTest {
       # judge a machine that has no persistence at all.
       preservation.nixosModules.preservation
       ../hosts/maxnix/persistence.nix
+
+      # Backups, pointed at a repository inside the guest.
+      #
+      # A real run rather than an assertion that the unit exists: the thing
+      # worth knowing is whether restic actually captures /persist and /home
+      # and honours the excludes, and none of that is visible from the
+      # configuration. The destination is local because the point is the
+      # backup, not the transport.
+      ../hosts/maxnix/backup.nix
+      {
+        maxnix.backup = {
+          enable = true;
+          repository = "/persist/test-restic-repo";
+          passwordFile = "/etc/restic-test-password";
+        };
+        environment.etc."restic-test-password".text = "not-a-real-password";
+      }
     ];
   };
 
@@ -168,6 +185,36 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("test -f /var/lib/sbctl/preserved-marker")
     machine.succeed("test -f /persist/var/lib/sbctl/preserved-marker")
     machine.succeed("findmnt -no SOURCE /var/lib/sbctl | grep -q '\\[/persist/'")
+
+    # ── Backups ────────────────────────────────────────────────────────
+    #
+    # Run the job for real and look at what landed in the repository. The
+    # marker below is under /persist, so it is both preserved state and part
+    # of the backup set — one file proving both.
+    machine.succeed("echo backed-up > /persist/backup-marker")
+    machine.succeed("mkdir -p /home/max/.cache")
+    machine.succeed("echo nope > /home/max/.cache/excluded-marker")
+    # Anchors the exclude assertion below. Without a file from /home that IS
+    # expected in the snapshot, "the excluded one is absent" would also pass
+    # if /home had been missed entirely — the exclude would look like it
+    # worked while the backup quietly covered half of what it should.
+    machine.succeed("echo keep > /home/max/kept-marker")
+    machine.succeed("systemctl start restic-backups-maxnix.service")
+
+    # A snapshot exists at all.
+    snapshots = machine.succeed("restic-maxnix snapshots")
+    assert "/persist" in snapshots, snapshots
+
+    # It contains a marker from each of the two paths, so both are really in
+    # the backup set rather than one of them silently missing.
+    listing = machine.succeed("restic-maxnix ls latest")
+    assert "/persist/backup-marker" in listing, listing
+    assert "/home/max/kept-marker" in listing, listing
+
+    # And NOT the excluded one, so the excludes are right. This is the half
+    # that would silently rot: an exclude pattern that stops matching costs
+    # nothing visible until a backup is unexpectedly enormous.
+    assert "excluded-marker" not in listing, listing
 
     # machine-id is the one preserved *file*, and it is read in the initrd.
     # Assert it is the same one across the reboot rather than regenerated,

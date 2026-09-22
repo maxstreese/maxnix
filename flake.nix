@@ -91,6 +91,7 @@
         ./hosts/maxnix/configuration.nix
         ./hosts/maxnix/disk.nix
         ./hosts/maxnix/persistence.nix
+        ./hosts/maxnix/backup.nix
         inputs.disko.nixosModules.disko
         inputs.preservation.nixosModules.preservation
         inputs.lanzaboote.nixosModules.lanzaboote

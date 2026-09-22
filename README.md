@@ -90,6 +90,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 ```
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
 .github/renovate.json5       flake.lock and action-SHA updates, as PRs
+hosts/maxnix/backup.nix      restic: what to back up, and what to skip
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
@@ -516,6 +517,31 @@ Hard-won lessons encoded in them:
 ---
 
 ## Open points
+
+**Backups are wired but unconfigured, and there is no backup of this machine
+today — not here, not anywhere.** `hosts/maxnix/backup.nix` has the whole
+mechanism: restic, nightly, `/persist` and `/home`, caches and Steam excluded,
+7/5/12/3 retention, and `checks.metal-boots` runs a real backup into a local
+repository and inspects what landed in it. It is off by default and asserts
+rather than half-running, because two things have to be chosen and neither can
+be invented here:
+
+- **A repository.** A local path on an external disk, `sftp:` to a NAS, `s3:`,
+  `b2:`, anything rclone reaches. For a laptop, offsite eventually — but an
+  external disk is a fine start and restic can gain a second job later.
+- **A password.** Not a service login: it is the client-side encryption key
+  for the repository. Lose it and the backups are permanently unreadable,
+  which is why it must not live *only* on `/persist` — one disk failure would
+  take the data and its only key together. 1Password for the human copy,
+  sops-nix in this repo for the machine's.
+
+If the destination turns out to be S3 there are **two** secrets, not one: the
+repository password, and AWS credentials through the module's
+`environmentFile`. That is worth knowing before designing the secrets layer,
+since it doubles it.
+
+Deferred deliberately 2026-09-22 rather than guessed at. The mechanism and its
+test are in place, so turning it on is two option values.
 
 **Bind reachability is not checked.** The dead German binds were found by a
 hand-run audit, not by anything in the repo. A build-time check comparing bind
