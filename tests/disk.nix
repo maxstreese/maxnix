@@ -104,8 +104,10 @@ disko.lib.testLib.makeDiskoTest {
     # fails rather than passing quietly, which a survival-only assertion
     # would do.
     #
-    # When the root becomes ephemeral, the first expectation inverts and the
-    # marker moves to /persist. That edit is the point of all this.
+    # Step 2 landed, so the first expectation has inverted: the root marker
+    # must now be GONE after the reboot. That inversion is the proof the
+    # rollback ran — and the harness was calibrated against the opposite
+    # answer first, so it is known to be able to see both.
     machine.succeed("echo marker > /root-marker")
     machine.succeed("echo marker > /run/run-marker")
 
@@ -138,8 +140,25 @@ disko.lib.testLib.makeDiskoTest {
     machine.send_chars("secretsecret\n")
     machine.wait_for_unit("local-fs.target")
 
-    # Survives today: the root persists. Inverts under impermanence.
-    machine.succeed("test -f /root-marker")
+    # Gone: the root was restored from the blank snapshot. Before step 2 this
+    # assertion was the exact opposite, and both versions have been observed
+    # to pass against their respective configurations.
+    machine.fail("test -f /root-marker")
+
+    # And the unit did not merely fail in a way that happened to look right.
+    #
+    # This matters because the rollback fails OPEN: a failed oneshot does not
+    # block initrd.target, so a broken rollback gives a machine that boots
+    # normally with a root that is quietly no longer ephemeral. The assertion
+    # above would catch that here, but only because this test writes a marker;
+    # nothing on the real machine would.
+    #
+    # Written as a `fail` on the failure line rather than a `succeed` on the
+    # success one: initrd units are gone after switch-root, so `systemctl
+    # show` cannot see them — the first version of this check queried a unit
+    # that does not exist and swallowed the error with `|| true`, which made
+    # it pass unconditionally.
+    machine.fail("journalctl -b | grep -q 'rollback-root.service: Failed'")
     # Cannot survive, ever: /run is a tmpfs. This is what proves the reboot
     # actually happened.
     machine.fail("test -f /run/run-marker")

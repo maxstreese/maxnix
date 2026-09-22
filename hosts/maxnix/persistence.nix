@@ -40,6 +40,25 @@
 #                   is false on metal — only the VM runs sshd. Add them with
 #                   sshd, and note sops-nix decrypts with the host key, so
 #                   that ordering matters when secrets land.
+#
+# ── Step 2: the root is now wiped on every boot ──────────────────────────
+#
+# The service below restores /root from the read-only /root-blank snapshot
+# taken at format time (see ./disk-layout.nix) before the root is mounted. So
+# anything not in the lists here, and not on the /nix, /home or /var/log
+# subvolumes, is gone at the next boot.
+#
+# A module function rather than a plain attrset now, because it needs pkgs for
+# btrfs-progs in the initrd. That is still shareable with the disk test: this
+# goes into extraSystemConfig's `imports`, and the module system calls module
+# functions there like anywhere else. Only makeDiskoTest's `disko-config` has
+# the stricter requirement that forced ./luks-tpm.nix to stay an attrset.
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 {
   preservation = {
     enable = true;
@@ -76,6 +95,54 @@
   # there would leave the test's /persist mounted too late and the failure
   # would look like a preservation bug.
   fileSystems."/persist".neededForBoot = true;
+
+  # Roll the root back to its blank snapshot, before it is mounted.
+  #
+  # Ordering is the whole correctness argument. It has to run after
+  # systemd-cryptsetup has opened /dev/mapper/crypted, or there is nothing to
+  # mount, and before sysroot.mount, or it would be deleting a subvolume that
+  # is already in use as the root. DefaultDependencies=no keeps systemd from
+  # adding the ordinary ordering that would place it far too late.
+  #
+  # Nested subvolumes are deleted first: btrfs refuses to delete a subvolume
+  # that contains others, and anything creating them inside / later (docker,
+  # systemd-nspawn) would otherwise turn every boot into a failed rollback and
+  # a root that quietly stopped being ephemeral.
+  # Only where the root actually is the btrfs subvolume this rolls back.
+  #
+  # Every VM path — build-vm and all three test nodes — takes its root from
+  # qemu-vm.nix, which is ext4 on a scratch image. Declared unconditionally,
+  # the service ran there too and failed on every single boot with
+  # "mount: /btrfs_tmp: unknown filesystem type 'btrfs'". The suites still
+  # passed, because a failed oneshot does not block initrd.target — which is
+  # the part worth pausing on: this unit fails *open*. A rollback that stops
+  # working leaves a machine that boots normally and is quietly no longer
+  # ephemeral, so a permanently-red unit in the VMs would have been training
+  # to ignore exactly the signal that matters on metal.
+  boot.initrd.systemd.services.rollback-root = lib.mkIf (config.fileSystems."/".fsType == "btrfs") {
+    description = "Roll the root subvolume back to its blank snapshot";
+    wantedBy = [ "initrd.target" ];
+    after = [ "systemd-cryptsetup@crypted.service" ];
+    before = [ "sysroot.mount" ];
+    unitConfig.DefaultDependencies = "no";
+    serviceConfig.Type = "oneshot";
+    script = ''
+      mkdir -p /btrfs_tmp
+      mount -t btrfs -o subvol=/ /dev/mapper/crypted /btrfs_tmp
+
+      btrfs subvolume list -o /btrfs_tmp/root | cut -f9 -d' ' | while read -r sub; do
+        btrfs subvolume delete "/btrfs_tmp/$sub"
+      done
+      btrfs subvolume delete /btrfs_tmp/root
+      btrfs subvolume snapshot /btrfs_tmp/root-blank /btrfs_tmp/root
+
+      umount /btrfs_tmp
+    '';
+  };
+
+  # btrfs is not otherwise in the initrd's PATH; without this the service
+  # above fails and the root silently stops being ephemeral.
+  boot.initrd.systemd.extraBin.btrfs = "${pkgs.btrfs-progs}/bin/btrfs";
 
   # With machine-id bind-mounted from /persist it is no longer the tmpfs
   # systemd expects to commit on first boot, and that unit fails noisily

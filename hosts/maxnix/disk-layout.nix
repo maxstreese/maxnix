@@ -76,6 +76,39 @@
             content = {
               type = "btrfs";
               extraArgs = [ "-f" ];
+
+              # Snapshot /root while it is still empty, and keep it read-only.
+              #
+              # This is what "a clean root" means for the rest of this
+              # machine's life: the rollback in ../persistence.nix restores
+              # this exact snapshot on every boot. Taken here, at format time,
+              # because it is the only moment the subvolume is genuinely
+              # empty — snapshotting later would bake whatever had
+              # accumulated into the baseline and quietly defeat the point.
+              #
+              # On the btrfs content rather than the subvolume: disko's
+              # generic hooks are attached to content types, and its btrfs
+              # subvolume submodule does not include them. $device is the
+              # hook variable disko exports for this content.
+              postCreateHook = ''
+                MNTPOINT=$(mktemp -d)
+                mount "$device" "$MNTPOINT" -o subvol=/
+                trap 'umount "$MNTPOINT"; rm -rf "$MNTPOINT"' EXIT
+
+                # Only if absent, because disko's formatting has to be
+                # idempotent: its own test harness runs disko-format a second
+                # time and asserts it succeeds, and nixos-anywhere re-runs it
+                # in repair mode. An unconditional snapshot fails there with
+                # "already exists" — which is how this was first written.
+                #
+                # Skipping when it exists is also the correct semantics: the
+                # first snapshot, taken when /root was empty, is the one that
+                # should define a clean root forever. Re-taking it later would
+                # silently promote an accumulated root to the new baseline.
+                if ! btrfs subvolume show "$MNTPOINT/root-blank" >/dev/null 2>&1; then
+                  btrfs subvolume snapshot -r "$MNTPOINT/root" "$MNTPOINT/root-blank"
+                fi
+              '';
               subvolumes = {
                 # Split so that impermanence can wipe one of them without
                 # touching the others. Until that lands this is simply a
