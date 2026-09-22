@@ -152,7 +152,10 @@
           # user logs in. git is here because the guest clones this repo with
           # it, before a user profile exists.
           installed(
-              ["git", "1password", "op", "twingate", "wootility", "steam", "steam-run"],
+              # nvd: both rebuild paths print a generation diff before
+              # activating, so it has to be on the machine, not just in the
+              # dev shell.
+              ["git", "nvd", "1password", "op", "twingate", "wootility", "steam", "steam-run"],
               user=False,
           )
 

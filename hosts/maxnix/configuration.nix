@@ -296,6 +296,13 @@
     htop
     vim
 
+    # Diffs two system generations by store path: what was added, removed or
+    # version-bumped. Both rebuild paths print one before activating, and it
+    # is on PATH so a generation can be compared against any other after the
+    # fact — `nvd diff /run/booted-system /run/current-system` being the one
+    # worth knowing, which says what has changed since this boot.
+    nvd
+
     # Backing tools for the `gpu-check` diagnostic, which is itself in
     # ../../modules/desktop/gpu-check.nix.
     mesa-demos # eglinfo, es2_info, es2gears

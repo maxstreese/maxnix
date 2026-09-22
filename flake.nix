@@ -366,6 +366,15 @@
             echo "copying ${toplevel} into the VM..." >&2
             nix copy --no-check-sigs --to ssh://max@127.0.0.1 ${toplevel}
 
+            # The same diff the in-guest `rebuild` prints, run in the guest
+            # because that is where both systems are: the new one has just
+            # been copied there, and the current one was never here. See the
+            # note at `rebuild` in hosts/maxnix/vm.nix for why this is the
+            # artifact worth having.
+            echo >&2
+            ssh max@127.0.0.1 nvd diff /run/current-system ${toplevel} >&2 || true
+            echo >&2
+
             echo "activating" >&2
             ssh max@127.0.0.1 sudo ${toplevel}/bin/switch-to-configuration test
           '';

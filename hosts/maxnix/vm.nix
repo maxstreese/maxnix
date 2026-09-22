@@ -86,6 +86,7 @@
       # file needs `git add` before rebuild can see it.
       rebuild = pkgs.writeShellApplication {
         name = "rebuild";
+        runtimeInputs = [ pkgs.nvd ];
         text = ''
           flake="''${MAXNIX_FLAKE:-$HOME/Repositories/github.com/maxstreese/maxnix}"
 
@@ -100,6 +101,17 @@
 
           echo "building from $flake ..." >&2
           out=$(nix build --no-link --print-out-paths "$flake#$attr")
+
+          # What actually changed, before it changes.
+          #
+          # This machine is edited with heavy assistant involvement, so the
+          # interesting question after a build is rarely "did it succeed" but
+          # "what did that just do to my system". A store path diff answers it
+          # in the terms that matter — packages added, removed, version-bumped
+          # — where the flake diff only says which lines moved.
+          echo >&2
+          nvd diff /run/current-system "$out" >&2 || true
+          echo >&2
 
           echo "activating $out" >&2
           sudo "$out/bin/switch-to-configuration" test
