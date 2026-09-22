@@ -26,6 +26,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Secure Boot: signs a Unified Kernel Image and replaces systemd-boot.
+    # Off unless maxnix.boot.secureBoot is set; see hosts/maxnix/disk.nix.
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Installs this flake onto a machine over SSH. Pinned like everything
     # else, so install day runs a known version rather than whatever is
     # current; see the `install` app below.
@@ -75,6 +82,7 @@
         ./hosts/maxnix/configuration.nix
         ./hosts/maxnix/disk.nix
         inputs.disko.nixosModules.disko
+        inputs.lanzaboote.nixosModules.lanzaboote
         ./modules/desktop
         home-manager.nixosModules.home-manager
         inputs.dank-greeter.nixosModules.default

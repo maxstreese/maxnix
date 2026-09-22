@@ -29,6 +29,16 @@ disko.lib.testLib.makeDiskoTest {
     passwordFile = "/tmp/secret.key";
   };
 
+  # The TPM unlock option the real machine carries, so that the fallback it
+  # depends on is exercised here rather than assumed.
+  #
+  # It has to be passed explicitly: makeDiskoTest builds its installed system
+  # from disko-config plus its own defaults and never imports
+  # ../hosts/maxnix/disk.nix, so anything set there is invisible to this test.
+  # That is not a guess — adding the option to disk.nix alone left this test's
+  # derivation hash byte-identical.
+  extraSystemConfig = import ../hosts/maxnix/luks-tpm.nix;
+
   # The machine still asks for the passphrase at boot, because the layout puts
   # nothing in settings.keyFile — which is exactly the behaviour the real
   # machine has, and the reason this test is worth having. OCR reads the

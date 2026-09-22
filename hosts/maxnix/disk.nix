@@ -62,18 +62,60 @@
     '';
   };
 
+  options.maxnix.boot.secureBoot = lib.mkEnableOption ''
+    Secure Boot via lanzaboote, replacing systemd-boot.
+
+    OFF until the machine exists and its keys are enrolled, because turning
+    it on before that produces a system that cannot install itself: the
+    bootloader it wants to write is signed with keys that are not there yet.
+
+    The order on install day is fixed and cannot be shortened:
+
+      1. install with this off, so systemd-boot writes a working ESP
+      2. boot, then `sudo sbctl create-keys` (or lanzaboote's
+         boot.lanzaboote.generateKeys.enable) to make /var/lib/sbctl
+      3. put the firmware into Setup Mode and enrol — `sbctl enroll-keys`
+      4. set this true, rebuild, reboot
+      5. turn Secure Boot on in the firmware and check `bootctl status`
+
+    Steps 3 and 5 are firmware menus on a specific machine, so nothing here
+    can do them, and nothing here can test them either
+  '';
+
   config = lib.mkMerge [
     (import ./disk-layout.nix { inherit (config.maxnix.disk) passwordFile; })
 
+    # TPM unlock. Its own file because ../../tests/disk.nix needs the same
+    # attrset — see the note there.
+    (import ./luks-tpm.nix)
+
     {
-      # systemd-boot rather than GRUB: lanzaboote, which is how Secure Boot
-      # gets done on NixOS, requires it and is a drop-in replacement after.
-      boot.loader.systemd-boot.enable = true;
       boot.loader.efi.canTouchEfiVariables = true;
 
       # Both must be mounted before anything writes to them.
       fileSystems."/persist".neededForBoot = true;
       fileSystems."/var/log".neededForBoot = true;
     }
+
+    # systemd-boot, until Secure Boot replaces it. lanzaboote is a drop-in
+    # replacement for it specifically, which is why the ESP was sized for
+    # Unified Kernel Images from the start.
+    (lib.mkIf (!config.maxnix.boot.secureBoot) {
+      boot.loader.systemd-boot.enable = true;
+    })
+
+    (lib.mkIf config.maxnix.boot.secureBoot {
+      # mkForce because the branch above is a plain definition, and both are
+      # evaluated — the module system has to be told which one wins rather
+      # than being left to merge two contradictory values.
+      boot.loader.systemd-boot.enable = lib.mkForce false;
+      boot.lanzaboote = {
+        enable = true;
+        # Where sbctl keeps the keys. Note for when impermanence lands: this
+        # is state, it is not reproducible, and losing it means re-enrolling
+        # from firmware setup mode — so it has to be on /persist.
+        pkiBundle = "/var/lib/sbctl";
+      };
+    })
   ];
 }
