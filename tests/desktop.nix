@@ -172,6 +172,9 @@
                   # point is that they are on PATH without being thought
                   # about; a silently missing `,` just looks like a typo.
                   ",", "nix-locate",
+                  # direnv, which is what makes a project's own flake the
+                  # source of its toolchain rather than this file.
+                  "direnv",
               ],
               user=True,
           )
@@ -182,6 +185,24 @@
           machine.succeed(
               "su - max -c 'python3 -c \"import marimo, polars, duckdb, altair, pyarrow, numpy\"'"
           )
+          # direnv being on PATH says nothing about it being hooked into the
+          # shell, and a direnv that never fires is indistinguishable from an
+          # absent one. Both halves are asserted: the function that makes
+          # `use flake` in ../.envrc a valid directive, and the shell hook
+          # that runs direnv on every prompt.
+          #
+          # The path is direnv/lib/hm-nix-direnv.sh, not direnvrc: direnv
+          # auto-loads every .sh under its lib directory, and home-manager
+          # only writes direnvrc when programs.direnv.stdlib is set, which it
+          # is not here. Asserting against direnvrc failed, which is how the
+          # right path was found.
+          machine.succeed(
+              "grep -q use_flake /home/max/.config/direnv/lib/hm-nix-direnv.sh"
+          )
+          machine.succeed(
+              "su max -c 'HOME=/home/max grep -q \"direnv hook bash\" ~/.bashrc'"
+          )
+
           # The udev rules are what let a normal user talk to the keyboard;
           # without them wootility finds the device and cannot open it.
           machine.succeed("grep -rq 31e3 /etc/udev/rules.d/")

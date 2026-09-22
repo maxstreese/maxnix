@@ -33,6 +33,30 @@
   programs.nix-index.enable = true;
   programs.nix-index-database.comma.enable = true;
 
+  # Per-project environments, entered by cd-ing into the directory.
+  #
+  # This is where the marimo question ends up. That package sits in a
+  # python3.withPackages environment at user level because a notebook has to
+  # be able to import polars and duckdb — a reasonable default, and the wrong
+  # place for a project's actual dependencies. With direnv, a project carries
+  # a flake and an .envrc, and its Python is whatever that flake says rather
+  # than whatever this file happens to install.
+  #
+  # nix-direnv rather than bare direnv for two reasons. It caches the
+  # evaluated environment, so re-entering a directory is instant instead of a
+  # flake evaluation. And it keeps a GC root under the project's .direnv,
+  # which matters now that nix.gc runs weekly with --delete-older-than 30d:
+  # without it, collection would happily delete the dependencies of every
+  # project not touched that month, and the next cd would rebuild them.
+  #
+  # .direnv is excluded from backups in ../../hosts/maxnix/backup.nix for the
+  # same reason it is gitignored: it is a cache with a GC root in it, entirely
+  # rebuildable from the flake beside it.
+  programs.direnv = {
+    enable = true;
+    nix-direnv.enable = true;
+  };
+
   # gh, through its module rather than as a bare package, for one setting:
   # `gh repo clone` and friends default to HTTPS, which would ignore the SSH
   # auth key entirely and ask for a token instead. This points them at the

@@ -4,3 +4,7 @@
 
 # QEMU disk images — guest state, never source
 /.vm/
+
+# nix-direnv's cache and its GC root. Rebuildable from flake.nix, and kept
+# out of backups for the same reason (hosts/maxnix/backup.nix).
+/.direnv/
