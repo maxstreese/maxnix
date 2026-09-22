@@ -26,6 +26,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # A prebuilt file->package index, so `,` and nix-locate work without
+    # anyone building a database first. See home/max/dev.nix.
+    nix-index-database = {
+      url = "github:nix-community/nix-index-database";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Declarative state: bind-mounts what must survive a wiped root.
     # See hosts/maxnix/persistence.nix.
     #

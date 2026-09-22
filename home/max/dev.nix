@@ -5,8 +5,34 @@
 # in environment.systemPackages — the guest needs it to clone and rebuild this
 # repo before any user profile exists. Its *configuration* is still user-level,
 # in ./git.nix.
-{ pkgs, ... }:
+{ inputs, pkgs, ... }:
 {
+  imports = [ inputs.nix-index-database.homeModules.nix-index ];
+
+  # `,` runs a program from nixpkgs without installing it: `, ripgrep …`
+  # fetches it, runs it, and leaves nothing behind but a store path the next
+  # garbage collection takes.
+  #
+  # This is the pressure release for a recurring temptation. Something is
+  # needed once — for a single debugging session, or to check whether a tool
+  # is even the right one — and the path of least resistance is adding it
+  # here, where it then stays forever and grows the closure. It is also the
+  # honest answer to what nix-ld would have been used for, which this repo
+  # looked at and rejected.
+  #
+  # The database is prebuilt and comes from a flake input, so nothing has to
+  # index nixpkgs locally: building that database takes upwards of ten minutes
+  # and leaves a cache file that is exactly the kind of undeclared state the
+  # rest of this configuration works to eliminate.
+  #
+  # The full index is 102 MB. The small one is 1.8 MB and covers binaries,
+  # which is all `,` itself needs — but nix-locate's other use is answering
+  # "which package provides this header, or this .so", and that has come up
+  # repeatedly here while chasing Mesa and GBM paths. 102 MB against a 12.5
+  # GiB closure is under a percent, so the more useful one wins.
+  programs.nix-index.enable = true;
+  programs.nix-index-database.comma.enable = true;
+
   # gh, through its module rather than as a bare package, for one setting:
   # `gh repo clone` and friends default to HTTPS, which would ignore the SSH
   # auth key entirely and ask for a token instead. This points them at the

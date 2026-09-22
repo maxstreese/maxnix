@@ -168,6 +168,10 @@
                   # of those two breaks git itself.
                   "duckdb", "kubectl", "scala", "marimo", "delta", "fzf",
                   "gh", "aws", "steampipe",
+                  # `,` and nix-locate. Asserted by name because the whole
+                  # point is that they are on PATH without being thought
+                  # about; a silently missing `,` just looks like a typo.
+                  ",", "nix-locate",
               ],
               user=True,
           )
