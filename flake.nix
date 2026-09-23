@@ -217,6 +217,7 @@
       staticChecks = {
         formatting = treefmtEval.config.build.check inputs.self;
         lint = lintCheck;
+        hyprland-config = hyprlandConfigCheck;
       };
 
       # The machine as it would be installed, built.
@@ -687,9 +688,6 @@
       # something out and rewriting it are different acts, so the formatter
       # only reformats and this only reports.
       #
-      # statix looks for statix.toml in the directory it is run from, which is
-      # why this cds into the source instead of passing paths. That file lists
-      # the two lints this repo switches off, and why.
       lintCheck =
         pkgs.runCommand "maxnix-lint"
           {
@@ -726,6 +724,63 @@
             renovate-config-validator
             touch "$out"
           '';
+
+      # Hyprland parses its own config and says whether it would load.
+      #
+      # `Hyprland --verify-config` reads the config and exits before bringing
+      # up a backend, so it needs no GPU, no seat and no Wayland socket. That
+      # puts it in the static tier next to statix rather than behind a booted
+      # VM, and it closes an asymmetry: niri has been validated at build time
+      # since the beginning (the home-manager module runs `niri validate`
+      # while building config.kdl), Hyprland never was.
+      #
+      # ── What it catches, measured rather than assumed ────────────────────
+      #
+      # Calibrated by injecting faults into the real generated config and
+      # running this exact command against them:
+      #
+      #   togglefloating -> togglefloatingXX   exit 1, "Invalid dispatcher"
+      #   XF86AudioMute  -> XF86AudioMuteTYPO  exit 0, NOT caught
+      #
+      # So this does not subsume the `hyprctl binds` assertion in
+      # tests/compositor.nix, and adding it is not a reason to drop that one.
+      # A keysym Hyprland cannot resolve still parses happily and still fails
+      # silently at runtime; only a running compositor can be asked what it
+      # actually bound. The two checks cover different halves of the same
+      # failure, and the repo has a history of dead binds from the half this
+      # one misses.
+      #
+      # The filename is derived from configType, so the move to Lua does not
+      # need to touch this — and the gate is in place before that move rather
+      # than landing with it.
+      hyprlandConfigCheck =
+        let
+          hm = maxnix.config.home-manager.users.max;
+          isLua = hm.wayland.windowManager.hyprland.configType == "lua";
+          configFile = hm.xdg.configFile."hypr/hyprland.${if isLua then "lua" else "conf"}".source;
+        in
+        pkgs.runCommand "maxnix-hyprland-config" { } ''
+          # Required, not hygiene. Hyprland aborts before it reads the config
+          # if XDG_RUNTIME_DIR is unset — "Critical error thrown:
+          # XDG_RUNTIME_DIR is not set!", std::terminate, core dumped — which
+          # an interactive shell has and a sandboxed build does not. Verified
+          # by removing this line: the check failed with that abort rather
+          # than with a config error, which would have made it look like a
+          # broken config forever after.
+          #
+          # It does not silence the "logs will be written to /hyprland.log"
+          # line or the failed write behind it; that path comes from an
+          # instance signature never assigned in verify mode, and neither this
+          # nor HOME moves it. Harmless, and it does not touch the exit status.
+          export XDG_RUNTIME_DIR="$PWD"
+          ${maxnix.config.programs.hyprland.package}/bin/Hyprland \
+            --verify-config -c ${configFile}
+          touch "$out"
+        '';
+
+      # statix looks for statix.toml in the directory it is run from, which is
+      # why this cds into the source instead of passing paths. That file lists
+      # the two lints this repo switches off, and why.
     in
     {
       nixosConfigurations.maxnix = maxnix;
