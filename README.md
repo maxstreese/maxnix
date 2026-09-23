@@ -131,7 +131,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | VM disks | root is disposable, `/home` is its own image, host `/nix/store` shared over virtiofs | root can be deleted to reset the machine without losing a single login; the VM is a variant of the machine, not the artifact |
 | repo in the guest | its own clone, no host share | the share was the fast loop and a hole in the boundary at once, and virtiofs broke it twice over (see findings); git syncs two machines, and the host deploys over ssh — the same model metal will use |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
-| Hyprland config | `configType = "hyprlang"` | every tutorial is hyprlang; **removed in Hyprland 0.57**, so this expires |
+| Hyprland config | `configType = "lua"` | hyprlang was deprecated at 0.55 and we pin 0.56.2, so the runway was one release. `hl.monitor`'s `reserved_area` replaced `addreserved`, which was the one thing blocking the port. Net gain rather than net cost: `--verify-config` rejects an unknown keysym under Lua and returned "config ok" for one under hyprlang |
 | Hyprland session | under UWSM | systemd-managed session like niri's. The greeter also offers the unmanaged entry; hiding it would cost a package wrapper, so it stays |
 | modifier key | Super, as upstream | QEMU's keyboard grab makes Mutter inhibit its shortcuts for the window; `scripts/vm-keys` covers the two things the grab cannot: the overlay key, and GNOME's remembered permission |
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
@@ -142,6 +142,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
 | git config | declared, not `git config --global` | a fresh guest had no identity at all, so the first commit inside would have failed. The cost is that the file is a store symlink, so `git config --global` no longer works |
 | commit signing | SSH keys via 1Password, not GPG | supported by git since 2.34 and verified by GitHub, GitLab and Bitbucket; the private half never leaves the vault, and only public keys appear in this repo. Two keys: auth is scoped to an account on one host, signing to one identity everywhere |
+| shared bindings | one list, with `repeat` stated per binding | niri defaults repeat to true and Hyprland to false, so every shared binding behaved differently depending on which session you logged into, until it was named. The rule is repeat a step, never a spawn or a toggle — which overrides niri's default *and* upstream Hyprland's own example on mute |
 | app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
 | terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup on both compositors |
 | VM access | sshd in the guest, host loopback 2222, password auth | `vm-deploy` and `vm-ssh` drive the running VM from the host; loopback-only, and the password is public by decision, so a key would add nothing |
@@ -221,9 +222,28 @@ window.
 rather than your dconf database. Use `/usr/bin/gsettings` or `dconf` when
 reading GNOME settings.
 
-**Hyprland 0.56 moved config and dispatchers to Lua.** `hyprctl dispatch exec`
-now fails; `hyprctl dispatch exit` still works. Config lives at
-`~/.config/hypr/hyprland.lua` unless you pin `configType = "hyprlang"`.
+**Hyprland's Lua API is documented by the package, not the wiki.**
+`$out/share/hypr/stubs/hl.meta.lua` is 67 KB of LuaLS annotations and
+`$out/share/hypr/hyprland.lua` a full worked example — both version-matched,
+which the wiki is not. Reverse-engineering through `hyprctl eval` was never
+necessary. `hyprctl dispatch exec` fails since 0.56; `hyprctl dispatch exit`
+still works.
+
+**`hyprctl binds` tells you less under Lua.** Every bind reports
+`dispatcher: __lua` and an opaque `arg: N`, so the command is not in the
+output at all and an assertion on it can only be vacuous. Flags still show as
+kind suffixes in a fixed order (`HyprCtl.cpp`: l, m, r, e, n, a, d, x), so
+`bindle` is locked+repeating — which is what the compositor suite matches on.
+
+**`hl.bind` has no `mouse` option, and upstream's own example passes one.**
+`LuaBindingsToplevel.cpp` never reads the field, so the shipped example's
+`{ mouse = true }` on its two mouse binds is a no-op. It would be harmful if
+it worked: `KeybindManager.cpp` dispatches `k->mouse ? "mouse" : k->handler`,
+so a bind carrying it would be routed to the legacy mouse dispatcher instead
+of to the Lua closure. `{ drag = true }` is not the substitute either — it
+sets *release*, so the bind would fire on button-up. A plain bind on
+`mouse:272` is correct, because `onMouseEvent` synthesises that key name and
+runs it through ordinary matching.
 
 **virtiofs needs shared guest memory, and `build-vm` does not give it any.**
 nixpkgs moved shared directories from 9p to virtiofs in September 2026. vhost-user
@@ -393,12 +413,14 @@ reports that as exit 124, and any other status means QEMU bailed. It needs a
 graphical session and flashes a window; that is inherent to testing
 `-display gtk`.
 
-Two static checks sit alongside the VM tests in the portable tier:
+Five checks sit alongside the compositor and desktop suites in the portable
+tier: three static ones, and the two that cover the metal configuration.
 
 | check | what it asserts | fix it with |
 | --- | --- | --- |
 | `formatting` | every `.nix` file is nixfmt-clean | `nix fmt` |
 | `lint` | statix, deadnix, actionlint and the Renovate config validator find nothing | by hand — see below |
+| `hyprland-config` | Hyprland parses its own generated config and would load it | by hand |
 | `metal` | the machine as it would be *installed* builds | by hand |
 | `metal-boots` | that layout partitions, formats and boots | by hand |
 
@@ -515,7 +537,15 @@ Hard-won lessons encoded in them:
   test only ever seen passing is indistinguishable from one that asserts
   nothing. The first attempt at that last one was itself vacuous: it injected
   `x = pkgs.hello`, which statix correctly ignores because the binding is not
-  named after the attribute.
+  named after the attribute. `hyprland-config` was broken three ways — a
+  misspelled dispatcher, an unknown keysym and an unknown option field — and
+  the bind assertion by a renderer that drops `repeating`.
+- **Break the renderer, not the input.** Flipping `repeat` in
+  `home/max/binds.nix` to test that assertion proves nothing: the expectation
+  is generated from that same list, so both sides move together and the test
+  stays green. That is correct — the list is the source of truth — but it
+  means the only fault that can demonstrate the check is one in the code
+  between the list and the compositor.
 
 ---
 
@@ -568,15 +598,24 @@ Deferred deliberately 2026-09-22 rather than guessed at. The mechanism and its
 test are in place, so turning it on is two option values.
 
 **Bind reachability is only partly checked.** The dead German binds were found
-by a hand-run audit, not by anything in the repo. The seventeen bindings shared
-between the compositors are now covered at both ends — niri's module runs
-`niri validate` while building `config.kdl`, so a bad keysym fails the build,
-and the compositor suites ask Hyprland what it actually bound via
-`hyprctl binds`. Both were verified by injecting a bogus keysym and watching
-each fail. What is still unchecked is the rest: niri's own window-management
-binds are validated, but nothing compares any keysym against the *compiled
-keymap*, which is the check that would have caught `Mod+BracketLeft` being
-unreachable on a German layout.
+by a hand-run audit, not by anything in the repo. Both compositors now reject a
+bad keysym at *build* time — niri's module runs `niri validate` while building
+`config.kdl`, and since the move to Lua `checks.hyprland-config` fails with
+`Unknown keysym` where the same fault under hyprlang returned "config ok".
+Both were verified by injecting one. On top of that the compositor suite
+asserts what Hyprland actually registered, derived from `home/max/binds.nix`
+so it cannot drift from the list.
+
+Two gaps survive all of that, and neither is closed by anything here. Nothing
+compares a keysym against the *compiled keymap*, which is the check that would
+have caught `Mod+BracketLeft` being unreachable on a German layout. And
+nothing catches a valid name carrying a wrong *value*: `hl.dsp.focus({
+direction = "l" })` parses, registers, and silently does nothing when pressed,
+because "l" is not a direction Hyprland knows. The parse half is measured:
+injected into the real generated config, that fault returns "config ok". The
+runtime half is not — `hl.bind` succeeded, so the bind registers like any
+other and there is nothing for the suite to notice. It needs a human pressing
+the key.
 
 **The login password is probably reset on every boot, and that is a defect
 introduced here.** `/etc/shadow` lives on the root, the root is now wiped on
@@ -625,15 +664,11 @@ subtest passes; an immediate rerun passes. Neither failure's log was kept, so
 the cause is unknown. The test now dumps greetd's and the greeter compositor's
 journal on that failure.
 
-**Hyprland's `.conf` support is removed in 0.57.** Nothing forces the question
-yet: `flake.lock` pins nixpkgs, so 0.57 arrives only when you run
-`nix flake update`, and as of this writing nixpkgs-unstable still ships 0.56.2.
-When it does land there are two options — port to `configType = "lua"`, or pin
-Hyprland to 0.56. Dropping Hyprland is not one of them. The Lua API has been
-mapped empirically (see the table in `home/max/hyprland.nix`; `hl.dsp.exec`
-does not exist and the spelling was not obvious) and the port is blocked on
-exactly one unknown: the `addreserved` equivalent that keeps the DMS bar from
-being covered.
+**Mod+drag is unverified.** Hyprland's source says a plain bind on
+`mouse:272` is the correct shape under Lua and that `hl.dsp.window.drag()`
+carries the drag itself, but nothing here injects pointer input — that is read
+rather than observed. One drag in a real session settles it, for both
+Mod+LMB (move) and Mod+RMB (resize).
 
 **Write our own Quickshell config** — the last piece of the original plan, and
 the reason Quickshell was on the list. Point
