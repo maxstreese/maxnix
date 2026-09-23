@@ -526,19 +526,40 @@ repository and inspects what landed in it. It is off by default and asserts
 rather than half-running, because two things have to be chosen and neither can
 be invented here:
 
-- **A repository.** A local path on an external disk, `sftp:` to a NAS, `s3:`,
-  `b2:`, anything rclone reaches. For a laptop, offsite eventually — but an
-  external disk is a fine start and restic can gain a second job later.
+- **A repository.** Constrained now: this is a company machine, so Google
+  Drive is the only permitted destination, which means
+  `rclone:<remote>:<path>`. The mechanism is in place — `maxnix.backup.
+  rcloneConfigFile`, and `pkgs.rclone` added to the unit's PATH, which the
+  nixpkgs module does *not* do (it sets `path = [ ssh ]` only, and restic's
+  rclone backend shells out to the binary). Setting an `rclone:` repository
+  without a config file is an assertion rather than a nightly failure nobody
+  is watching.
 - **A password.** Not a service login: it is the client-side encryption key
   for the repository. Lose it and the backups are permanently unreadable,
   which is why it must not live *only* on `/persist` — one disk failure would
   take the data and its only key together. 1Password for the human copy,
   sops-nix in this repo for the machine's.
 
-If the destination turns out to be S3 there are **two** secrets, not one: the
-repository password, and AWS credentials through the module's
-`environmentFile`. That is worth knowing before designing the secrets layer,
-since it doubles it.
+Google Drive means **two** secrets, not one: the repository password, and an
+`rclone.conf` holding an OAuth refresh token. Both are long-lived and both
+must survive a reinstall, which is what finally gives the secrets layer real
+customers rather than a mechanism looking for a use.
+
+Three things gate it, none of them code:
+
+- **An OAuth client ID of your own.** rclone's shared credentials are
+  rate-limited and are being retired during 2026, so this is required rather
+  than advisable — and on a managed Workspace account, creating Cloud projects
+  may be blocked by admin policy. Check this first; everything else is moot
+  if it is refused.
+- **A headless authorisation.** `rclone authorize "drive" <id> <secret>` on a
+  machine with a browser, then the token goes into the rclone.conf here. Keep
+  the rclone versions close; mismatched ones produce token format errors.
+- **Three questions for the employer.** restic encrypts client-side, so IT
+  cannot read these backups — that may be the requirement or may violate one.
+  `/home` sweeps in 1Password's local state, the browser profile and SSH keys,
+  encrypted but held on company infrastructure. And the Drive quota needs a
+  number before `/persist` plus `/home` is pointed at it.
 
 Deferred deliberately 2026-09-22 rather than guessed at. The mechanism and its
 test are in place, so turning it on is two option values.

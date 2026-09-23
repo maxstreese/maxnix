@@ -38,10 +38,15 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 let
   cfg = config.maxnix.backup;
+
+  # An `rclone:` repository needs a binary and a token that a local path does
+  # not, so several things below turn on this.
+  isRclone = cfg.repository != null && lib.hasPrefix "rclone:" cfg.repository;
 in
 {
   options.maxnix.backup = {
@@ -54,6 +59,36 @@ in
       description = ''
         The restic repository to write to. Any restic backend: a path, an
         sftp: URL, s3:, b2:, rclone:.
+      '';
+    };
+
+    rcloneConfigFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = ''
+        Path to an rclone configuration file, for an `rclone:` repository.
+
+        Required for Google Drive, which is the only destination permitted on
+        a company machine. The file holds an OAuth refresh token, so it is a
+        long-lived credential and belongs with the repository password rather
+        than on disk beside it.
+
+        Getting one is a three-step job that cannot happen here:
+
+          1. Create an OAuth client ID in Google Cloud Console with the Drive
+             API enabled. This is no longer optional — rclone's shared
+             credentials are rate-limited and are being retired during 2026 —
+             and on a managed Workspace account it may be blocked by admin
+             policy, which is the thing to check before anything else.
+          2. On a machine that has a browser:
+               rclone authorize "drive" <client-id> <client-secret>
+             and approve. Keep the rclone versions close; mismatched ones
+             produce token format errors.
+          3. Put the resulting token into an rclone.conf and point this at it.
+
+        Note what this does NOT replace: restic still encrypts everything
+        client-side with maxnix.backup.passwordFile before anything is
+        uploaded. Drive is storage, not trust.
       '';
     };
 
@@ -78,10 +113,23 @@ in
         assertion = cfg.passwordFile != null;
         message = "maxnix.backup.enable needs maxnix.backup.passwordFile.";
       }
+      {
+        # Without the config file rclone has no token and the backup fails at
+        # the first upload, nightly, in a unit nobody is watching.
+        assertion = !(isRclone && cfg.rcloneConfigFile == null);
+        message = "an rclone: repository needs maxnix.backup.rcloneConfigFile.";
+      }
     ];
 
+    # rclone is NOT on the unit's PATH by default: the nixpkgs module sets
+    # `path = [ config.programs.ssh.package ]` and nothing else, while
+    # restic's rclone backend shells out to the `rclone` binary. Without this
+    # the job fails at the first upload. Checked in the module source rather
+    # than discovered at 03:00 by a timer.
+    systemd.services.restic-backups-maxnix.path = lib.mkIf isRclone [ pkgs.rclone ];
+
     services.restic.backups.maxnix = {
-      inherit (cfg) repository passwordFile;
+      inherit (cfg) repository passwordFile rcloneConfigFile;
 
       # Creates the repository on first run, so a fresh machine needs no
       # manual `restic init` step.
