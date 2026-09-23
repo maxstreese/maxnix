@@ -137,6 +137,8 @@ and KVM — even the QEMU binary comes from the Nix store.
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17 — but impermanence has since changed what that *means*; see the open point below |
+| backups | restic, to Google Drive over rclone, off until configured | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
+| backup secrets | sops-nix, imported and empty | the repository password and the rclone OAuth token are both long-lived and must survive a reinstall, so neither can live only on the machine being backed up |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
 | git config | declared, not `git config --global` | a fresh guest had no identity at all, so the first commit inside would have failed. The cost is that the file is a store symlink, so `git config --global` no longer works |
 | commit signing | SSH keys via 1Password, not GPG | supported by git since 2.34 and verified by GitHub, GitLab and Bitbucket; the private half never leaves the vault, and only public keys appear in this repo. Two keys: auth is scoped to an account on one host, signing to one identity everywhere |
@@ -527,8 +529,8 @@ repository and inspects what landed in it. It is off by default and asserts
 rather than half-running, because two things have to be chosen and neither can
 be invented here:
 
-- **A repository.** Constrained now: this is a company machine, so Google
-  Drive is the only permitted destination, which means
+- **A repository.** Constrained as of 2026-09-23: this is a company machine
+  and Google Drive is the only destination the employer permits, which means
   `rclone:<remote>:<path>`. The mechanism is in place — `maxnix.backup.
   rcloneConfigFile`, and `pkgs.rclone` added to the unit's PATH, which the
   nixpkgs module does *not* do (it sets `path = [ ssh ]` only, and restic's
