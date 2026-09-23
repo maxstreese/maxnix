@@ -209,12 +209,15 @@
             #
             #   kind     hyprctl renders the flags as suffixes in a fixed
             #            order (HyprCtl.cpp: l, m, r, e, n, a, d, x), so a
-            #            locked+repeating bind reports as "bindle". Asserting
-            #            the kind therefore asserts the flags too.
+            #            locked+repeating bind reports as "bindle" and a
+            #            repeating one as "binde". Asserting the kind
+            #            therefore asserts both shared flags, which is what
+            #            makes `repeat` in binds.nix a tested claim rather
+            #            than a documented intention.
             #   modmask  the mod bitmask Hyprland reports, not a spelling.
             expectBinds = builtins.toJSON (
               map (b: [
-                ("bind" + lib.optionalString (b.locked or false) "le")
+                ("bind" + lib.optionalString (b.locked or false) "l" + lib.optionalString b.repeat "e")
                 (lib.foldl' (
                   acc: m:
                   acc

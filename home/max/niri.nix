@@ -38,7 +38,14 @@ let
       value = {
         _props =
           lib.optionalAttrs (b ? title) { hotkey-overlay-title = b.title; }
-          // lib.optionalAttrs (b.locked or false) { allow-when-locked = true; };
+          // lib.optionalAttrs (b.locked or false) { allow-when-locked = true; }
+          # Written out even when it matches niri's default, which is `true`.
+          # The default is exactly what made this diverge from Hyprland
+          # unnoticed for as long as the shared list has existed, so the
+          # generated config.kdl says what it means rather than inheriting it.
+          // {
+            inherit (b) repeat;
+          };
         # Kept as a list: niri's spawn is argv, so an empty string here is a
         # real argument rather than whitespace. ./hyprland.nix has to drop
         # those because a shell string cannot express one.

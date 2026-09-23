@@ -27,8 +27,23 @@
 #           and keeping the neutral form means neither spelling leaks here.
 #   key     an XKB keysym, which both accept, so it needs no translation.
 #   locked  works while the session is locked. niri expresses this as
-#           _props.allow-when-locked; Hyprland as a separate `bindl` list.
+#           _props.allow-when-locked; Hyprland as an option on the bind.
 #           One flag, two renderings.
+#   repeat  fires again while the key is held. Required, not optional, and
+#           that is the point: the two compositors default it the opposite
+#           way — niri true (niri-config/src/binds.rs, `let mut repeat =
+#           true`), Hyprland false (LuaBindingsToplevel.cpp, absent means
+#           false) — so leaving it unsaid meant every shared binding behaved
+#           differently depending on which session you had logged into, for
+#           as long as this list has existed. Naming it here is the only way
+#           the list can honestly claim the two cannot drift.
+#
+#           The rule is: repeat a step, never a spawn or a toggle. Volume and
+#           brightness are increments and want it; holding Mod+T should not
+#           open a terminal eleven times (niri repeats at 25/s after 600ms),
+#           and holding mute should not flap it on and off. Upstream
+#           Hyprland's own example sets repeating on mute, and niri's default
+#           does the same; both are wrong about it, so both are overridden.
 #   title   shown in niri's hotkey overlay. Hyprland has no equivalent and
 #           drops it, which is why it is optional rather than required.
 #   uwsm    Hyprland launches long-lived apps through `uwsm app --` so they
@@ -38,6 +53,7 @@
   {
     mods = [ "mod" ];
     key = "T";
+    repeat = false;
     title = "Open a Terminal";
     spawn = [
       "ghostty"
@@ -48,6 +64,7 @@
   {
     mods = [ "mod" ];
     key = "D";
+    repeat = false;
     title = "Run an Application";
     spawn = [ "fuzzel" ];
     uwsm = true;
@@ -58,6 +75,7 @@
   {
     mods = [ "mod" ];
     key = "Space";
+    repeat = false;
     title = "Toggle Application Launcher";
     spawn = [
       "dms"
@@ -69,6 +87,7 @@
   {
     mods = [ "mod" ];
     key = "N";
+    repeat = false;
     title = "Toggle Notification Center";
     spawn = [
       "dms"
@@ -83,6 +102,7 @@
       "shift"
     ];
     key = "Comma";
+    repeat = false;
     title = "Toggle Settings";
     spawn = [
       "dms"
@@ -94,6 +114,7 @@
   {
     mods = [ "mod" ];
     key = "P";
+    repeat = false;
     title = "Toggle Notepad";
     spawn = [
       "dms"
@@ -105,6 +126,7 @@
   {
     mods = [ "mod" ];
     key = "X";
+    repeat = false;
     title = "Toggle Power Menu";
     spawn = [
       "dms"
@@ -116,6 +138,7 @@
   {
     mods = [ "mod" ];
     key = "C";
+    repeat = false;
     title = "Toggle Clipboard Manager";
     spawn = [
       "dms"
@@ -127,6 +150,7 @@
   {
     mods = [ "mod" ];
     key = "M";
+    repeat = false;
     title = "Toggle Process List";
     spawn = [
       "dms"
@@ -141,6 +165,7 @@
       "alt"
     ];
     key = "N";
+    repeat = false;
     title = "Toggle Night Mode";
     spawn = [
       "dms"
@@ -155,6 +180,7 @@
       "alt"
     ];
     key = "L";
+    repeat = false;
     title = "Lock the Screen";
     spawn = [
       "dms"
@@ -169,6 +195,7 @@
   {
     mods = [ ];
     key = "XF86AudioRaiseVolume";
+    repeat = true;
     locked = true;
     spawn = [
       "dms"
@@ -181,6 +208,7 @@
   {
     mods = [ ];
     key = "XF86AudioLowerVolume";
+    repeat = true;
     locked = true;
     spawn = [
       "dms"
@@ -193,6 +221,7 @@
   {
     mods = [ ];
     key = "XF86AudioMute";
+    repeat = false;
     locked = true;
     spawn = [
       "dms"
@@ -204,6 +233,7 @@
   {
     mods = [ ];
     key = "XF86AudioMicMute";
+    repeat = false;
     locked = true;
     spawn = [
       "dms"
@@ -215,6 +245,7 @@
   {
     mods = [ ];
     key = "XF86MonBrightnessUp";
+    repeat = true;
     locked = true;
     spawn = [
       "dms"
@@ -228,6 +259,7 @@
   {
     mods = [ ];
     key = "XF86MonBrightnessDown";
+    repeat = true;
     locked = true;
     spawn = [
       "dms"

@@ -88,21 +88,18 @@ let
         (keys b.mods b.key)
         (mkLuaInline "hl.dsp.exec_cmd(${toLua cmd})")
       ]
-      # `locked` is the shared flag for "works while the session is locked",
-      # which was a separate `bindl` list under hyprlang and is an options
-      # table here.
+      # The options table carries both shared flags. `locked` was a separate
+      # `bindl` list under hyprlang; `repeat` had no expression at all,
+      # because Hyprland's default is false and nothing ever asked for
+      # anything else. ./binds.nix explains why it is now stated per binding
+      # rather than left to two compositors' opposite defaults.
       #
-      # repeating is new, and deliberate. Under hyprlang these were plain
-      # `bindl`, which does not repeat, so holding volume-down stepped once.
-      # niri has repeated every bind by default since 0.1.8, so the two
-      # compositors have disagreed on this the whole time despite sharing the
-      # list. Upstream's own example sets `{ locked = true, repeating = true }`
-      # on exactly these six keys; taking it closes the gap in niri's
-      # direction.
-      ++ lib.optional (b.locked or false) {
-        locked = true;
-        repeating = true;
-      }
+      # Emitted even when false, which is Hyprland's default: the table then
+      # says what the binding does rather than what it omits, and the two
+      # renderers read the same field the same way.
+      ++ [
+        ({ repeating = b.repeat; } // lib.optionalAttrs (b.locked or false) { locked = true; })
+      ]
     );
 
   # ── Window management ────────────────────────────────────────────────────
