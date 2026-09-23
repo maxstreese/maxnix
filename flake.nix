@@ -26,6 +26,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Secrets that live encrypted in this repo. Imported but unconfigured;
+    # see hosts/maxnix/secrets.nix for what it is waiting on.
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # A prebuilt file->package index, so `,` and nix-locate work without
     # anyone building a database first. See home/max/dev.nix.
     nix-index-database = {
@@ -99,6 +106,8 @@
         ./hosts/maxnix/disk.nix
         ./hosts/maxnix/persistence.nix
         ./hosts/maxnix/backup.nix
+        ./hosts/maxnix/secrets.nix
+        inputs.sops-nix.nixosModules.sops
         inputs.disko.nixosModules.disko
         inputs.preservation.nixosModules.preservation
         inputs.lanzaboote.nixosModules.lanzaboote

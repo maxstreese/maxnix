@@ -91,6 +91,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
 renovate.jsonc               flake.lock and action-SHA updates, as PRs
 hosts/maxnix/backup.nix      restic: what to back up, and what to skip
+hosts/maxnix/secrets.nix     sops-nix, imported and declaring nothing yet
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
@@ -587,16 +588,25 @@ run by changing the password on the first boot and checking on the second.
 The fix, if confirmed, is `hashedPasswordFile` pointing at a secret, which
 makes it the second customer for the secrets layer below.
 
-**No secrets layer, deliberately.** sops-nix was researched and skipped rather
-than forgotten. Nothing on this machine needs a secret *at boot* today: the
-whole credential story is 1Password, which a human unlocks. The two things
-that would need one are the backup repository password above and a Wi-Fi PSK
-once NetworkManager lands — and adding sops before either exists would mean
-building a mechanism with nothing to put in it. Two constraints worth keeping
-in view when it does land: sops-nix conventionally decrypts with the host SSH
-key, and `services.openssh.enable` is `false` on metal, so it would need a
-dedicated age key on `/persist`; and the LUKS passphrase can never be a sops
-secret, because the key would live on the disk it unlocks.
+**The secrets layer is imported and declares nothing.** sops-nix is a pinned
+input and `hosts/maxnix/secrets.nix` imports it, but `sops.secrets` is empty
+and the module gates all of its work behind that — verified inert: no
+secrets, no activation script, no unit. What it buys is modest and worth
+stating plainly. Renovate now tracks the input, and the first real secret is
+an edit to one file rather than a research task. What it does not buy is a
+working secret, because none can exist yet.
+
+Two customers are certain. The **restic repository password**, which must not
+live only on `/persist` since one disk failure would take the data and the
+only key to its backups together. And the **rclone OAuth token** for Google
+Drive, blocked on a client ID a managed Workspace account may refuse.
+
+It is waiting on a decryption key, which is the one secret sops cannot manage
+for itself. The convention is the host SSH key, and this machine has none —
+`services.openssh.enable` is `false` on metal. So it needs a dedicated age
+key generated once onto `/persist`, never committed; the commands are in
+`secrets.nix`. And the LUKS passphrase can never be a sops secret, because
+the age key would sit on the disk that passphrase unlocks.
 
 **The generation diff has never been seen.** Both rebuild paths call `nvd
 diff` before activating, and `nvd` itself was verified against two real
