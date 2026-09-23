@@ -171,6 +171,8 @@
             # subtest fails. Between them the shared list is covered at both
             # ends.
             binds = null;
+            expectBinds = null;
+            declaredBinds = null;
           }
         );
 
@@ -196,6 +198,44 @@
             outputs = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl monitors";
             layout = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl devices";
             binds = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl binds";
+
+            # What the shared list in home/max/binds.nix should come out as on
+            # the other side, as (kind, modmask, key) triples.
+            #
+            # Built from that list rather than written out, so it is the list
+            # itself being asserted and a binding added there is covered here
+            # for free. The two halves are Hyprland's own spellings and belong
+            # here rather than in the neutral list:
+            #
+            #   kind     hyprctl renders the flags as suffixes in a fixed
+            #            order (HyprCtl.cpp: l, m, r, e, n, a, d, x), so a
+            #            locked+repeating bind reports as "bindle". Asserting
+            #            the kind therefore asserts the flags too.
+            #   modmask  the mod bitmask Hyprland reports, not a spelling.
+            expectBinds = builtins.toJSON (
+              map (b: [
+                ("bind" + lib.optionalString (b.locked or false) "le")
+                (lib.foldl' (
+                  acc: m:
+                  acc
+                  + {
+                    shift = 1;
+                    ctrl = 4;
+                    alt = 8;
+                    mod = 64;
+                  }
+                  .${m}
+                ) 0 b.mods)
+                b.key
+              ]) (import ./home/max/binds.nix)
+            );
+
+            # How many bindings the config declares, counted from the config
+            # the machine actually booted with. A hardcoded number would have
+            # to be maintained; this cannot go stale, and it is what turns the
+            # check from "the shared ones are there" into "and nothing else
+            # was lost".
+            declaredBinds = "grep -c '^hl\.bind(' /home/max/.config/hypr/hyprland.lua";
           }
         );
       };
@@ -739,20 +779,28 @@
       # Calibrated by injecting faults into the real generated config and
       # running this exact command against them:
       #
-      #   togglefloating -> togglefloatingXX   exit 1, "Invalid dispatcher"
-      #   XF86AudioMute  -> XF86AudioMuteTYPO  exit 0, NOT caught
+      #   hl.dsp.window.cloze()             exit 1, "attempt to call a nil value"
+      #   "SUPER + QQQ"                     exit 1, "Unknown keysym"
+      #   hl.dsp.focus({ wrkspace = 1 })    exit 1, "unrecognized arguments"
+      #   hl.dsp.focus({ direction = "l" }) exit 0, NOT caught
       #
-      # So this does not subsume the `hyprctl binds` assertion in
-      # tests/compositor.nix, and adding it is not a reason to drop that one.
-      # A keysym Hyprland cannot resolve still parses happily and still fails
-      # silently at runtime; only a running compositor can be asked what it
-      # actually bound. The two checks cover different halves of the same
-      # failure, and the repo has a history of dead binds from the half this
-      # one misses.
+      # It checks names and not values: dispatchers, keysyms and option fields
+      # all have to exist, but a direction Hyprland does not understand parses,
+      # registers, and then does nothing when the key is pressed. Nothing here
+      # catches that — not this check and not the runtime one, which sees a
+      # perfectly ordinary registered bind. It needs a human pressing the key.
       #
-      # The filename is derived from configType, so the move to Lua does not
-      # need to touch this — and the gate is in place before that move rather
-      # than landing with it.
+      # This got substantially stronger with the move to Lua. The same config
+      # under hyprlang returned "config ok" for an unresolvable keysym, which
+      # is where the repo's dead binds came from; Lua validates keysyms at
+      # parse time. tests/compositor.nix keeps its `hyprctl binds` assertion
+      # anyway, for what a parse cannot show: that the compositor really
+      # starts with this config, registers every bind, and preserves the flags
+      # (locked, repeating) that never appear in --verify-config output.
+      #
+      # The filename is derived from configType, so this survived that move
+      # untouched — the gate was in place before the port rather than landing
+      # with it.
       hyprlandConfigCheck =
         let
           hm = maxnix.config.home-manager.users.max;

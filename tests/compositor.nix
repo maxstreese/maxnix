@@ -121,17 +121,53 @@ compositor:
           # cannot resolve is not fatal. It logs, if anything, and carries on
           # with one bind silently missing — the compositor still starts, the
           # IPC still answers, and every other assertion here still passes.
-          # The repo has a whole class of dead binds from exactly that.
+          # The repo has a whole class of dead binds from exactly that —
+          # though under a Lua config `checks.hyprland-config` now rejects an
+          # unknown keysym at build time, so this is no longer the only guard
+          # against it (the calibration is in flake.nix). What a parse still
+          # cannot show is what this subtest is for: that the compositor
+          # really starts with this config, registers every bind, and keeps
+          # the flags, none of which --verify-config reports.
           #
-          # It also guards the one thing the shared list in home/max/binds.nix
-          # could plausibly get wrong. niri spells that key "Space" and the
-          # hand-written Hyprland config said "SPACE"; unifying them picked
-          # one spelling for both, and this is what proves the other
-          # compositor accepts it.
+          # Matched on modifiers and key rather than on the command, because
+          # under a Lua config the command is not in the IPC output at all:
+          # every bind reports `dispatcher: __lua` and an opaque `arg: N`.
+          # The old assertion looked for "spotlight" in this output and would
+          # now be checking a string that can never appear.
+          import json, re
+
           registered = machine.succeed("${compositor.binds}")
           machine.log(registered)
-          assert "spotlight" in registered, (
-              "the DMS spotlight bind is not registered:\n" + registered
+
+          actual, kind, modmask = set(), None, None
+          for line in registered.splitlines():
+              entry = line.strip()
+              if re.fullmatch(r"bind[a-z]*", entry):
+                  kind, modmask = entry, None
+              elif entry.startswith("modmask:"):
+                  modmask = int(entry.split(":", 1)[1])
+              elif entry.startswith("key:") and kind is not None:
+                  actual.add((kind, modmask, entry.split(":", 1)[1].strip()))
+
+          # Derived from home/max/binds.nix in flake.nix, so it cannot drift
+          # from the shared list: add a binding there and it is asserted here
+          # without touching this file. The kind carries the flags, so
+          # `bindle` also asserts that locked and repeating survived.
+          expected = {tuple(row) for row in json.loads(r"""${compositor.expectBinds}""")}
+          missing = expected - actual
+          assert not missing, (
+              f"declared in binds.nix but not registered: {sorted(missing)}\n\n"
+              + registered
+          )
+
+          # And that nothing was dropped outside the shared list either: the
+          # window-management binds are Hyprland's own and not in binds.nix.
+          # Counted from the generated config rather than hardcoded, so this
+          # stays honest as bindings are added or removed.
+          declared = int(machine.succeed("${compositor.declaredBinds}").strip())
+          assert len(actual) == declared, (
+              f"config declares {declared} bindings, compositor registered "
+              f"{len(actual)}\n\n" + registered
           )
     ''
     + ''
