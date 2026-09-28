@@ -52,6 +52,14 @@ Two ways to iterate on the running machine, both faster than a test run:
   `claude` in it, then `rebuild` — ~30 s, no reboot. Both compositors reload
   their config on the spot, DMS restarts with the activation, and DMS's own
   theme settings need no rebuild at all. Commit and push as on any machine.
+- **Without a rebuild at all,** for the two things where 30 s per keystroke is
+  not a loop. `qs-dev` runs `home/max/quickshell/` straight from the clone and
+  reloads on save, so writing QML is edit-and-look; in the VM the generated
+  config points there too, so `qs -c maxnix` is live as well. DMS theming is
+  already live because its settings file is mutable state DMS owns — theme in
+  its UI, then `dms-capture` to copy the result into the clone, where git sees
+  it. `dms-restore` puts it back after a root reset. See "Iterating on design"
+  below.
 - **From the host.** Edit here, `nix run .#vm-deploy`: builds on the host,
   copies the closure in over ssh, activates. Then drive and observe the
   desktop over the same channel: `nix run .#vm-ssh -- niri msg …`, `hyprctl`,
@@ -142,6 +150,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
 | git config | declared, not `git config --global` | a fresh guest had no identity at all, so the first commit inside would have failed. The cost is that the file is a store symlink, so `git config --global` no longer works |
 | commit signing | SSH keys via 1Password, not GPG | supported by git since 2.34 and verified by GitHub, GitLab and Bitbucket; the private half never leaves the vault, and only public keys appear in this repo. Two keys: auth is scoped to an account on one host, signing to one identity everywhere |
+| design loop | Quickshell config points at the clone in the VM; DMS theming is captured, not declared | the store is read-only, so a colour tweak would otherwise cost a 30 s rebuild. `maxnix.dev.liveConfig` makes generated Quickshell config an out-of-store symlink into the clone, so Quickshell's own file watcher has something that can change; it is off everywhere but the VM. DMS is the other way round — its settings UI already writes a mutable file, so `dms-capture` records that into the repo rather than declaring it and taking the UI's ability to save |
 | shared bindings | one list, with `repeat` stated per binding | niri defaults repeat to true and Hyprland to false, so every shared binding behaved differently depending on which session you logged into, until it was named. The rule is repeat a step, never a spawn or a toggle — which overrides niri's default *and* upstream Hyprland's own example on mute |
 | app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
 | terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup on both compositors |
@@ -546,6 +555,73 @@ Hard-won lessons encoded in them:
   stays green. That is correct — the list is the source of truth — but it
   means the only fault that can demonstrate the check is one in the code
   between the list and the compositor.
+
+---
+
+## Iterating on design
+
+Everything else here builds config into the store and symlinks it into `$HOME`,
+which is the right trade for a machine and the wrong one for choosing a colour:
+the store is read-only, so every change costs a `rebuild`. ~30 s is fine for
+Nix config and is not a loop for a 2px nudge. Two escapes, and they work in
+opposite directions because the two problems are not the same.
+
+**QML we write** — `home/max/quickshell/`, run with `qs-dev`:
+
+```
+qs-dev            # edit shell.qml, save, it reloads
+```
+
+Quickshell reloads the files it loaded when they change (`watchFiles` defaults
+to true; `quickshell-core.qmltypes` carries the matching `onReload` and
+`ReloadPopup`). Aimed at a store path that machinery is inert, because store
+files never change — so the work is not building a loop but not preventing one.
+`qs-dev` passes `--path` at the clone directly, so it is live regardless of how
+the declared config was wired.
+
+`maxnix.dev.liveConfig` (`hosts/maxnix/dev.nix`) does the same for the
+*declared* config: on, `programs.quickshell.configs.maxnix` becomes an
+out-of-store symlink to the clone, so `~/.config/quickshell/maxnix` is the
+working tree and any launcher — including a future systemd service — is live.
+Off, it is the directory copied into the store like everything else. It is off
+by default and on only in `virtualisation.vmVariant`, because it makes the
+running system depend on a mutable path: on a fresh install, before the clone
+exists, the symlink would dangle.
+
+Nothing starts `shell.qml` on its own — `programs.quickshell.systemd.enable` is
+false and `activeConfig` is null — so the scratchpad cannot fight DMS for the
+screen. DMS is still the shell.
+
+**DMS theming** — already live, and the trap is the obvious fix. Its Home
+Manager module generates `~/.config/DankMaterialShell/settings.json` only when
+`programs.dank-material-shell.settings` is non-empty, and `home/max/dms.nix`
+deliberately leaves it unset. That is *why* theming needs no rebuild: the file
+is plain mutable state DMS owns. Declaring it from the repo would move it into
+the store and take away the settings UI's ability to write it — trading the
+fast loop for the version control, when the point is to have both.
+
+So theming is captured rather than declared:
+
+```
+dms-capture       # ~/.config/DankMaterialShell -> home/max/dms-state, then git status
+dms-restore       # the other way, after a root reset; restarts dms if it is up
+```
+
+`settings.json`, `clsettings.json`, `plugin_settings.json` and `themes/` are
+copied; `plugins/` is not, because that is third-party code DMS installs rather
+than configuration. `themes/` is replaced wholesale, so deleting a theme in the
+UI is captured too. With `enableDynamicTheming` the palette is generated from
+the wallpaper by matugen, so what is worth keeping is the choices, not the
+generated colours.
+
+**What this costs.** Nothing checks the live content: the suites build
+`hostModules` and never the VM variant, so they keep testing the store copy,
+which is also what metal gets. Nothing validates the QML either — there is no
+equivalent of `niri validate` or Hyprland's `--verify-config`, because
+Quickshell needs a Wayland session to load a config at all, so a syntax error
+surfaces when you run it. Until a design is promoted back into the store,
+"it is in git" and "it is what the machine will boot with" are two different
+claims.
 
 ---
 

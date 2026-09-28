@@ -107,6 +107,7 @@
         ./hosts/maxnix/persistence.nix
         ./hosts/maxnix/backup.nix
         ./hosts/maxnix/secrets.nix
+        ./hosts/maxnix/dev.nix
         inputs.sops-nix.nixosModules.sops
         inputs.disko.nixosModules.disko
         inputs.preservation.nixosModules.preservation

@@ -13,6 +13,7 @@
 {
   imports = [
     ./dms.nix
+    ./quickshell.nix
     ./niri.nix
     ./hyprland.nix
     ./firefox.nix

@@ -88,7 +88,7 @@
         name = "rebuild";
         runtimeInputs = [ pkgs.nvd ];
         text = ''
-          flake="''${MAXNIX_FLAKE:-$HOME/Repositories/github.com/maxstreese/maxnix}"
+          flake="''${MAXNIX_FLAKE:-${config.maxnix.dev.clonePath}}"
 
           if [ ! -e "$flake/flake.nix" ]; then
             echo "no flake.nix at $flake" >&2
@@ -122,6 +122,13 @@
       imports = [ ../../modules/vm/qemu-guest.nix ];
 
       environment.systemPackages = [ rebuild ];
+
+      # Generated Quickshell config points at the clone rather than the store,
+      # so editing QML is a save rather than a 30 s rebuild. Scoped to the VM
+      # on purpose — see ./dev.nix for what it costs and why metal does not get
+      # it. This is the second evaluation, so the base machine is unaffected
+      # and so are the suites, which build hostModules and never this variant.
+      maxnix.dev.liveConfig = true;
 
       # ── SSH into the running VM ──────────────────────────────────────────
       #
