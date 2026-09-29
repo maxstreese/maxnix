@@ -151,6 +151,12 @@ in
         # here without it.
         "/home/*/.local/share/Steam"
 
+        # Rootless Docker's images, layers and volumes (./containers.nix).
+        # Gigabytes, and every image is a pull away. A named volume holding
+        # something irreplaceable is the one thing this loses — keep such data
+        # in a bind mount under a backed-up path instead.
+        "/home/*/.local/share/docker"
+
         # Build output and dependency trees, all reproducible from a lockfile
         # that IS backed up.
         "**/node_modules"

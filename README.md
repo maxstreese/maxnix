@@ -100,6 +100,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 renovate.jsonc               flake.lock and action-SHA updates, as PRs
 hosts/maxnix/backup.nix      restic: what to back up, and what to skip
 hosts/maxnix/fleet.nix       the employer's Fleet agent, off until IT supplies a URL
+hosts/maxnix/containers.nix  rootless Docker, with DOCKER_HOST for the whole session
 hosts/maxnix/secrets.nix     sops-nix, imported and declaring nothing yet
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
@@ -119,6 +120,7 @@ home/max/*.nix               user layer, one file per program: default (the
 tests/{desktop,compositor,vnc}.nix               integration tests
 tests/disk.nix               formats, installs and boots the real disk layout
 tests/fleet.nix              the Fleet agent starts and retries against no server
+tests/containers.nix         rootless Docker runs a Docker Hub image behind the firewall
 scripts/vm-keys              host tooling: release/restore GNOME shortcuts
 ```
 
@@ -148,6 +150,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17 — but impermanence has since changed what that *means*; see the open point below |
 | backups | restic, to Google Drive over rclone, off until configured | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
+| containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
 | device management | Fleet's agent (Orbit + osquery) via nixpkgs' `services.orbit`, off until configured | the employer is adopting Fleet (learned 2026-09-29). Wired ahead of the URL and enroll secret so turning it on is two values. `osquery` itself is a general system tool in `configuration.nix`; `osqueryi` also lets the machine be checked the way Fleet will check it. NixOS is not a Fleet-supported distro, so its disk-encryption and firewall checks may misreport — a question for IT |
 | backup secrets | sops-nix, imported and empty | the repository password and the rclone OAuth token are both long-lived and must survive a reinstall, so neither can live only on the machine being backed up |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
@@ -345,6 +348,18 @@ rate limit — and before `twingate setup` has named a network the daemon exits
 at once, so it restarts every 2 s indefinitely (655 journal lines in the first
 few minutes). `hosts/maxnix/configuration.nix` gives the limit back, so it
 gives up after five tries and stays in `failed` until configured.
+
+**Rootless Docker's socket variable never reaches the desktop.**
+`virtualisation.docker.rootless.setSocketVariable` sets `DOCKER_HOST` in
+`environment.extraInit`, which only shells read. Everything graphical is
+started by the systemd user manager, and `tests/containers.nix` found its
+environment carrying `XDG_RUNTIME_DIR` and no `DOCKER_HOST` — so an IDE's
+Docker integration, and Testcontainers run from one, would have found no
+daemon while `docker` in a login shell worked. A file in `/etc/environment.d`
+fixes it: systemd's generator expands `${XDG_RUNTIME_DIR}` there, and the
+manager then has the variable. Two smaller traps from the same test: a user
+unit's PATH has no `sh`, and a published port being unreachable proves
+nothing without the control that opening the firewall makes it reachable.
 
 **Only public keys can be declared, which is exactly enough for signing.**
 An SSH signing setup needs the public key, the signer program and an

@@ -194,6 +194,9 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("echo backed-up > /persist/backup-marker")
     machine.succeed("mkdir -p /home/max/.cache")
     machine.succeed("echo nope > /home/max/.cache/excluded-marker")
+    # Rootless Docker's storage, excluded for size (../hosts/maxnix/containers.nix).
+    machine.succeed("mkdir -p /home/max/.local/share/docker")
+    machine.succeed("echo nope > /home/max/.local/share/docker/docker-marker")
     # Anchors the exclude assertion below. Without a file from /home that IS
     # expected in the snapshot, "the excluded one is absent" would also pass
     # if /home had been missed entirely — the exclude would look like it
@@ -215,6 +218,7 @@ disko.lib.testLib.makeDiskoTest {
     # that would silently rot: an exclude pattern that stops matching costs
     # nothing visible until a backup is unexpectedly enormous.
     assert "excluded-marker" not in listing, listing
+    assert "docker-marker" not in listing, listing
 
     # machine-id is the one preserved *file*, and it is read in the initrd.
     # Assert it is the same one across the reboot rather than regenerated,

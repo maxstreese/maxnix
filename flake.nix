@@ -106,6 +106,7 @@
         ./hosts/maxnix/disk.nix
         ./hosts/maxnix/persistence.nix
         ./hosts/maxnix/backup.nix
+        ./hosts/maxnix/containers.nix
         ./hosts/maxnix/fleet.nix
         ./hosts/maxnix/secrets.nix
         ./hosts/maxnix/dev.nix
@@ -296,6 +297,10 @@
         # The Fleet agent, switched on against a server that is not there.
         # See ./tests/fleet.nix for what that does and does not prove.
         fleet = pkgs.testers.runNixOSTest ./tests/fleet.nix;
+
+        # Rootless Docker running a Docker Hub image, and a second machine
+        # checking its published port is behind the firewall.
+        containers = pkgs.testers.runNixOSTest ./tests/containers.nix;
       };
 
       portableVmTests = mkTests false;
