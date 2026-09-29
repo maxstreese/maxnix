@@ -84,6 +84,11 @@
         # Secure Boot keys. Not reproducible: losing them means re-enrolling
         # from firmware setup mode. See maxnix.boot.secureBoot in ./disk.nix.
         "/var/lib/sbctl"
+
+        # Fleet's node key, from enrolling with IT's server. Losing it makes
+        # every boot a fresh enrollment, i.e. a new host in their console. An
+        # empty directory until maxnix.fleet is enabled; see ./fleet.nix.
+        "/var/lib/orbit"
       ];
     };
   };

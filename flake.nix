@@ -106,6 +106,7 @@
         ./hosts/maxnix/disk.nix
         ./hosts/maxnix/persistence.nix
         ./hosts/maxnix/backup.nix
+        ./hosts/maxnix/fleet.nix
         ./hosts/maxnix/secrets.nix
         ./hosts/maxnix/dev.nix
         inputs.sops-nix.nixosModules.sops
@@ -291,6 +292,10 @@
           inherit pkgs;
           inherit (inputs) disko preservation;
         };
+
+        # The Fleet agent, switched on against a server that is not there.
+        # See ./tests/fleet.nix for what that does and does not prove.
+        fleet = pkgs.testers.runNixOSTest ./tests/fleet.nix;
       };
 
       portableVmTests = mkTests false;

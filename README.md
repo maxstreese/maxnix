@@ -99,6 +99,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
 renovate.jsonc               flake.lock and action-SHA updates, as PRs
 hosts/maxnix/backup.nix      restic: what to back up, and what to skip
+hosts/maxnix/fleet.nix       the employer's Fleet agent, off until IT supplies a URL
 hosts/maxnix/secrets.nix     sops-nix, imported and declaring nothing yet
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
@@ -117,6 +118,7 @@ home/max/*.nix               user layer, one file per program: default (the
                              firefox, apps, dev, git, ssh
 tests/{desktop,compositor,vnc}.nix               integration tests
 tests/disk.nix               formats, installs and boots the real disk layout
+tests/fleet.nix              the Fleet agent starts and retries against no server
 scripts/vm-keys              host tooling: release/restore GNOME shortcuts
 ```
 
@@ -146,6 +148,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17 — but impermanence has since changed what that *means*; see the open point below |
 | backups | restic, to Google Drive over rclone, off until configured | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
+| device management | Fleet's agent (Orbit + osquery) via nixpkgs' `services.orbit`, off until configured; `osquery` installed regardless | the employer is adopting Fleet (learned 2026-09-29). Wired ahead of the URL and enroll secret so turning it on is two values; `osqueryi` lets the machine be checked the way Fleet will check it. NixOS is not a Fleet-supported distro, so its disk-encryption and firewall checks may misreport — a question for IT |
 | backup secrets | sops-nix, imported and empty | the repository password and the rclone OAuth token are both long-lived and must survive a reinstall, so neither can live only on the machine being backed up |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
 | git config | declared, not `git config --global` | a fresh guest had no identity at all, so the first commit inside would have failed. The cost is that the file is a store symlink, so `git config --global` no longer works |
