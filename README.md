@@ -676,6 +676,32 @@ Three things gate it, none of them code:
 Deferred deliberately 2026-09-22 rather than guessed at. The mechanism and its
 test are in place, so turning it on is two option values.
 
+**The Fleet agent is wired but not enrolled.** The employer is adopting
+Fleet (learned 2026-09-29), and `hosts/maxnix/fleet.nix` has the agent side:
+nixpkgs' `services.orbit`, which is Orbit supervising its own osquery, behind
+`maxnix.fleet`. `/var/lib/orbit` is preserved so the enrollment survives the
+root wipe. `checks.fleet` boots it against a server that is not there and
+shows that it starts, reads its secret and retries in-process without
+crashing. Nothing here has ever enrolled, because enrolling needs IT's server.
+
+Two things gate it, neither of them code:
+
+- **A URL and an enroll secret from IT.** The secret is a credential — anyone
+  holding it can enroll a machine as one of the company's — so it goes in
+  through sops-nix, which puts it behind the age key the secrets layer below
+  is already waiting on. The lines to add are in `fleet.nix`.
+- **Five questions for the employer.** Fleet's built-in disk-encryption and
+  firewall checks name Debian/Ubuntu, CentOS/Fedora and Arch, not NixOS, so a
+  LUKS root and the NixOS firewall may report as missing — will IT accept
+  that, or write custom checks? Is Fleet Desktop wanted (`maxnix.fleet.
+  desktop`, untested under niri and Hyprland)? Should IT be able to run
+  scripts here (`enableScripts`, off)? Do they rely on Enterprise-edition or
+  MDM features, which Fleet supports only partly on Linux? And do they enforce
+  a minimum agent version? The module turns off Orbit's self-update, so the
+  agent is whatever the pinned nixpkgs carries and moves with `flake.lock`.
+
+Until then this is two option values away from on, like backups.
+
 **Bind reachability is only partly checked.** The dead German binds were found
 by a hand-run audit, not by anything in the repo. Both compositors now reject a
 bad keysym at *build* time — niri's module runs `niri validate` while building
@@ -716,10 +742,11 @@ stating plainly. Renovate now tracks the input, and the first real secret is
 an edit to one file rather than a research task. What it does not buy is a
 working secret, because none can exist yet.
 
-Two customers are certain. The **restic repository password**, which must not
-live only on `/persist` since one disk failure would take the data and the
-only key to its backups together. And the **rclone OAuth token** for Google
-Drive, blocked on a client ID a managed Workspace account may refuse.
+Three customers are certain. The **restic repository password**, which must
+not live only on `/persist` since one disk failure would take the data and the
+only key to its backups together. The **rclone OAuth token** for Google
+Drive, blocked on a client ID a managed Workspace account may refuse. And the
+**Fleet enroll secret**, blocked on IT handing one over.
 
 It is waiting on a decryption key, which is the one secret sops cannot manage
 for itself. The convention is the host SSH key, and this machine has none —
