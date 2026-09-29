@@ -307,6 +307,14 @@
     # ../../modules/desktop/gpu-check.nix.
     mesa-demos # eglinfo, es2_info, es2gears
     pciutils # lspci
+
+    # The machine as SQL tables: processes, packages, mounts, users, open
+    # sockets. `sudo osqueryi`, since many tables need root. It is also what
+    # the employer's Fleet asks its questions with (./fleet.nix), so e.g.
+    # `select * from disk_encryption;` answers the LUKS check the way Fleet
+    # will — on metal only, as every VM path has an unencrypted root. The
+    # agent brings its own copy; this one is for asking by hand.
+    osquery
   ];
 
   # Pins the defaults this config was written against so stateful services keep

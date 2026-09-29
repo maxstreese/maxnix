@@ -37,10 +37,6 @@
   testScript = ''
     machine.wait_for_unit("multi-user.target")
 
-    with subtest("osquery answers on its own"):
-        out = machine.succeed("osqueryi --json 'select name from os_version;'")
-        assert "NixOS" in out, out
-
     with subtest("orbit starts with its secret"):
         machine.wait_for_unit("orbit.service")
         # LoadCredential copied the file in, which is the step that fails the

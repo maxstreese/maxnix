@@ -38,12 +38,7 @@
 # Orbit's state (the node key it enrolled with) lives in /var/lib/orbit and is
 # preserved in ./persistence.nix; without that, every boot would enroll a new
 # host. Its logs go to /var/log/orbit, which is already its own subvolume.
-{
-  config,
-  lib,
-  pkgs,
-  ...
-}:
+{ config, lib, ... }:
 let
   cfg = config.maxnix.fleet;
 in
@@ -75,41 +70,29 @@ in
       Hyprland: it needs a StatusNotifier tray, which DMS provides'';
   };
 
-  config = lib.mkMerge [
-    {
-      # osquery on its own, whether or not the agent is enrolled.
-      #
-      # It is what Fleet asks its questions with, so `sudo osqueryi` answers
-      # them the same way before IT does — e.g. `select * from
-      # disk_encryption;` for the LUKS check. Only meaningful on metal: every
-      # VM path takes an unencrypted root from qemu-vm.nix.
-      environment.systemPackages = [ pkgs.osquery ];
-    }
+  config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = cfg.url != null;
+        message = "maxnix.fleet.enable needs maxnix.fleet.url.";
+      }
+      {
+        assertion = cfg.enrollSecretPath != null;
+        message = "maxnix.fleet.enable needs maxnix.fleet.enrollSecretPath.";
+      }
+    ];
 
-    (lib.mkIf cfg.enable {
-      assertions = [
-        {
-          assertion = cfg.url != null;
-          message = "maxnix.fleet.enable needs maxnix.fleet.url.";
-        }
-        {
-          assertion = cfg.enrollSecretPath != null;
-          message = "maxnix.fleet.enable needs maxnix.fleet.enrollSecretPath.";
-        }
-      ];
+    # Only when enabled, so the unfree licence is never evaluated otherwise.
+    # fleet-orbit is dual-licensed: MIT, plus Fleet's Enterprise Edition
+    # licence for the ee/ parts compiled in, and nixpkgs marks it unfree for
+    # the latter. See ./configuration.nix for how this list works.
+    nixpkgs.config.allowUnfreePackages = [ "fleet-orbit" ];
 
-      # Only when enabled, so the unfree licence is never evaluated otherwise.
-      # fleet-orbit is dual-licensed: MIT, plus Fleet's Enterprise Edition
-      # licence for the ee/ parts compiled in, and nixpkgs marks it unfree for
-      # the latter. See ./configuration.nix for how this list works.
-      nixpkgs.config.allowUnfreePackages = [ "fleet-orbit" ];
-
-      services.orbit = {
-        enable = true;
-        fleetUrl = cfg.url;
-        inherit (cfg) enrollSecretPath;
-        desktop.enable = cfg.desktop;
-      };
-    })
-  ];
+    services.orbit = {
+      enable = true;
+      fleetUrl = cfg.url;
+      inherit (cfg) enrollSecretPath;
+      desktop.enable = cfg.desktop;
+    };
+  };
 }
