@@ -301,6 +301,10 @@
         # Rootless Docker running a Docker Hub image, and a second machine
         # checking its published port is behind the firewall.
         containers = pkgs.testers.runNixOSTest ./tests/containers.nix;
+
+        # sops-nix decrypting a post-quantum age key at activation, the way
+        # the real keys in .sops.yaml will be used.
+        secrets = pkgs.testers.runNixOSTest (import ./tests/secrets.nix { inherit (inputs) sops-nix; });
       };
 
       portableVmTests = mkTests false;
@@ -617,7 +621,25 @@
           # inspected — which module set an option, what a node's QEMU line
           # ended up being.
           pkgs.jq
+
+          # Editing hosts/maxnix/secrets.yaml, and reading a key's public
+          # half with `age-keygen -y`. Pinned here so the sops that writes
+          # the file is the flake's, not whatever the host has.
+          pkgs.sops
+          pkgs.age
         ];
+
+        # sops gets the admin key from 1Password on each run rather than from
+        # a file: the command's output is the key, and 1Password prompts
+        # before handing it over. Here rather than in .envrc so `nix develop`
+        # sets it too, on a machine without direnv. See hosts/maxnix/secrets.nix.
+        #
+        # A command, not `op run` with SOPS_AGE_KEY: that would put the key in
+        # sops's environment, and `sops edit` passes its environment on to the
+        # editor and everything the editor starts. Through a pipe the key only
+        # ever reaches sops. Opaque ids rather than names, so the public repo
+        # says as little as possible about the vault.
+        env.SOPS_AGE_KEY_CMD = "op read --account my.1password.com op://uxobupcysqhat566ymgikx46fm/fsgcalkkn3guvyu6uf3blufipa/notesPlain";
       };
 
       # nix run .#install -- root@<target>

@@ -157,6 +157,11 @@
       # separate decision.
       nix.settings.trusted-users = [ "max" ];
 
+      # The VM's sops key, on the /home disk so a root reset keeps it. A full
+      # reset (deleting .vm/home.qcow2) loses it; restore it from 1Password
+      # as ./secrets.nix describes. Root-only: install -m 600 as root.
+      sops.age.keyFile = lib.mkForce "/home/.maxnix/sops-age.key";
+
       virtualisation = {
         # Default is "./${hostname}.qcow2", i.e. wherever you happened to cd.
         # Pinned so a forgotten image in another directory cannot silently

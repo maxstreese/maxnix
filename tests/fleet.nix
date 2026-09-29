@@ -26,11 +26,13 @@
 
     maxnix.fleet = {
       enable = true;
-      # Port 1 on loopback: nothing listens, so the connection is refused at
-      # once rather than timing out, and nothing leaves the VM.
-      url = "https://127.0.0.1:1";
+      # The URL from a file, the way the machine gets it from sops. Port 1 on
+      # loopback: nothing listens, so the connection is refused at once
+      # rather than timing out, and nothing leaves the VM.
+      urlEnvironmentFile = "/etc/fleet-test.env";
       enrollSecretPath = "/etc/fleet-test-enroll-secret";
     };
+    environment.etc."fleet-test.env".text = "ORBIT_FLEET_URL=https://127.0.0.1:1\n";
     environment.etc."fleet-test-enroll-secret".text = "not-a-real-secret";
   };
 
@@ -47,6 +49,9 @@
     with subtest("orbit tries the configured server, and osqueryd with it"):
         machine.wait_until_succeeds("journalctl -u orbit.service | grep -q 'enroll failed, retrying'")
         machine.succeed("journalctl -u orbit.service | grep -q 'tls_hostname=127.0.0.1:1'")
+        # The file's URL won over the placeholder the module was given. If the
+        # override ever stopped working, this is where it would show.
+        machine.fail("journalctl -u orbit.service | grep -q 'fleet.invalid'")
         machine.succeed("pgrep -x osqueryd")
 
     with subtest("and keeps retrying in-process rather than crashing"):

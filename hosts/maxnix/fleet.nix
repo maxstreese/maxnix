@@ -12,17 +12,18 @@
 # silently doing nothing when half-configured — the same shape as
 # ./backup.nix.
 #
-# The enroll secret is a credential: anyone holding it can enroll a machine
-# as one of the company's. It goes in via sops-nix (./secrets.nix) once the
-# age key exists, and the module hands it to the unit through LoadCredential,
-# so it never reaches the store:
+# Both come in through sops (./secrets.nix), and so does the URL: the repo
+# is public, and IT would rather not publish where its Fleet server is. The
+# enroll secret is a credential — anyone holding it can enroll a machine as
+# one of the company's — and reaches the unit through LoadCredential. The
+# URL reaches it as ORBIT_FLEET_URL in an EnvironmentFile, since that is how
+# Orbit reads it. Neither is ever in the store. Turning it on is one line,
+# with ./secrets.nix supplying both paths:
 #
-#   sops.secrets.fleet-enroll-secret = { };
-#   maxnix.fleet = {
-#     enable = true;
-#     url = "https://fleet.<company>";
-#     enrollSecretPath = config.sops.secrets.fleet-enroll-secret.path;
-#   };
+#   maxnix.fleet.enable = true;
+#
+# The URL is secret at rest only. On the running machine it is in osqueryd's
+# command line (--tls_hostname), which every local user can read with ps.
 #
 # ── What differs from the Ubuntu .deb ────────────────────────────────────
 #
@@ -50,7 +51,24 @@ in
       type = lib.types.nullOr lib.types.str;
       default = null;
       example = "https://fleet.example.com";
-      description = "The Fleet server's base URL, from IT.";
+      description = ''
+        The Fleet server's base URL, from IT, in plain text. Public along
+        with the repo — so this machine uses urlEnvironmentFile instead and
+        leaves this null.
+      '';
+    };
+
+    urlEnvironmentFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      example = "/run/secrets/rendered/orbit.env";
+      description = ''
+        A file containing the line `ORBIT_FLEET_URL=https://…`, read by the
+        Orbit unit as root. For a URL that should not be in the store or the
+        repo. Orbit reads its URL from that variable, and systemd lets an
+        EnvironmentFile override the unit's own Environment, so this wins
+        over the placeholder the module is given.
+      '';
     };
 
     enrollSecretPath = lib.mkOption {
@@ -73,8 +91,8 @@ in
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = cfg.url != null;
-        message = "maxnix.fleet.enable needs maxnix.fleet.url.";
+        assertion = (cfg.url != null) != (cfg.urlEnvironmentFile != null);
+        message = "maxnix.fleet.enable needs exactly one of maxnix.fleet.url and maxnix.fleet.urlEnvironmentFile.";
       }
       {
         assertion = cfg.enrollSecretPath != null;
@@ -90,9 +108,16 @@ in
 
     services.orbit = {
       enable = true;
-      fleetUrl = cfg.url;
+      # With the URL in a file the module still needs a value. .invalid is
+      # reserved never to resolve (RFC 2606), so if the file were ever
+      # missing Orbit fails to connect rather than reaching somewhere real.
+      fleetUrl = if cfg.url != null then cfg.url else "https://fleet.invalid";
       inherit (cfg) enrollSecretPath;
       desktop.enable = cfg.desktop;
     };
+
+    systemd.services.orbit.serviceConfig.EnvironmentFile = lib.mkIf (
+      cfg.urlEnvironmentFile != null
+    ) cfg.urlEnvironmentFile;
   };
 }

@@ -101,7 +101,8 @@ renovate.jsonc               flake.lock and action-SHA updates, as PRs
 hosts/maxnix/backup.nix      restic: what to back up, and what to skip
 hosts/maxnix/fleet.nix       the employer's Fleet agent, off until IT supplies a URL
 hosts/maxnix/containers.nix  rootless Docker, with DOCKER_HOST for the whole session
-hosts/maxnix/secrets.nix     sops-nix, imported and declaring nothing yet
+hosts/maxnix/secrets.nix     sops-nix: three post-quantum keys, secrets declared per consumer
+hosts/maxnix/secrets.yaml    the encrypted secrets; .sops.yaml at the root says who can open it
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
 docs/inventory.md            what the current host runs daily; the list to migrate from
@@ -122,6 +123,7 @@ tests/{desktop,compositor,vnc}.nix               integration tests
 tests/disk.nix               formats, installs and boots the real disk layout
 tests/fleet.nix              the Fleet agent starts and retries against no server
 tests/containers.nix         rootless Docker runs a Docker Hub image behind the firewall
+tests/secrets.nix            sops-nix decrypts a post-quantum key at activation
 scripts/vm-keys              host tooling: release/restore GNOME shortcuts
 ```
 
@@ -152,7 +154,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17 — but impermanence has since changed what that *means*; see the open point below |
 | backups | restic, to Google Drive over rclone, off until configured | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
 | containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
-| device management | Fleet's agent (Orbit + osquery) via nixpkgs' `services.orbit`, off until configured | the employer is adopting Fleet (learned 2026-09-29). Wired ahead of the URL and enroll secret so turning it on is two values. `osquery` itself is a general system tool in `configuration.nix`; `osqueryi` also lets the machine be checked the way Fleet will check it. NixOS is not a Fleet-supported distro, so its disk-encryption and firewall checks may misreport — a question for IT |
+| device management | Fleet's agent (Orbit + osquery) via nixpkgs' `services.orbit`, off until configured | the employer is adopting Fleet (learned 2026-09-29). Wired ahead of the URL and enroll secret; both come from sops, so turning it on is one line. `osquery` itself is a general system tool in `configuration.nix`; `osqueryi` also lets the machine be checked the way Fleet will check it. NixOS is not a Fleet-supported distro, so its disk-encryption and firewall checks may misreport — a question for IT |
 | backup secrets | sops-nix, imported and empty | the repository password and the rclone OAuth token are both long-lived and must survive a reinstall, so neither can live only on the machine being backed up |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
 | git config | declared, not `git config --global` | a fresh guest had no identity at all, so the first commit inside would have failed. The cost is that the file is a store symlink, so `git config --global` no longer works |
@@ -702,10 +704,13 @@ crashing. Nothing here has ever enrolled, because enrolling needs IT's server.
 
 Two things gate it, neither of them code:
 
-- **A URL and an enroll secret from IT.** The secret is a credential — anyone
-  holding it can enroll a machine as one of the company's — so it goes in
-  through sops-nix, which puts it behind the age key the secrets layer below
-  is already waiting on. The lines to add are in `fleet.nix`.
+- **A URL and an enroll secret from IT** — now in hand. Both go in through
+  sops-nix, the URL too: the repo is public, and where the company's Fleet
+  server lives is not this repo's to publish. Orbit reads the URL from
+  `ORBIT_FLEET_URL`, so a sops template renders it into an env file that
+  overrides the unit's own placeholder (`https://fleet.invalid`, which never
+  resolves). `checks.secrets` runs that whole chain with a throwaway key. It
+  is secret at rest only: osqueryd's command line carries the hostname.
 - **Five questions for the employer.** Fleet's built-in disk-encryption and
   firewall checks name Debian/Ubuntu, CentOS/Fedora and Arch, not NixOS, so a
   LUKS root and the NixOS firewall may report as missing — will IT accept
@@ -757,26 +762,28 @@ run by changing the password on the first boot and checking on the second.
 The fix, if confirmed, is `hashedPasswordFile` pointing at a secret, which
 makes it the second customer for the secrets layer below.
 
-**The secrets layer is imported and declares nothing.** sops-nix is a pinned
-input and `hosts/maxnix/secrets.nix` imports it, but `sops.secrets` is empty
-and the module gates all of its work behind that — verified inert: no
-secrets, no activation script, no unit. What it buys is modest and worth
-stating plainly. Renovate now tracks the input, and the first real secret is
-an edit to one file rather than a research task. What it does not buy is a
-working secret, because none can exist yet.
+**The secrets layer has keys and no real secret yet.** Three post-quantum
+age keys are recipients in `.sops.yaml`: `admin`, for a person editing, and
+one each for the VM and metal. All three private halves are kept in
+1Password, and the machine keys are *restored* onto disk rather than
+generated there — the VM's onto its `/home` disk, metal's onto `/persist` at
+install — so a wipe or reinstall never changes `.sops.yaml`. The commands are
+in `hosts/maxnix/secrets.nix`. `hosts/maxnix/secrets.yaml` holds only a
+placeholder, and `checks.secrets` shows sops-nix decrypting a post-quantum
+key at activation: the sops CLI handling one says nothing about sops-nix,
+which decrypts with its own, older build.
 
-Three customers are certain. The **restic repository password**, which must
-not live only on `/persist` since one disk failure would take the data and the
-only key to its backups together. The **rclone OAuth token** for Google
-Drive, blocked on a client ID a managed Workspace account may refuse. And the
-**Fleet enroll secret**, blocked on IT handing one over.
+Three consumers are waiting. The **Fleet enroll secret**, now in hand and
+gated on the questions for IT above. The **restic repository password**, which
+must not live only on `/persist` since one disk failure would take the data
+and the only key to its backups together. And the **rclone OAuth token** for
+Google Drive, blocked on a client ID a managed Workspace account may refuse.
 
-It is waiting on a decryption key, which is the one secret sops cannot manage
-for itself. The convention is the host SSH key, and this machine has none —
-`services.openssh.enable` is `false` on metal. So it needs a dedicated age
-key generated once onto `/persist`, never committed; the commands are in
-`secrets.nix`. And the LUKS passphrase can never be a sops secret, because
-the age key would sit on the disk that passphrase unlocks.
+One thing is not done: the VM's key has not been restored into a running
+VM. The dev shell sets `SOPS_AGE_KEY_CMD` to the admin item, so `sops` in
+`nix develop` — or under direnv — fetches it from 1Password on its own.
+The LUKS passphrase can never be a sops secret, because the machine key sits
+on the disk that passphrase unlocks.
 
 **The generation diff has never been seen.** Both rebuild paths call `nvd
 diff` before activating, and `nvd` itself was verified against two real
