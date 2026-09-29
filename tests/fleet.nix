@@ -62,5 +62,14 @@
         machine.succeed("systemctl is-active orbit.service")
         restarts = machine.succeed("systemctl show -p NRestarts --value orbit.service").strip()
         assert restarts == "0", f"orbit restarted {restarts} times"
+
+    with subtest("and stops promptly, so it does not hold up shutdown"):
+        # It ignores SIGTERM while retrying; without TimeoutStopSec this took
+        # the full 90 s default, and so did every shutdown.
+        import time
+        t0 = time.time()
+        machine.succeed("systemctl stop orbit.service")
+        took = time.time() - t0
+        assert took < 15, f"stopping orbit took {took:.0f} s"
   '';
 }

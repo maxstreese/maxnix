@@ -35,6 +35,7 @@ nix run .#vm                           # start it plainly — host keeps Super a
 nix run .#vm-headless                  # no window; VNC on 127.0.0.1:5909 so something can watch
 nix run .#vm-deploy                    # build here, activate in the running VM, no reboot
 nix run .#vm-ssh -- niri msg outputs   # run a command in the running VM (or open a shell with no args)
+nix run .#vm-restore-key               # put the VM's sops key back from 1Password after a full reset
 nix run .#test-desktop                 # boot, greeter, sessions, GPU
 nix run .#test-niri                    # niri: IPC, output, layout, shell, render
 nix run .#test-hyprland                # same, for Hyprland
@@ -363,6 +364,12 @@ fixes it: systemd's generator expands `${XDG_RUNTIME_DIR}` there, and the
 manager then has the variable. Two smaller traps from the same test: a user
 unit's PATH has no `sh`, and a published port being unreachable proves
 nothing without the control that opening the firewall makes it reachable.
+
+**Orbit ignores SIGTERM until it has enrolled.** While it retries against a
+server it cannot reach, `systemctl stop orbit` sits out systemd's full 90 s
+default before the SIGKILL — and so does every shutdown, which is where it
+was noticed. `hosts/maxnix/fleet.nix` cuts `TimeoutStopSec` to 5 s, and
+`checks.fleet` now asserts a prompt stop.
 
 **Only public keys can be declared, which is exactly enough for signing.**
 An SSH signing setup needs the public key, the signer program and an
@@ -779,8 +786,8 @@ must not live only on `/persist` since one disk failure would take the data
 and the only key to its backups together. And the **rclone OAuth token** for
 Google Drive, blocked on a client ID a managed Workspace account may refuse.
 
-One thing is not done: the VM's key has not been restored into a running
-VM. The dev shell sets `SOPS_AGE_KEY_CMD` to the admin item, so `sops` in
+`nix run .#vm-restore-key` puts the VM's key back from 1Password and checks
+it against `.sops.yaml`. The dev shell sets `SOPS_AGE_KEY_CMD` to the admin item, so `sops` in
 `nix develop` — or under direnv — fetches it from 1Password on its own.
 The LUKS passphrase can never be a sops secret, because the machine key sits
 on the disk that passphrase unlocks.

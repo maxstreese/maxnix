@@ -422,6 +422,68 @@
         '';
       };
 
+      # nix run .#vm-restore-key
+      #
+      # Put the VM's sops key back after a full reset (.vm/home.qcow2 deleted),
+      # or onto a fresh VM. The key is kept in 1Password and restored, never
+      # generated in the guest — see hosts/maxnix/secrets.nix for why.
+      #
+      # It goes from `op read` straight through the ssh pipe into a root-only
+      # file; nothing prints it and nothing on the host writes it down. Run it
+      # from your own terminal, where 1Password can prompt. `op` is the host's,
+      # not the flake's: it talks to the 1Password app, which is the host's.
+      #
+      # Then it checks rather than trusts: the guest derives the public half of
+      # what landed and compares it with `vm` in .sops.yaml. age is copied in
+      # for that, with the guest half above, the way vm-deploy copies its
+      # closure — so a VM that predates this still works.
+      vmRestoreKey =
+        let
+          # Where the VM decrypts from, read off its own config so the two
+          # cannot disagree.
+          key = maxnix.config.virtualisation.vmVariant.sops.age.keyFile;
+
+          # The guest half. Lands in /run (tmpfs) first and replaces the key
+          # only if something arrived: if `op read` fails — prompt denied,
+          # 1Password locked — the pipe still closes, and writing straight to
+          # the key would swap a working key for an empty file.
+          install = pkgs.writeShellScript "install-sops-key" ''
+            set -eu
+            umask 077
+            t=$(mktemp -p /run)
+            trap 'rm -f "$t"' EXIT
+            cat > "$t"
+            [ -s "$t" ] || { echo "nothing received; ${key} left as it was" >&2; exit 1; }
+            install -D -m 600 -o root -g root "$t" ${key}
+          '';
+        in
+        pkgs.writeShellApplication {
+          name = "vm-restore-key";
+          runtimeInputs = [
+            vmSshShim
+            pkgs.nix
+            pkgs.gnused
+          ];
+          text = ''
+            want=$(sed -n 's/^  - &vm //p' ${./.sops.yaml})
+            [ -n "$want" ] || { echo "no vm key in .sops.yaml" >&2; exit 1; }
+
+            nix copy --no-check-sigs --to ssh://max@127.0.0.1 ${install} ${pkgs.age}
+
+            echo "reading the VM key from 1Password..." >&2
+            op read --account my.1password.com op://uxobupcysqhat566ymgikx46fm/yzia6np7dypeudlivpgqi5jwuu/notesPlain \
+              | ssh max@127.0.0.1 'sudo ${install}'
+
+            got=$(ssh max@127.0.0.1 'sudo ${pkgs.age}/bin/age-keygen -y ${key}')
+            if [ "$got" = "$want" ]; then
+              echo "restored: ${key} matches vm in .sops.yaml" >&2
+            else
+              echo "MISMATCH: ${key} is not the vm key in .sops.yaml" >&2
+              exit 1
+            fi
+          '';
+        };
+
       # nix run .#vm-deploy
       #
       # Build this machine here and activate it in the running VM, without a
@@ -926,6 +988,10 @@
         vm-ssh = {
           type = "app";
           program = lib.getExe vmSsh;
+        };
+        vm-restore-key = {
+          type = "app";
+          program = lib.getExe vmRestoreKey;
         };
         vm-deploy = {
           type = "app";

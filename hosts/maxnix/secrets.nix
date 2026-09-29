@@ -25,11 +25,12 @@
 # The machine keys are generated once, stored in 1Password and *restored*,
 # not generated on the machine (sops.age.generateKey stays false). A wiped
 # or reinstalled machine gets its old key back, so .sops.yaml never changes
-# and no `sops updatekeys` is needed. Restoring, from a terminal that
+# and no `sops updatekeys` is needed. Restoring the VM's, from a terminal
 # 1Password can prompt in — never through a tool whose output is logged:
 #
-#   op read "op://<vault>/maxnix sops vm/…" \
-#     | nix run .#vm-ssh -- 'sudo install -D -m 600 /dev/stdin /home/.maxnix/sops-age.key'
+#   nix run .#vm-restore-key
+#
+# which also checks that what landed is the `vm` key in .sops.yaml.
 #
 # On metal the same file goes in with nixos-anywhere's --extra-files, so it
 # is on /persist before first boot and the first activation already decrypts.
@@ -37,17 +38,18 @@
 # ── Adding a secret ──────────────────────────────────────────────────────
 #
 # Keep the value in 1Password too, then pipe it in so it never reaches an
-# argument list, an editor's swap file or the screen:
+# argument list, an editor's swap file or the screen. Inside `nix develop`,
+# which provides sops, jq and the admin key:
 #
-#   op read "op://<vault>/<item>/<field>" \
+#   op read "op://<vault>/<item>/<field>" | jq -R . \
 #     | sops set --value-stdin hosts/maxnix/secrets.yaml '["<name>"]'
 #
-# Fleet's two, once the colleague's questions are answered:
+# `jq -R .` because --value-stdin wants JSON, not the raw value ("Value for
+# --set is not valid JSON"): it turns the line into a JSON string, and drops
+# the newline `op read` ends with, which would otherwise end up in the
+# secret. For a multi-line value, `jq -Rs .` instead — that one keeps it.
 #
-#   op read "op://…/<enroll secret item>/credential" \
-#     | sops set --value-stdin hosts/maxnix/secrets.yaml '["fleet-enroll-secret"]'
-#   op read "op://…/<url item>/<field>" \
-#     | sops set --value-stdin hosts/maxnix/secrets.yaml '["fleet-url"]'
+# Fleet's two are `fleet-url` and `fleet-enroll-secret`.
 #
 # and declare it below, next to whatever consumes it.
 #

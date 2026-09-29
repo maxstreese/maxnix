@@ -158,9 +158,16 @@
       nix.settings.trusted-users = [ "max" ];
 
       # The VM's sops key, on the /home disk so a root reset keeps it. A full
-      # reset (deleting .vm/home.qcow2) loses it; restore it from 1Password
-      # as ./secrets.nix describes. Root-only: install -m 600 as root.
+      # reset (deleting .vm/home.qcow2) loses it; `nix run .#vm-restore-key`
+      # puts it back from 1Password. Root-only: install -m 600 as root.
       sops.age.keyFile = lib.mkForce "/home/.maxnix/sops-age.key";
+
+      # Enrolled with the employer's Fleet, as agreed with IT 2026-09-29. VM
+      # only for now: metal gets it with its key on install day, and the test
+      # nodes — no vm.nix, no key — never see it. URL and enroll secret both
+      # come from sops (./secrets.nix). Expect its disk-encryption check to
+      # fail in the console: this VM's disks are not encrypted.
+      maxnix.fleet.enable = true;
 
       virtualisation = {
         # Default is "./${hostname}.qcow2", i.e. wherever you happened to cd.
@@ -218,6 +225,14 @@
           # Override at runtime without rebuilding:
           #   QEMU_OPTS="-display egl-headless" ./result/bin/run-maxnix-vm
           "-display gtk,gl=on,show-cursor=on,grab-on-hover=on"
+
+          # A fixed hardware UUID. Fleet names a host by it (Orbit runs
+          # osquery with --host-identifier uuid), and without -uuid QEMU gives
+          # the guest none worth having. /persist is on the disposable root
+          # here, so a root reset loses Orbit's enrollment and it enrolls
+          # again; with the same UUID that lands on the same host in Fleet
+          # rather than a new one. Arbitrary, generated once, not a secret.
+          "-uuid f04f60e8-d1cb-4238-a610-d38b92ba5739"
         ];
 
         # Host loopback 2222 → guest 22, for the sshd above. QEMU's user-mode

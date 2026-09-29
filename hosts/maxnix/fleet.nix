@@ -116,8 +116,16 @@ in
       desktop.enable = cfg.desktop;
     };
 
-    systemd.services.orbit.serviceConfig.EnvironmentFile = lib.mkIf (
-      cfg.urlEnvironmentFile != null
-    ) cfg.urlEnvironmentFile;
+    systemd.services.orbit.serviceConfig = {
+      EnvironmentFile = lib.mkIf (cfg.urlEnvironmentFile != null) cfg.urlEnvironmentFile;
+
+      # Orbit ignores SIGTERM while it is retrying enrollment, so every stop
+      # — and so every shutdown — sat out systemd's default 90 s before the
+      # SIGKILL. Measured in ../../tests/fleet.nix: 90.1 s, then "State
+      # 'stop-sigterm' timed out. Killing." An unenrolled Orbit has nothing
+      # to lose, and osquery's RocksDB database is built to survive a kill,
+      # so the wait is cut rather than worked around.
+      TimeoutStopSec = "5s";
+    };
   };
 }
