@@ -104,6 +104,7 @@ hosts/maxnix/containers.nix  rootless Docker, with DOCKER_HOST for the whole ses
 hosts/maxnix/secrets.nix     sops-nix, imported and declaring nothing yet
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
+docs/inventory.md            what the current host runs daily; the list to migrate from
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
 statix.toml                  the two statix lints this repo switches off, with reasons
 hosts/maxnix/
@@ -716,6 +717,13 @@ Two things gate it, neither of them code:
   agent is whatever the pinned nixpkgs carries and moves with `flake.lock`.
 
 Until then this is two option values away from on, like backups.
+
+**Most of what the current host runs is not here yet, and the list is on
+hold.** `docs/inventory.md` records what the Ubuntu host has installed and
+what its shell history shows is actually used — 143 programs this quarter,
+about 25 of them already in maxnix. Decided so far: mise and sdkman give way
+to per-project flakes, and three host services stay behind. Still open: how
+to carry the Neovim config over, and the rows marked "?". Paused 2026-09-29.
 
 **Bind reachability is only partly checked.** The dead German binds were found
 by a hand-run audit, not by anything in the repo. Both compositors now reject a
