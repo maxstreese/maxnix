@@ -116,6 +116,13 @@ in
       desktop.enable = cfg.desktop;
     };
 
+    # Fleet Desktop is started in the user's session with `sudo -n -i -u …`,
+    # and sudo is a setuid wrapper in /run/wrappers/bin — not on a unit's
+    # default PATH, and the nixpkgs module adds nothing. Without this every
+    # launch failed silently: Orbit logged "running command" every 30 s and
+    # never said it could not find sudo. Measured in the VM 2026-09-30.
+    systemd.services.orbit.path = lib.mkIf cfg.desktop [ "/run/wrappers" ];
+
     systemd.services.orbit.serviceConfig = {
       EnvironmentFile = lib.mkIf (cfg.urlEnvironmentFile != null) cfg.urlEnvironmentFile;
 

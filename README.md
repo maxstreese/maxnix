@@ -371,6 +371,14 @@ default before the SIGKILL — and so does every shutdown, which is where it
 was noticed. `hosts/maxnix/fleet.nix` cuts `TimeoutStopSec` to 5 s, and
 `checks.fleet` now asserts a prompt stop.
 
+**Orbit launches Fleet Desktop through a `sudo` it cannot find.** It starts
+the tray app in the user's session with `sudo -n -i -u <user>`, and sudo is
+a setuid wrapper in `/run/wrappers/bin`, which a systemd unit's PATH does
+not include. The launch failed every 30 s with no error in the log — only
+"running command". Session detection itself works under niri (`loginctl`
+reports it as Wayland). `hosts/maxnix/fleet.nix` adds the wrappers to the
+unit's path when `maxnix.fleet.desktop` is on.
+
 **Only public keys can be declared, which is exactly enough for signing.**
 An SSH signing setup needs the public key, the signer program and an
 allowed-signers file, none of them secret, so the whole thing lives in the

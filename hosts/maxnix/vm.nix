@@ -168,6 +168,7 @@
       # come from sops (./secrets.nix). Expect its disk-encryption check to
       # fail in the console: this VM's disks are not encrypted.
       maxnix.fleet.enable = true;
+      maxnix.fleet.desktop = true;
 
       virtualisation = {
         # Default is "./${hostname}.qcow2", i.e. wherever you happened to cd.
