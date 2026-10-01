@@ -38,28 +38,6 @@
 pkgs = "nixosConfigurations.maxnix.pkgs"
 
 [[entry]]
-id = "qemu-shared-memory"
-title = "Drop the virtiofs shared-memory workaround"
-upstream = "https://github.com/NixOS/nixpkgs/pull/563324"
-workaround = "modules/vm/qemu-guest.nix: virtualisation.qemu.enableSharedMemory = true"
-then = "Delete the block and its README paragraph; confirm with `nix run .#test-vm-starts`"
-check = { nix = '''
-  pkgs:
-  let
-    module = builtins.readFile (pkgs.path + "/nixos/modules/virtualisation/qemu-vm.nix");
-    fixed = pkgs.lib.hasInfix "default = useVirtiofs" module;
-  in
-  {
-    unblocked = fixed;
-    evidence =
-      if fixed then
-        "pinned qemu-vm.nix defaults enableSharedMemory to useVirtiofs"
-      else
-        "pinned qemu-vm.nix still has enableSharedMemory off by default";
-  }
-''' }
-
-[[entry]]
 id = "herdr-nixpkgs"
 title = "Take herdr from nixpkgs again"
 workaround = "flake.nix: the herdr input, upstream's flake at a release tag (nixpkgs' 0.9.1 fails to link)"

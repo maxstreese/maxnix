@@ -137,34 +137,6 @@ in
     # picks is correct and the Mesa wrapper would be dead weight.
     qemu.package = lib.mkIf gpu (lib.mkForce qemuWithGL);
 
-    # ── Workaround for a nixpkgs bug; remove once upstream fixes it ─────
-    #
-    # nixpkgs replaced 9p with virtiofs for every shared directory (PR
-    # #552774, nixpkgs-unstable from 2026-09). virtiofs is a vhost-user
-    # device, and vhost-user needs the guest's RAM to be a shared memory
-    # object so the daemon can map it. qemu-vm.nix only adds that
-    # `-object memory-backend-memfd,share=on` when this option is set, and
-    # nothing sets it for build-vm — only the NixOS test driver does, which
-    # is why the tests passed while `nix run .#vm` hung.
-    #
-    # Without it every virtiofsd handshake collapses and the guest never
-    # boots. The symptoms are misleading:
-    #   virtiofsd: Failed to open file handle for the root node: Operation
-    #              not permitted            <- a red herring; it falls back
-    #   qemu:      vhost_set_vring_kick failed: Input/output error
-    #   virtiofsd: Waiting for daemon failed: HandleRequest(InvalidParam)
-    #
-    # WATCH: https://github.com/NixOS/nixpkgs/pull/563324
-    # ("nixos/qemu-vm: virtiofsd requires shared memory") makes this option
-    # default to true whenever virtiofs is in use. Once flake.lock has a
-    # nixpkgs containing that PR, this block is a no-op and can be deleted.
-    # Check with:
-    #   grep -n 'enableSharedMemory' \
-    #     $(nix eval --raw --impure --expr \
-    #       '(builtins.getFlake (toString ./.)).inputs.nixpkgs.outPath')/nixos/modules/virtualisation/qemu-vm.nix
-    # and look for a `default = useVirtiofs` rather than `mkEnableOption`.
-    qemu.enableSharedMemory = true;
-
     # xres/yres set the preferred mode in both branches. Note that
     # virtualisation.resolution does NOT do this — that option only feeds
     # services.xserver, and nothing here runs X.

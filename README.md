@@ -272,8 +272,11 @@ nixpkgs moved shared directories from 9p to virtiofs in September 2026. vhost-us
 devices need the guest's RAM as a shared memory object, which only the NixOS
 test driver switches on — so every test passed while `nix run .#vm` hung on a
 vhost handshake. The virtiofsd warning about file handles and "Operation not
-permitted" is a red herring. `modules/vm/qemu-guest.nix` sets
-`qemu.enableSharedMemory` until nixpkgs PR #563324 makes it the default.
+permitted" is a red herring. `modules/vm/qemu-guest.nix` set
+`qemu.enableSharedMemory` by hand until nixpkgs PR #563324 made it the default
+whenever virtiofs is in use (merged 2026-09-15; the workaround went
+2026-10-01, after `nix run .#blocked` noticed). If a VM hangs on a vhost
+handshake again, check that option first.
 
 **1Password only talks to browsers it recognises by executable name.** nixpkgs'
 Firefox is a wrapper that execs `.firefox-wrapped`, which is not on the list, so
