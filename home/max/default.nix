@@ -23,6 +23,7 @@
     ./git.nix
     ./ssh.nix
     ./shell.nix
+    ./harlequin.nix
   ];
 
   home.username = "max";

@@ -189,8 +189,9 @@
     # instead, as the marimo note above describes.
     uv
 
-    # DataGrip. Unfree; allow-listed in ../../hosts/maxnix/configuration.nix.
-    jetbrains.datagrip
+    # DBeaver Community, the database GUI. Free (Apache-2.0), so no
+    # allow-list entry; it replaced DataGrip.
+    dbeaver-bin
 
     # ── Secrets ───────────────────────────────────────────────────────────
     sops
