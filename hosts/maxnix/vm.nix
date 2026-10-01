@@ -170,6 +170,10 @@
       maxnix.fleet.enable = true;
       maxnix.fleet.desktop = true;
 
+      # Harlequin's connection profiles, from sops (./secrets.nix). VM only
+      # for the same reason as Fleet: it is the one machine holding a key.
+      maxnix.harlequin.profiles.enable = true;
+
       virtualisation = {
         # Default is "./${hostname}.qcow2", i.e. wherever you happened to cd.
         # Pinned so a forgotten image in another directory cannot silently

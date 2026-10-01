@@ -18,7 +18,13 @@
 # <0.328, mysql-connector-python <10). The pins are relaxed rather than the
 # clients downgraded; if a query ever fails inside the client, look here
 # first. When nixpkgs gains either adapter, delete it from this file.
-{ pkgs, ... }:
+{
+  config,
+  lib,
+  osConfig,
+  pkgs,
+  ...
+}:
 let
   py = pkgs.python3Packages;
 
@@ -111,4 +117,13 @@ let
 in
 {
   home.packages = [ harlequin ];
+
+  # The connection profiles. Their hosts and users are sops secrets, so the
+  # file is rendered at activation by the system layer
+  # (../../hosts/maxnix/secrets.nix) into /run/secrets, outside the store,
+  # and only linked from here. Read-only as a result: change a profile there
+  # and rebuild, not with `hsql --config init`.
+  xdg.configFile."harlequin/config.toml" = lib.mkIf osConfig.maxnix.harlequin.profiles.enable {
+    source = config.lib.file.mkOutOfStoreSymlink osConfig.sops.templates."harlequin.toml".path;
+  };
 }

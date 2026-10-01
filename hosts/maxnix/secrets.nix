@@ -60,41 +60,78 @@
 # That is why ./disk.nix takes a typed passphrase and ./luks-tpm.nix layers
 # TPM unlock on top rather than a keyfile.
 { config, lib, ... }:
+let
+  harlequin = config.maxnix.harlequin.profiles;
+in
 {
-  sops = {
-    defaultSopsFile = ./secrets.yaml;
+  options.maxnix.harlequin.profiles.enable = lib.mkEnableOption ''
+    Harlequin's connection profiles, rendered from sops into
+    ~/.config/harlequin/config.toml (see home/max/harlequin.nix)
+  '';
 
-    # Metal's path; ./vm.nix points the VM at its /home disk instead. On
-    # /persist because the root is wiped every boot (./persistence.nix).
-    age.keyFile = "/persist/sops/age.key";
+  config = {
+    sops = {
+      defaultSopsFile = ./secrets.yaml;
 
-    # Only the key above. sops-nix otherwise adds the machine's SSH host keys
-    # as decryption keys whenever sshd is enabled — which it is in the VM —
-    # and those are on the disposable root and were never recipients.
-    age.sshKeyPaths = [ ];
-    gnupg.sshKeyPaths = [ ];
-  };
+      # Metal's path; ./vm.nix points the VM at its /home disk instead. On
+      # /persist because the root is wiped every boot (./persistence.nix).
+      age.keyFile = "/persist/sops/age.key";
 
-  # Consumers. Each secret is declared only when the thing using it is on:
-  # sops-nix does nothing at all while sops.secrets is empty, which keeps the
-  # test machines — they import this file but hold no key — from trying and
-  # failing to decrypt.
-  #
-  # Fleet takes two: the enroll secret, and the server's URL, which is kept
-  # out of the public repo as well. Orbit wants the URL as an environment
-  # variable, so a template renders it into an env file under
-  # /run/secrets/rendered, root-only like the rest.
-  sops.secrets = lib.mkIf config.maxnix.fleet.enable {
-    fleet-enroll-secret = { };
-    fleet-url = { };
+      # Only the key above. sops-nix otherwise adds the machine's SSH host keys
+      # as decryption keys whenever sshd is enabled — which it is in the VM —
+      # and those are on the disposable root and were never recipients.
+      age.sshKeyPaths = [ ];
+      gnupg.sshKeyPaths = [ ];
+    };
+
+    # Consumers. Each secret is declared only when the thing using it is on:
+    # sops-nix does nothing at all while sops.secrets is empty, which keeps the
+    # test machines — they import this file but hold no key — from trying and
+    # failing to decrypt.
+    #
+    # Fleet takes two: the enroll secret, and the server's URL, which is kept
+    # out of the public repo as well. Orbit wants the URL as an environment
+    # variable, so a template renders it into an env file under
+    # /run/secrets/rendered, root-only like the rest.
+    sops.secrets = lib.mkMerge [
+      (lib.mkIf config.maxnix.fleet.enable {
+        fleet-enroll-secret = { };
+        fleet-url = { };
+      })
+      (lib.mkIf harlequin.enable {
+        trino-host = { };
+        trino-user = { };
+      })
+    ];
+    sops.templates."orbit.env" = lib.mkIf config.maxnix.fleet.enable {
+      content = "ORBIT_FLEET_URL=${config.sops.placeholder.fleet-url}\n";
+    };
+    # Per attribute, not `maxnix.fleet = mkIf …`: conditioning the whole
+    # attrset on its own `enable` would make the option depend on itself.
+    maxnix.fleet.enrollSecretPath = lib.mkIf config.maxnix.fleet.enable config.sops.secrets.fleet-enroll-secret.path;
+    maxnix.fleet.urlEnvironmentFile =
+      lib.mkIf config.maxnix.fleet.enable
+        config.sops.templates."orbit.env".path;
+
+    # Harlequin's profiles. The file's shape is public; which systems it points
+    # at is not, so host and user come from sops like Fleet's URL. Rendered
+    # owned by max, since harlequin and hsql read it as that user;
+    # home/max/harlequin.nix links it into ~/.config. Passwords never go here:
+    # a profile that needs one names an environment variable
+    # (password = "${TRINO_PASSWORD}"), filled by `op run` at launch.
+    #
+    # port is explicit because the adapter always passes one (8080 by
+    # default), and an explicit port beats the 443 the https:// in the host
+    # would otherwise imply.
+    sops.templates."harlequin.toml" = lib.mkIf harlequin.enable {
+      owner = "max";
+      content = ''
+        [profiles.trino]
+        adapter = "trino"
+        host = "${config.sops.placeholder.trino-host}"
+        port = "443"
+        user = "${config.sops.placeholder.trino-user}"
+      '';
+    };
   };
-  sops.templates."orbit.env" = lib.mkIf config.maxnix.fleet.enable {
-    content = "ORBIT_FLEET_URL=${config.sops.placeholder.fleet-url}\n";
-  };
-  # Per attribute, not `maxnix.fleet = mkIf …`: conditioning the whole
-  # attrset on its own `enable` would make the option depend on itself.
-  maxnix.fleet.enrollSecretPath = lib.mkIf config.maxnix.fleet.enable config.sops.secrets.fleet-enroll-secret.path;
-  maxnix.fleet.urlEnvironmentFile =
-    lib.mkIf config.maxnix.fleet.enable
-      config.sops.templates."orbit.env".path;
 }
