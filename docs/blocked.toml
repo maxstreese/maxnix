@@ -1,0 +1,159 @@
+# Workarounds and deferrals waiting on a third party, each with a check that
+# says whether it still has to. `nix run .#blocked` runs every check; add
+# `--format json` for a program to read. See ../tools/blocked.py.
+#
+# The repo is public, and so is this file. Entries describe upstream facts
+# only — nothing about the employer's infrastructure.
+#
+# An entry:
+#
+#   id          kebab-case, unique
+#   title       what becomes possible once unblocked
+#   upstream    where the third party's side is tracked (optional)
+#   workaround  what stands in meanwhile, and where (optional)
+#   then        what to do once unblocked (optional, but the point)
+#   check       exactly one of:
+#     nix = '<function of pkgs>'            the pinned nixpkgs; no network.
+#                                           Returns a boolean, or
+#                                           { unblocked = <bool>; evidence = "…"; }
+#     github-tag = 'owner/repo tag'         the tag exists
+#     github-release = 'owner/repo tag'     a release for the tag exists
+#     github-pr-merged = 'owner/repo#123'
+#     github-issue-closed = 'owner/repo#123'
+#     command = '<bash>'                    runs in the repo root: exit 0 means
+#                                           unblocked, 1 blocked, anything else
+#                                           an error
+#     manual = '<question>'                 left to a person or an LLM
+#     all = [ … ] / any = [ … ]             combine the above
+#
+# Prefer `nix` wherever the question is "has it reached the nixpkgs we pin":
+# merged upstream is not the same as in flake.lock, and only the second lets
+# the workaround go.
+#
+# Once an entry's `then` is done, delete the entry in the same commit. The
+# list is what is still open; git log is the record of what was resolved.
+
+[settings]
+# What a `nix` check receives as `pkgs`.
+pkgs = "nixosConfigurations.maxnix.pkgs"
+
+[[entry]]
+id = "qemu-shared-memory"
+title = "Drop the virtiofs shared-memory workaround"
+upstream = "https://github.com/NixOS/nixpkgs/pull/563324"
+workaround = "modules/vm/qemu-guest.nix: virtualisation.qemu.enableSharedMemory = true"
+then = "Delete the block and its README paragraph; confirm with `nix run .#test-vm-starts`"
+check = { nix = '''
+  pkgs:
+  let
+    module = builtins.readFile (pkgs.path + "/nixos/modules/virtualisation/qemu-vm.nix");
+    fixed = pkgs.lib.hasInfix "default = useVirtiofs" module;
+  in
+  {
+    unblocked = fixed;
+    evidence =
+      if fixed then
+        "pinned qemu-vm.nix defaults enableSharedMemory to useVirtiofs"
+      else
+        "pinned qemu-vm.nix still has enableSharedMemory off by default";
+  }
+''' }
+
+[[entry]]
+id = "herdr-nixpkgs"
+title = "Take herdr from nixpkgs again"
+workaround = "flake.nix: the herdr input, upstream's flake at a release tag (nixpkgs' 0.9.1 fails to link)"
+then = "Try pkgs.herdr in home/max/dev.nix; if it builds, drop the input and its Renovate entry"
+check = { nix = '''
+  pkgs: {
+    unblocked = builtins.compareVersions pkgs.herdr.version "0.9.1" > 0;
+    evidence = "pinned nixpkgs has herdr " + pkgs.herdr.version;
+  }
+''' }
+
+[[entry]]
+id = "harlequin-trino-nixpkgs"
+title = "Take harlequin-trino from nixpkgs"
+workaround = "home/max/harlequin.nix: built from PyPI, pinned in harlequin-adapters.json"
+then = "Use python3Packages.harlequin-trino; drop it from harlequin.nix, the JSON and renovate.jsonc"
+check = { nix = '''
+  pkgs: {
+    unblocked = pkgs.python3Packages ? harlequin-trino;
+    evidence =
+      if pkgs.python3Packages ? harlequin-trino then
+        "pinned nixpkgs has harlequin-trino " + pkgs.python3Packages.harlequin-trino.version
+      else
+        "not in pinned nixpkgs";
+  }
+''' }
+
+[[entry]]
+id = "harlequin-mysql-nixpkgs"
+title = "Take harlequin-mysql from nixpkgs"
+workaround = "home/max/harlequin.nix: built from PyPI, pinned in harlequin-adapters.json"
+then = "Use python3Packages.harlequin-mysql; drop it from harlequin.nix, the JSON and renovate.jsonc"
+check = { nix = '''
+  pkgs: {
+    unblocked = pkgs.python3Packages ? harlequin-mysql;
+    evidence =
+      if pkgs.python3Packages ? harlequin-mysql then
+        "pinned nixpkgs has harlequin-mysql " + pkgs.python3Packages.harlequin-mysql.version
+      else
+        "not in pinned nixpkgs";
+  }
+''' }
+
+[[entry]]
+id = "trino-client-metadata"
+title = "Use nixpkgs' trino client unmodified"
+workaround = "home/max/harlequin.nix: trino-python-client with dontCheckPythonMetadata"
+then = "Drop the override and use py.trino-python-client directly"
+# nixpkgs' package fails its own build, which is why it is missing from the
+# binary cache. Hydra caches it once that is fixed, so its presence there is
+# the signal. "is not valid" is how nix says the cache lacks it; any other
+# failure is a real error, not a "still blocked".
+check = { command = '''
+  out=$(nix eval --raw .#nixosConfigurations.maxnix.pkgs.python3Packages.trino-python-client.outPath 2>/dev/null) || exit 2
+  if err=$(nix path-info --store https://cache.nixos.org "$out" 2>&1 >/dev/null); then
+    echo "in cache.nixos.org, so it builds: $out"; exit 0
+  fi
+  case $err in
+    *"is not valid"*) echo "not in cache.nixos.org, so nixpkgs still fails to build it"; exit 1 ;;
+  esac
+  echo "$err" >&2; exit 2
+''' }
+
+[[entry]]
+id = "renovate-flake-tags"
+title = "Let Renovate's nix manager bump tag-pinned flake inputs"
+upstream = "https://github.com/renovatebot/renovate/pull/45258"
+workaround = "renovate.jsonc: a regex manager reads the tag out of each flake input URL"
+then = "Once a Renovate release includes it, drop the first regex manager and check aoe and herdr still get bumped"
+check = { github-pr-merged = "renovatebot/renovate#45258" }
+
+[[entry]]
+id = "fleetd-1-63"
+title = "Run fleetd 1.63.0, the first release with NixOS support"
+upstream = "https://github.com/fleetdm/fleet/issues/52320"
+workaround = "hosts/maxnix/fleet.nix: nixpkgs' fleet-orbit 1.55.0"
+then = "Override fleet-orbit and fleet-desktop to orbit-v1.63.0 with patches = [] and buildGo127Module, via services.orbit.orbitPackage and desktop.package; run tests/fleet.nix; update the NixOS-support note in fleet.nix"
+check = { all = [
+  { github-tag = "fleetdm/fleet orbit-v1.63.0" },
+  { github-release = "fleetdm/fleet fleet-v4.94.0" },
+] }
+
+[[entry]]
+id = "fleet-nix-flake"
+title = "Take fleetd from Fleet's own flake"
+upstream = "https://github.com/fleetdm/fleet/issues/54457"
+workaround = "nixpkgs' fleet-orbit, or our own override once fleetd-1-63 is done"
+then = "Add Fleet's flake as an input pinned to a release, and switch services.orbit to its services.fleetd"
+check = { github-issue-closed = "fleetdm/fleet#54457" }
+
+[[entry]]
+id = "fleet-luks-escrow"
+title = "Fleet escrows the LUKS key on NixOS hosts"
+upstream = "https://github.com/fleetdm/fleet/issues/54422"
+workaround = "None; Fleet never offers NixOS hosts the escrow flow"
+then = "On metal, check whether escrow needs zenity or a cryptsetup path, and test the flow"
+check = { github-issue-closed = "fleetdm/fleet#54422" }

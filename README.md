@@ -40,6 +40,7 @@ nix run .#test-desktop                 # boot, greeter, sessions, GPU
 nix run .#test-niri                    # niri: IPC, output, layout, shell, render
 nix run .#test-hyprland                # same, for Hyprland
 nix run .#test-vm-starts               # the runner above actually starts (opens a window for 8s)
+nix run .#blocked                      # which workarounds in docs/blocked.toml upstream has unblocked
 ```
 
 Log in as `max` / `maxnix`. The guest has no view of the host's filesystem;
@@ -107,6 +108,8 @@ hosts/maxnix/secrets.yaml    the encrypted secrets; .sops.yaml at the root says 
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
 docs/inventory.md            what the current host runs daily; the list to migrate from
+docs/blocked.toml            workarounds waiting on a third party, each with its check
+tools/blocked.py             the checker behind `nix run .#blocked`
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
 statix.toml                  the two statix lints this repo switches off, with reasons
 hosts/maxnix/

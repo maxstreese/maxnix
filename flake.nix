@@ -800,6 +800,30 @@
         '';
       };
 
+      # nix run .#blocked — which workarounds in docs/blocked.toml are still
+      # waiting on a third party. The checker is ./tools/blocked.py; the list
+      # format is described at the top of the TOML.
+      #
+      # Two layers because writePython3Bin pins the interpreter and runs
+      # flake8 over the script at build time, but sets no PATH, and the
+      # checks call out to gh, git and bash. writeShellApplication supplies
+      # that. nix itself is deliberately not among them: the `nix` checks
+      # should evaluate with the Nix you are running, the same one CI pins.
+      #
+      # Not a `check`, and not part of `ci`: most of its checks need the
+      # network, which the build sandbox does not have, and a pull request
+      # should not fail because something upstream moved.
+      blockedPy = pkgs.writers.writePython3Bin "blocked-py" { } (builtins.readFile ./tools/blocked.py);
+      blocked = pkgs.writeShellApplication {
+        name = "blocked";
+        runtimeInputs = [
+          pkgs.gh
+          pkgs.git
+          pkgs.bash
+        ];
+        text = ''exec ${lib.getExe blockedPy} "$@"'';
+      };
+
       # One-step runner for a test's interactive driver.
       #
       # This is how the GPU tier runs, and it has to be: a sandboxed build
@@ -1023,6 +1047,10 @@
         install = {
           type = "app";
           program = lib.getExe installRunner;
+        };
+        blocked = {
+          type = "app";
+          program = lib.getExe blocked;
         };
       }
       // lib.mapAttrs' (name: test: {
