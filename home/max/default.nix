@@ -22,6 +22,7 @@
     ./dev.nix
     ./git.nix
     ./ssh.nix
+    ./shell.nix
   ];
 
   home.username = "max";

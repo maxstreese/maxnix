@@ -72,6 +72,25 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Agent of Empires (`aoe`), a tmux-based session manager for coding
+    # agents. Not in nixpkgs; upstream's own flake builds it from source (no
+    # binary cache). Pinned to a release tag rather than main, which moves
+    # daily — bump the tag here to update. See home/max/dev.nix.
+    aoe = {
+      url = "github:agent-of-empires/agent-of-empires/v1.18.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # herdr, a terminal workspace manager for coding agents. nixpkgs has it,
+    # but its 0.9.1 fails to link there (ld.bfd: "overlapping FDEs" against
+    # the bundled libghostty-vt), so it is not in the binary cache either.
+    # Upstream's flake, pinned to a release tag; bump the tag to update, and
+    # retry nixpkgs' `herdr` when it moves past 0.9.1.
+    herdr = {
+      url = "github:herdrdev/herdr/v0.9.3";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Drives `nix fmt` and the formatting check. Config in ./treefmt.nix.
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";

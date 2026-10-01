@@ -138,6 +138,64 @@
     # (it reports its own version 1.16), so a separate scala-cli is
     # redundant; sbt is not installed — add it here if a project wants it.
     scala
+
+    # ── Everyday CLI ─────────────────────────────────────────────────────
+    #
+    # Carried over from the Ubuntu host on the evidence in
+    # ../../docs/inventory.md: each of these was typed in the last 90 days.
+    # Rarer tools are left to `,` above.
+    ripgrep
+    fd
+    glow
+    btop
+    duf
+    jq
+    tree
+    unzip
+    whois
+    traceroute
+    wget
+    gnupg
+    pwgen
+
+    # Terminal multiplexer, and aoe, which runs its sessions inside it. aoe
+    # and herdr come from upstream's flakes: nixpkgs lacks the first and
+    # cannot build the second (see the inputs in ../../flake.nix).
+    tmux
+    inputs.aoe.packages.${pkgs.stdenv.hostPlatform.system}.default
+    inputs.herdr.packages.${pkgs.stdenv.hostPlatform.system}.default
+
+    # ── Kubernetes and the platform around it ─────────────────────────────
+    kubectx # kubectx and kubens
+    kubernetes-helm
+    fluxcd
+    argo-workflows
+    harbor-cli
+    kaf
+
+    # logcli has no package of its own; grafana-loki builds it alongside
+    # loki, loki-canary and lokitool.
+    grafana-loki
+
+    # promtool only: prometheus splits it into its own `cli` output, so the
+    # server does not come along.
+    prometheus.cli
+
+    # ── Data, JVM, Python ─────────────────────────────────────────────────
+    trino-cli
+    visualvm
+
+    # uv. Its downloaded CPython cannot run here; point it at a Nix Python
+    # instead, as the marimo note above describes.
+    uv
+
+    # DataGrip. Unfree; allow-listed in ../../hosts/maxnix/configuration.nix.
+    jetbrains.datagrip
+
+    # ── Secrets ───────────────────────────────────────────────────────────
+    sops
+    age
+    betterleaks
   ];
 
   # marimo checks PyPI on startup and nags when it is behind. On a

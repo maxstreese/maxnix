@@ -247,6 +247,8 @@
     # the other refused.
     "discord"
     "discord-unwrapped"
+    # See home/max/dev.nix.
+    "datagrip"
   ];
 
   # Environment for the *user* layer that can only be set here.

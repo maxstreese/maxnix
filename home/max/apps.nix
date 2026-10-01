@@ -34,5 +34,10 @@
     # rewrites that file itself — the same fight the greeter's colour file
     # lost. The package alone is what is wanted.
     discord
+
+    # No account needed for these two; they sit here as the other desktop
+    # applications.
+    obs-studio
+    gimp
   ];
 }
