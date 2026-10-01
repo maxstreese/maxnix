@@ -36,7 +36,7 @@
     "customManagers:githubActionsVersions"
   ],
 
-  // Schedules below are read in this zone rather than UTC.
+  // Schedules, should any come back, are read in this zone rather than UTC.
   "timezone": "Europe/Berlin",
 
   // The nix manager is in beta and ships disabled. Without this, Renovate
@@ -55,14 +55,20 @@
   // Not scoped under `nix` because flake.lock is the only lock file in the
   // repository; if another ever appears, scope it then.
   //
-  // Known upstream quirk (renovate#29721): this only refreshes flake.lock
-  // when flake.nix contains a `github:NixOS/nixpkgs/...` style input string.
-  // Ours does — `nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable"` — so
-  // it applies here, but that is a thing to re-check if that line changes.
+  // "at any time" because the workflow's daily cron is the one place that
+  // decides when Renovate runs. lockFileMaintenance otherwise falls back to
+  // its own default of Monday mornings, even with no schedule set here.
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["before 6am on monday"]
+    "schedule": ["at any time"]
   },
+
+  // No Dependency Dashboard. Runs are started by the workflow — nightly, or
+  // by hand with `gh workflow run renovate.yml` — and the PRs themselves are
+  // the record of what is pending. What this gives up: a run's warnings
+  // (a rejected postUpgradeTask, a config problem) no longer surface as an
+  // issue, only in the run's log.
+  "dependencyDashboard": false,
 
   // Flake inputs pinned to a release tag (aoe, herdr). The nix manager above
   // cannot bump these: it reads inputs from flake.lock and gives every one
@@ -100,9 +106,36 @@
 
   "packageRules": [
     {
+      // Every version bump in one PR; lock file maintenance stays its own
+      // weekly PR (Renovate always gives it a separate branch anyway). The
+      // two carry very different risk: a tag or adapter bump touches one
+      // package and CI is good evidence for it, while the lock refresh moves
+      // all of nixpkgs and needs the local render suites. Kept apart, a small
+      // bump never waits on the big one, and a breakage points at one of
+      // them. The update types are listed so the lock refresh is not swept
+      // into this group.
+      "description": "All version bumps in one PR",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "pinDigest",
+        "digest",
+        "rollback",
+        "bump",
+        "replacement"
+      ],
+      "groupName": "dependencies"
+    },
+    {
       // A new tag in flake.nix leaves flake.lock on the old commit. `nix
-      // flake lock` re-resolves only inputs whose URL changed. `branch` mode
-      // runs it once on the finished branch rather than per update.
+      // flake lock` re-resolves only inputs whose URL changed.
+      //
+      // `update` mode, not `branch`, here and below: a branch-mode task is
+      // taken from the branch's merged config, so in the grouped PR above
+      // only one of the two would run. Per update, each runs its own; both
+      // are idempotent, so running one twice changes nothing.
       //
       // Two --extra-experimental-features rather than one quoted
       // 'nix-command flakes': Renovate runs these without a shell, so there
@@ -117,7 +150,7 @@
         ],
         "fileFilters": ["flake.lock"],
         "installTools": { "nix": {} },
-        "executionMode": "branch"
+        "executionMode": "update"
       }
     },
     {
@@ -130,7 +163,7 @@
         "commands": ["scripts/renovate-pypi-rehash"],
         "fileFilters": ["home/max/harlequin-adapters.json"],
         "installTools": { "nix": {} },
-        "executionMode": "branch"
+        "executionMode": "update"
       }
     }
   ],

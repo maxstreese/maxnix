@@ -13,13 +13,12 @@
 name: renovate
 
 on:
-  # 02:00 UTC is 03:00/04:00 in Berlin. renovate.jsonc's own schedules
-  # (lock file maintenance on Monday mornings) are evaluated inside each run,
-  # so this only has to run at least as often as the tightest of them.
+  # 02:00 UTC is 03:00/04:00 in Berlin. The only schedule there is:
+  # renovate.jsonc sets none of its own, so every run may open or refresh
+  # any PR, the lock file maintenance one included.
   schedule:
     - cron: "0 2 * * *"
-  # By hand, and for checkbox clicks on the Dependency Dashboard to take
-  # effect before the next night.
+  # By hand: gh workflow run renovate.yml -f log-level=debug
   workflow_dispatch:
     inputs:
       log-level:
