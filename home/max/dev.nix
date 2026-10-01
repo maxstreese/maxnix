@@ -193,6 +193,37 @@
     # allow-list entry; it replaced DataGrip.
     dbeaver-bin
 
+    # ── Inspecting this machine's own closure ─────────────────────────────
+    #
+    # sbomnix is TII's toolbox for the Nix store, from the team behind the
+    # Ghaf platform. The tool wanted here is vulnxscan: a CVE scan of the
+    # running system that combines vulnix, grype and OSV, and drops CVEs
+    # nixpkgs has patched without bumping the version, by reading the patches
+    # in each derivation. That is the false positive the employer's Fleet will
+    # raise once it inventories Nix packages, because Fleet matches against
+    # the NVD only (learned 2026-10-01). So `vulnxscan /run/current-system` is
+    # how to answer "is this CVE real here?" before taking it to IT. The same
+    # package brings sbomnix (a CycloneDX/SPDX SBOM of the system),
+    # nix_outdated and nixgraph.
+    #
+    # It needs the system's .drv files, not just its outputs. A system built
+    # here has them (keep-derivations is on by default); the VM does not,
+    # since vm-deploy copies outputs only and the guest reports "No derivation
+    # metadata found". Scan the VM's system from the host instead. A scan
+    # against a closure that is only partly built degrades silently rather
+    # than failing: tried 2026-10-01, it saw 49 components where the full
+    # system has 1774, and grype and OSV found nothing.
+    #
+    # --triage looks packages up on repology.org, which the employer's DNS
+    # resolves to 127.0.0.1, so on its network the flag crashes the run after
+    # the scan, before anything is written.
+    #
+    # nix-tree is the follow-up question: what pulls a flagged library into
+    # the closure, and so whether it can be dropped or has to wait for
+    # nixpkgs.
+    sbomnix
+    nix-tree
+
     # ── Secrets ───────────────────────────────────────────────────────────
     sops
     age
