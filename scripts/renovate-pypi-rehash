@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Recomputes the sdist hashes in home/max/harlequin-adapters.json from the
+# versions in it. Renovate runs this after bumping a version there (see the
+# postUpgradeTasks in renovate.jsonc); by hand it is the same command.
+#
+# Nothing but Nix: the Renovate container has nix and little else, so the
+# fetch, the hash and the JSON are all done by one `nix eval`. --impure
+# because builtins.fetchurl without a hash is exactly the point here.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+file=home/max/harlequin-adapters.json
+export NIX_CONFIG="extra-experimental-features = nix-command"
+
+# The expression is Nix, single-quoted so the shell leaves its ${…} alone.
+# shellcheck disable=SC2016
+nix eval --impure --json --expr '
+  let
+    pins = builtins.fromJSON (builtins.readFile ./'"$file"');
+    sdist = name: version:
+      "https://files.pythonhosted.org/packages/source/"
+      + builtins.substring 0 1 name + "/${name}/${name}-${version}.tar.gz";
+  in
+  builtins.mapAttrs (name: pin: pin // {
+    hash = builtins.convertHash {
+      hash = builtins.hashFile "sha256" (builtins.fetchurl (sdist name pin.version));
+      hashAlgo = "sha256";
+      toHashFormat = "sri";
+    };
+  }) pins
+' > "$file.new"
+mv "$file.new" "$file"

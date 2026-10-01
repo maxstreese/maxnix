@@ -1,15 +1,20 @@
 // Dependency updates, as pull requests that CI has already judged.
 //
 // JSONC rather than JSON so this can be commented, which matters here because
-// three of the five settings below are switched on to work around a default
-// that silently does nothing. Renovate accepts .json5 too, but its docs name
+// several settings below are switched on to work around a default that
+// silently does nothing. Renovate accepts .json5 too, but its docs name
 // .jsonc as the one to reach for when you want comments.
 //
 // At the repository root rather than under .github/: both are supported, and
 // the root filenames come first in Renovate's search order.
 //
-// Renovate is a GitHub App and has to be installed on the repository by hand;
-// this file only configures it. Until it is installed, nothing here runs.
+// Renovate runs self-hosted, from .github/workflows/renovate.yml, as the
+// repository's own GitHub App rather than Mend's hosted one. The reason is
+// postUpgradeTasks below: they run commands after an update, which is how a
+// PR that changes flake.nix arrives with a flake.lock to match, and the
+// hosted app does not allow them. Settings that only a self-hosted Renovate
+// accepts — which commands may run, which repositories to visit — are in
+// .github/renovate-global.js; this file is the per-repository part.
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
 
@@ -22,7 +27,13 @@
     // had all of its rewritten to malicious commits in March 2025. Doing this
     // through a preset rather than by hand also means an action added later
     // gets pinned without anyone remembering to.
-    "helpers:pinGitHubActionDigests"
+    "helpers:pinGitHubActionDigests",
+
+    // Updates `FOO_VERSION:` values in workflow files that carry a
+    // `# renovate: datasource=… depName=…` comment — here the Renovate
+    // version in .github/workflows/renovate.yml, so the bot keeps itself
+    // current like everything else.
+    "customManagers:githubActionsVersions"
   ],
 
   // Schedules below are read in this zone rather than UTC.
@@ -52,6 +63,77 @@
     "enabled": true,
     "schedule": ["before 6am on monday"]
   },
+
+  // Flake inputs pinned to a release tag (aoe, herdr). The nix manager above
+  // cannot bump these: it reads inputs from flake.lock and gives every one
+  // but nixpkgs a locked commit and no version, so it has nothing to compare
+  // a newer tag against — and lockFileMaintenance re-resolves the same tag to
+  // the same commit. The first manager reads the tag straight out of the URL
+  // instead and asks GitHub for newer ones. (renovate#45258 would teach the
+  // nix manager this; once it lands, the first entry can go.)
+  //
+  // The second keeps the Harlequin adapters in home/max/harlequin-adapters.json
+  // on PyPI's latest release.
+  //
+  // Neither has an artifact step of its own — a regex manager only edits
+  // text — which is what the postUpgradeTasks in packageRules supply.
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Release tags in github: flake input URLs",
+      "managerFilePatterns": ["/(^|/)flake\\.nix$/"],
+      "matchStrings": [
+        "url = \"github:(?<depName>[^/\"]+/[^/\"]+)/(?<currentValue>v\\d+\\.\\d+\\.\\d+)\";"
+      ],
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "description": "Harlequin adapters pinned from PyPI",
+      "managerFilePatterns": ["/(^|/)harlequin-adapters\\.json$/"],
+      "matchStrings": [
+        "\"(?<depName>[A-Za-z0-9_.-]+)\":\\s*\\{[^}]*\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "pypi"
+    }
+  ],
+
+  "packageRules": [
+    {
+      // A new tag in flake.nix leaves flake.lock on the old commit. `nix
+      // flake lock` re-resolves only inputs whose URL changed. `branch` mode
+      // runs it once on the finished branch rather than per update.
+      //
+      // Two --extra-experimental-features rather than one quoted
+      // 'nix-command flakes': Renovate runs these without a shell, so there
+      // is nothing to honour the quotes. The exact string is allow-listed in
+      // .github/renovate-global.js.
+      "description": "Relock after a flake input tag bump",
+      "matchFileNames": ["flake.nix"],
+      "matchDatasources": ["github-tags"],
+      "postUpgradeTasks": {
+        "commands": [
+          "nix --extra-experimental-features nix-command --extra-experimental-features flakes flake lock"
+        ],
+        "fileFilters": ["flake.lock"],
+        "installTools": { "nix": {} },
+        "executionMode": "branch"
+      }
+    },
+    {
+      // A new version leaves the old sdist hash beside it, which would fail
+      // the build. The script refetches every pinned sdist and rewrites the
+      // hashes from the versions now in the file.
+      "description": "Rehash after a Harlequin adapter bump",
+      "matchFileNames": ["home/max/harlequin-adapters.json"],
+      "postUpgradeTasks": {
+        "commands": ["scripts/renovate-pypi-rehash"],
+        "fileFilters": ["home/max/harlequin-adapters.json"],
+        "installTools": { "nix": {} },
+        "executionMode": "branch"
+      }
+    }
+  ],
 
   // No automerge anywhere, deliberately. A green `checks / portable` proves
   // the machine builds, boots and has its software, and proves nothing about

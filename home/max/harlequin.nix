@@ -28,6 +28,18 @@
 let
   py = pkgs.python3Packages;
 
+  # The adapters' PyPI versions and sdist hashes, keyed by distribution name.
+  # A JSON file rather than Nix so Renovate can maintain it: it bumps a
+  # version through a regex manager, then scripts/renovate-pypi-rehash
+  # rewrites the hashes to match (see renovate.jsonc).
+  pins = builtins.fromJSON (builtins.readFile ./harlequin-adapters.json);
+  fromPypi =
+    name:
+    pkgs.fetchPypi {
+      pname = name;
+      inherit (pins.${name}) version hash;
+    };
+
   # nixpkgs' trino client fails its own build at the pinned revision, so it
   # is not in the binary cache. The newer pythonMetadataCheckPhase looks the
   # distribution up by pname, "trino-python-client", while the package calls
@@ -37,16 +49,12 @@ let
     dontCheckPythonMetadata = true;
   };
 
-  harlequin-trino = py.buildPythonPackage rec {
+  harlequin-trino = py.buildPythonPackage {
     pname = "harlequin-trino";
-    version = "0.1.6";
+    inherit (pins.harlequin_trino) version;
     pyproject = true;
 
-    src = pkgs.fetchPypi {
-      pname = "harlequin_trino";
-      inherit version;
-      hash = "sha256-Eqhnu9SeHn7iGaHRnzP0+CNqva1XY4u9zQbPuqkiucI=";
-    };
+    src = fromPypi "harlequin_trino";
 
     build-system = [ py.poetry-core ];
 
@@ -72,16 +80,12 @@ let
     };
   };
 
-  harlequin-mysql = py.buildPythonPackage rec {
+  harlequin-mysql = py.buildPythonPackage {
     pname = "harlequin-mysql";
-    version = "1.4.0";
+    inherit (pins.harlequin_mysql) version;
     pyproject = true;
 
-    src = pkgs.fetchPypi {
-      pname = "harlequin_mysql";
-      inherit version;
-      hash = "sha256-YOsQCXhxHE+KbhtwLX/tMT8piysGQe7SWaVBVnP3XSU=";
-    };
+    src = fromPypi "harlequin_mysql";
 
     build-system = [ py.hatchling ];
 

@@ -1,0 +1,71 @@
+# Renovate, self-hosted.
+#
+# Runs the Renovate container against this repository as the repository's
+# own GitHub App. Why self-hosted rather than Mend's hosted app is in
+# ../../renovate.jsonc; the operator settings are in ../renovate-global.js.
+#
+# An App token rather than GITHUB_TOKEN because of what the PRs need to do:
+# workflows on a PR opened with GITHUB_TOKEN wait for a human to approve
+# them, and a push made with it starts none at all. With the App's token,
+# `checks` runs on every Renovate PR like on anyone else's. The token is
+# minted per run and expires within the hour; only the App's private key is
+# long-lived, in the RENOVATE_APP_PRIVATE_KEY secret (copy in 1Password).
+name: renovate
+
+on:
+  # 02:00 UTC is 03:00/04:00 in Berlin. renovate.jsonc's own schedules
+  # (lock file maintenance on Monday mornings) are evaluated inside each run,
+  # so this only has to run at least as often as the tightest of them.
+  schedule:
+    - cron: "0 2 * * *"
+  # By hand, and for checkbox clicks on the Dependency Dashboard to take
+  # effect before the next night.
+  workflow_dispatch:
+    inputs:
+      log-level:
+        description: Renovate log level
+        type: choice
+        options: [info, debug]
+        default: info
+
+# Two Renovate runs on the same repository would race for the same branches.
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+# The job itself needs nothing from GITHUB_TOKEN beyond checking out; all
+# writes go through the App's token.
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Not RENOVATE_VERSION: the action hands every RENOVATE_* variable to
+      # the container, where Renovate would read it as a config option.
+      # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
+      SELF_HOSTED_RENOVATE_VERSION: 44.129.0
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+
+      # Only for the global config file; Renovate clones the repository
+      # itself, with the App's token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: renovatebot/github-action@6d26fcf0275dc65624cbc3d51fe78bc773f98321 # v46.3.6
+        with:
+          configurationFile: .github/renovate-global.js
+          token: ${{ steps.app-token.outputs.token }}
+          # The slim image: Renovate installs Nix into it on demand
+          # (containerbase) — the nix manager's lock step by itself, the
+          # postUpgradeTasks through their installTools. The full image
+          # ships Nix but is several gigabytes to pull every night.
+          renovate-version: ${{ env.SELF_HOSTED_RENOVATE_VERSION }}
+        env:
+          LOG_LEVEL: ${{ inputs.log-level || 'info' }}
