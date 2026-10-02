@@ -510,6 +510,12 @@
       #
       #   nix run .#backup -- rclone about gdrive:
       #   nix run .#backup -- rclone lsd gdrive:
+      #   nix run .#backup -- restic snapshots
+      #   nix run .#backup -- restic restore latest --target /tmp/r --include /home/max/x
+      #
+      # restic gets the repository and its password the same way, and its
+      # rclone backend starts the rclone below with this environment, so the
+      # gdrive: remote reaches it unchanged.
       #
       # For testing the OAuth client now, and for the day this machine's disk
       # is gone along with its sops key: 1Password is then the only copy left,
@@ -547,6 +553,7 @@
       backup =
         let
           item = "op://uxobupcysqhat566ymgikx46fm/vzuc267xgjsigg4luhczyeml6q";
+          resticPassword = "op://uxobupcysqhat566ymgikx46fm/3mgylwhm4eziob5ka5v2vv4o24/password";
 
           # Runs inside `op run`, after the references are resolved.
           authorize = pkgs.writeShellScript "backup-authorize" ''
@@ -560,7 +567,10 @@
         in
         pkgs.writeShellApplication {
           name = "backup";
-          runtimeInputs = [ pkgs.rclone ];
+          runtimeInputs = [
+            pkgs.rclone
+            pkgs.restic
+          ];
           text = ''
             if [ $# -eq 0 ]; then
               echo "usage: nix run .#backup -- <command>   e.g. rclone about gdrive:" >&2
@@ -587,6 +597,8 @@
             # exist, and `op run` refuses a reference it cannot resolve.
             export RCLONE_CONFIG_GDRIVE_TYPE=drive
             export RCLONE_CONFIG_GDRIVE_TOKEN="${item}/token"
+            export RESTIC_REPOSITORY=rclone:gdrive:maxnix-backup
+            export RESTIC_PASSWORD="${resticPassword}"
 
             op run --account my.1password.com -- "$@"
           '';
