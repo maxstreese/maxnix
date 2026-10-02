@@ -1,0 +1,59 @@
+# Reports when something in docs/blocked.toml has become doable.
+#
+# One command, like checks.yml: `nix run .#blocked-report` runs the checker
+# and keeps one issue open per unblocked entry. Opening that issue is the
+# notification; later runs only edit it, which notifies nobody, and close it
+# once the entry is gone from the list. tools/blocked-report.py has the whole
+# lifecycle, including the single issue for checks that fail.
+#
+# Two triggers, for the two kinds of check. The schedule catches the outside
+# world: tags, releases, pull requests and issues upstream. The push trigger
+# catches the `nix` checks, which can only change when flake.lock does —
+# Renovate's lock update merges, and the entry is reported that day rather
+# than up to a week later. It also checks a newly added entry straight away.
+#
+# Everything here is public, issues included, which docs/blocked.toml's own
+# header already requires of its entries.
+name: blocked
+
+on:
+  schedule:
+    # Mondays, 04:00 UTC.
+    - cron: "0 4 * * 1"
+  push:
+    branches: [main]
+    paths:
+      - flake.lock
+      - docs/blocked.toml
+  workflow_dispatch:
+
+# Two runs at once could both find no issue for an entry and both open one.
+concurrency:
+  group: blocked
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # The only write: labels, and issues it opened itself.
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Pinned to the same Nix as checks.yml, for the same reason: the `nix`
+      # checks should evaluate here exactly as they do locally. No KVM and no
+      # disk clearing — this evaluates the flake and builds two small
+      # scripts, nothing else.
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.34.8/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - run: nix run .#blocked-report
+        env:
+          GH_TOKEN: ${{ github.token }}

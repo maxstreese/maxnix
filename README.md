@@ -110,6 +110,8 @@ flake.nix                    inputs, hostModules, packages + apps + checks + dev
 docs/inventory.md            what the current host runs daily; the list to migrate from
 docs/blocked.toml            workarounds waiting on a third party, each with its check
 tools/blocked.py             the checker behind `nix run .#blocked`
+tools/blocked-report.py      its results as issues, one per entry that has become doable
+.github/workflows/blocked.yml  runs that weekly and whenever flake.lock or the list changes
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
 statix.toml                  the two statix lints this repo switches off, with reasons
 hosts/maxnix/

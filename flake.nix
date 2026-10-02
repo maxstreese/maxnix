@@ -824,6 +824,23 @@
         text = ''exec ${lib.getExe blockedPy} "$@"'';
       };
 
+      # nix run .#blocked-report — what .github/workflows/blocked.yml runs:
+      # the checker's JSON turned into issues, one per entry that has become
+      # doable, so GitHub's own notifications say so. ./tools/blocked-report.py
+      # describes the issue lifecycle. `--dry-run` prints what it would do on
+      # GitHub and changes nothing, which is the way to run it by hand.
+      blockedReportPy = pkgs.writers.writePython3Bin "blocked-report-py" { } (
+        builtins.readFile ./tools/blocked-report.py
+      );
+      blockedReport = pkgs.writeShellApplication {
+        name = "blocked-report";
+        runtimeInputs = [
+          blocked
+          pkgs.gh
+        ];
+        text = ''exec ${lib.getExe blockedReportPy} "$@"'';
+      };
+
       # One-step runner for a test's interactive driver.
       #
       # This is how the GPU tier runs, and it has to be: a sandboxed build
@@ -1051,6 +1068,10 @@
         blocked = {
           type = "app";
           program = lib.getExe blocked;
+        };
+        blocked-report = {
+          type = "app";
+          program = lib.getExe blockedReport;
         };
       }
       // lib.mapAttrs' (name: test: {
