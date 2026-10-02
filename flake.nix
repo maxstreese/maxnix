@@ -548,8 +548,12 @@
       # screen grants.
       #
       # The consent screen should name this project's app, not rclone. Save
-      # the JSON it prints as the item's `token` field; the access_token in it
-      # can be dropped, the refresh_token is the credential.
+      # the JSON it prints as the item's `token` field exactly as printed.
+      # Do not strip the expired access_token: rclone 1.75 rewrites a token
+      # whose access_token is empty or missing back into its config file as
+      # an empty one, refresh_token gone — reproduced, and how the VM's first
+      # backup failed (2026-10-02). Every command below therefore checks the
+      # field's shape before running.
       backup =
         let
           item = "op://uxobupcysqhat566ymgikx46fm/vzuc267xgjsigg4luhczyeml6q";
@@ -563,6 +567,20 @@
               exit 1
             fi
             exec ${lib.getExe pkgs.rclone} authorize drive
+          '';
+
+          # Likewise inside `op run`: refuse a token rclone would destroy (see
+          # above), then run the command. Prints field names only.
+          checked = pkgs.writeShellScript "backup-checked" ''
+            set -eu
+            if ! printf '%s' "$RCLONE_CONFIG_GDRIVE_TOKEN" \
+              | ${lib.getExe pkgs.jq} -e '(.access_token // "") != "" and (.refresh_token // "") != ""' >/dev/null 2>&1; then
+              echo "the token field needs both access_token and refresh_token, as rclone authorize printed it;" >&2
+              echo "it has: $(printf '%s' "$RCLONE_CONFIG_GDRIVE_TOKEN" | ${lib.getExe pkgs.jq} -c keys 2>/dev/null || echo 'no valid JSON')" >&2
+              echo "fix: nix run .#backup -- authorize, and save its output unchanged" >&2
+              exit 1
+            fi
+            exec "$@"
           '';
         in
         pkgs.writeShellApplication {
@@ -603,7 +621,7 @@
             export RESTIC_REPOSITORY="''${RESTIC_REPOSITORY:-${maxnix.config.maxnix.backup.repository}}"
             export RESTIC_PASSWORD="${resticPassword}"
 
-            op run --account my.1password.com -- "$@"
+            op run --account my.1password.com -- ${checked} "$@"
           '';
         };
 

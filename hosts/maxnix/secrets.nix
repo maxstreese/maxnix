@@ -140,9 +140,12 @@ in
     # as.
     #
     # rclone writes refreshed access tokens back into its config file. Here
-    # that lands in the rendered copy and is replaced at the next activation,
-    # which is harmless: the refresh token is the credential, and Google does
-    # not rotate it.
+    # that lands in the rendered copy and is replaced at the next activation.
+    # Harmless for a token stored whole, as `rclone authorize` prints it — but
+    # one stored without its access_token is rewritten as an empty token on
+    # first use, refresh_token included, and every run after that fails with
+    # "no refresh token" until the next activation. See the `backup` app in
+    # ../../flake.nix, which refuses such a token.
     sops.templates."rclone.conf" = lib.mkIf backupDrive {
       content = ''
         [gdrive]
