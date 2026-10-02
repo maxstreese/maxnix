@@ -708,6 +708,12 @@
           # the file is the flake's, not whatever the host has.
           pkgs.sops
           pkgs.age
+
+          # `rclone authorize "drive" <id> <secret>` for the backup's Google
+          # Drive token (hosts/maxnix/backup.nix). From the flake's nixpkgs so
+          # it matches the rclone the backup unit runs; mismatched versions
+          # produce token format errors.
+          pkgs.rclone
         ];
 
         # sops gets the admin key from 1Password on each run rather than from
