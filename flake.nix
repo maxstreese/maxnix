@@ -503,6 +503,95 @@
           '';
         };
 
+      # nix run .#backup -- <command>
+      #
+      # Runs a command against the backup's Google Drive with credentials from
+      # 1Password, from any machine that has `op` signed in:
+      #
+      #   nix run .#backup -- rclone about gdrive:
+      #   nix run .#backup -- rclone lsd gdrive:
+      #
+      # For testing the OAuth client now, and for the day this machine's disk
+      # is gone along with its sops key: 1Password is then the only copy left,
+      # so this is the restore path, not a convenience.
+      #
+      # The remote is defined entirely by environment variables holding op://
+      # references, which `op run` resolves into the command's environment
+      # only, masking them in its output. Nothing secret reaches an argument
+      # list or shell history. The one leak would be rclone saving a refreshed
+      # token, refresh token included, into its config file — so that is
+      # pointed at a fresh file in $XDG_RUNTIME_DIR (tmpfs) and removed on
+      # exit, rather than ~/.config/rclone/rclone.conf.
+      #
+      # `op` is the host's, as for vm-restore-key, and always with --account:
+      # without it `op` reads the default account, finds no such vault, and a
+      # hand-written `rclone authorize drive "$(op read …)" …` then runs with
+      # empty arguments.
+      #
+      # ── nix run .#backup -- authorize ────────────────────────────────────
+      #
+      # Fills the token field, once, or again after the grant is revoked.
+      # Guarded because of how that went the first time: rclone authorize
+      # given an empty client id does not fail, it silently falls back to
+      # rclone's own client, and the token it prints is refused later with
+      # `unauthorized_client` — the client that redeems a refresh token must
+      # be the one that issued it. Here the id and secret reach rclone as
+      # RCLONE_DRIVE_* variables rather than arguments, so they are not in ps
+      # either, and an empty one stops the run. The scope comes the same way:
+      # rclone's default is full `drive`, not the `drive.file` the consent
+      # screen grants.
+      #
+      # The consent screen should name this project's app, not rclone. Save
+      # the JSON it prints as the item's `token` field; the access_token in it
+      # can be dropped, the refresh_token is the credential.
+      backup =
+        let
+          item = "op://uxobupcysqhat566ymgikx46fm/vzuc267xgjsigg4luhczyeml6q";
+
+          # Runs inside `op run`, after the references are resolved.
+          authorize = pkgs.writeShellScript "backup-authorize" ''
+            set -eu
+            if [ -z "$RCLONE_DRIVE_CLIENT_ID" ] || [ -z "$RCLONE_DRIVE_CLIENT_SECRET" ]; then
+              echo "client id or secret empty in 1Password; not falling back to rclone's client" >&2
+              exit 1
+            fi
+            exec ${lib.getExe pkgs.rclone} authorize drive
+          '';
+        in
+        pkgs.writeShellApplication {
+          name = "backup";
+          runtimeInputs = [ pkgs.rclone ];
+          text = ''
+            if [ $# -eq 0 ]; then
+              echo "usage: nix run .#backup -- <command>   e.g. rclone about gdrive:" >&2
+              echo "       nix run .#backup -- authorize" >&2
+              exit 2
+            fi
+
+            umask 077
+            conf=$(mktemp -p "''${XDG_RUNTIME_DIR:?needs a tmpfs XDG_RUNTIME_DIR}" rclone.XXXXXX.conf)
+            trap 'rm -f "$conf"' EXIT
+
+            # Backend-wide, so `authorize` and the gdrive: remote share them.
+            export RCLONE_CONFIG="$conf"
+            export RCLONE_DRIVE_SCOPE=drive.file
+            export RCLONE_DRIVE_CLIENT_ID="${item}/client_id"
+            export RCLONE_DRIVE_CLIENT_SECRET="${item}/client_secret"
+
+            if [ "$1" = authorize ]; then
+              op run --account my.1password.com -- ${authorize}
+              exit
+            fi
+
+            # Only here: before the first authorize the token field does not
+            # exist, and `op run` refuses a reference it cannot resolve.
+            export RCLONE_CONFIG_GDRIVE_TYPE=drive
+            export RCLONE_CONFIG_GDRIVE_TOKEN="${item}/token"
+
+            op run --account my.1password.com -- "$@"
+          '';
+        };
+
       # nix run .#vm-deploy
       #
       # Build this machine here and activate it in the running VM, without a
@@ -1062,6 +1151,10 @@
         vm-deploy = {
           type = "app";
           program = lib.getExe vmDeploy;
+        };
+        backup = {
+          type = "app";
+          program = lib.getExe backup;
         };
         ci = {
           type = "app";
