@@ -736,12 +736,14 @@ Two things gate it, neither of them code:
 
 Until then this is two option values away from on, like backups.
 
-**Most of what the current host runs is not here yet, and the list is on
-hold.** `docs/inventory.md` records what the Ubuntu host has installed and
-what its shell history shows is actually used — 143 programs this quarter,
-about 25 of them already in maxnix. Decided so far: mise and sdkman give way
+**The everyday terminal tools from the current host are here; the rest is
+not yet.** `docs/inventory.md` records what the Ubuntu host has installed and
+what its shell history shows is actually used, and marks with ✓ what came
+over on 2026-10-01: the CLI tools, atuin and starship, DBeaver, and Harlequin
+in place of per-database clients. Decided besides: mise and sdkman give way
 to per-project flakes, and three host services stay behind. Still open: how
-to carry the Neovim config over, and the rows marked "?". Paused 2026-09-29.
+to carry the Neovim config over, the shell aliases and functions, a few
+tools proposed but not added, and the rows marked "?".
 
 **Bind reachability is only partly checked.** The dead German binds were found
 by a hand-run audit, not by anything in the repo. Both compositors now reject a

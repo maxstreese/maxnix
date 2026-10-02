@@ -1,9 +1,9 @@
 # Inventory of the current host
 
 What the Ubuntu host actually runs day to day, taken 2026-09-29 so that what
-moves into maxnix is chosen from evidence rather than memory. **On hold** —
-nothing below has been added yet except where marked ✓. Pick it up from
-"Still to decide".
+moves into maxnix is chosen from evidence rather than memory. The everyday
+terminal tools came over on 2026-10-01; rows marked ✓ are in maxnix. Pick up
+the rest from "Still to decide".
 
 ## How it was taken
 
@@ -35,6 +35,14 @@ later is the same collection; the counts below will have moved.
   second VPN client, and a remote-desktop tool. Twingate is the VPN here.
 - **Ubuntu-only plumbing is not coming**: snapd, livepatch, the apt/snap/brew
   update alias (`sysup`) that Nix replaces.
+- **Prompt and history** are Home Manager's atuin and starship modules, in
+  `home/max/shell.nix`, which also enables zsh beside bash so both get the
+  hooks. atuin's history from the Ubuntu host has to be copied over by hand.
+- **DBeaver, not DataGrip.** DataGrip came over first and was swapped out the
+  same day: DBeaver is free, so it needs no unfree allow-list entry.
+- **Harlequin for SQL in the terminal**, with Trino and MySQL adapters
+  packaged in `home/max/harlequin.nix`. It covers what `trino`, `mysql` and
+  `psql` were typed for, so those three stay out (`trino-cli` is in anyway).
 
 ## Still to decide
 
@@ -42,16 +50,25 @@ later is the same collection; the counts below will have moved.
    symlinked out of the store into a clone like `maxnix.dev.liveConfig`, or
    port it to Nix (nixvim)? Either way Mason's downloaded language servers
    will not run; LSPs and formatters have to come from nixpkgs.
-2. **Prompt and history.** starship and atuin are both initialised in
-   `.bashrc`. Home Manager has a module for each.
-3. **The "?" rows below.**
+2. **Shell aliases and functions** — none ported yet; see the last section.
+3. **Rows proposed U but not added**: tldr (tealdeer), bd (beads), mill.
+4. **The "?" rows below.**
 
 ## Already in maxnix
 
-git, gh, delta, fzf, direnv, kubectl, awscli2, steampipe, duckdb, scala,
-claude-code, 1Password and `op`, Twingate, Docker (rootless), marimo,
-ghostty, Firefox, Slack, Discord, Spotify, Steam, Wootility, htop, osquery,
-vim, comma.
+From before the inventory: git, gh, delta, fzf, direnv, kubectl, awscli2,
+steampipe, duckdb, scala, claude-code, 1Password and `op`, Twingate, Docker
+(rootless), marimo, ghostty, Firefox, Slack, Discord, Spotify, Steam,
+Wootility, htop, osquery, vim, comma.
+
+From the inventory (2026-10-01), marked ✓ in the tables: the everyday CLI in
+`home/max/dev.nix`, atuin, starship, bat and zsh in `home/max/shell.nix`, OBS
+and GIMP in `home/max/apps.nix`, DBeaver, Harlequin.
+
+Not from the inventory, added since: sbomnix and nix-tree (CVE checks
+against the running system), restic for the nightly backup, and rclone,
+which the backup runs and the dev shell carries for authorising its Drive
+token — it is not in the user layer.
 
 ## Terminal tools used this quarter
 
@@ -62,47 +79,47 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 | tool | 90d (all) | nixpkgs | home | note |
 |---|---|---|---|---|
 | nvim | 508 (2362) | neovim 0.12.5 | U+cfg | decision 1; `svim` function uses it |
-| aoe | 372 (806) | **missing** | ? | Agent of Empires — package it here, or its flake |
-| rg | 269 (791) | ripgrep | U | also used by the `rt` function |
-| mill | 130 (863) | mill 1.1.8 | P or U | |
-| bat | 106 (264) | bat | U+cfg | `programs.bat` |
+| aoe | 372 (806) | **missing** | U ✓ | upstream's flake, pinned to a release tag |
+| rg | 269 (791) | ripgrep | U ✓ | also used by the `rt` function |
+| mill | 130 (863) | mill 1.1.8 | P or U | not added yet |
+| bat | 106 (264) | bat | U+cfg ✓ | `programs.bat` |
 | pnpm | 75 (88) | pnpm | P | |
-| glow | 63 (205) | glow | U | |
-| kubectx / kubens | 57 (136) | kubectx | U | aliases to kubectl today |
-| rt | 47 (104) | — | U | shell function: `rg --files` into `tree` |
-| btop | 33 (202) | btop | U | also the `jtop` alias |
-| fd | 21 (96) | fd | U | `fdfind` on Ubuntu |
-| trino | 17 (92) | trino-cli | U | |
-| tldr | 16 (43) | tealdeer | U | |
-| argo | 11 (52) | argo-workflows | U | |
-| duf | 9 (84) | duf | U | |
-| helm | 9 (26) | kubernetes-helm | U | |
-| jq | 8 (16) | jq | U | |
-| harbor | 8 | harbor-cli | U | |
-| clip, jsontidy | 8 | wl-clipboard ✓ | U | aliases over xclip; wl-copy on Wayland |
+| glow | 63 (205) | glow | U ✓ | |
+| kubectx / kubens | 57 (136) | kubectx | U ✓ | aliases to kubectl today |
+| rt | 47 (104) | — | U | shell function: `rg --files` into `tree`; not ported |
+| btop | 33 (202) | btop | U ✓ | also the `jtop` alias |
+| fd | 21 (96) | fd | U ✓ | `fdfind` on Ubuntu |
+| trino | 17 (92) | trino-cli | U ✓ | Harlequin's Trino profile too |
+| tldr | 16 (43) | tealdeer | U | not added yet |
+| argo | 11 (52) | argo-workflows | U ✓ | |
+| duf | 9 (84) | duf | U ✓ | |
+| helm | 9 (26) | kubernetes-helm | U ✓ | |
+| jq | 8 (16) | jq | U ✓ | |
+| harbor | 8 | harbor-cli | U ✓ | |
+| clip, jsontidy | 8 | wl-clipboard ✓ | U | aliases over xclip; wl-copy on Wayland; aliases not ported |
 | sqlfluff | 8 | sqlfluff | , or P | |
 | deno | 7 | deno | P | |
-| flux | 6 (9) | fluxcd | U | |
+| flux | 6 (9) | fluxcd | U ✓ | |
 | agentsview | 5 (14) | not checked | ? | |
-| bd | 5 | beads | U | |
-| uv | 4 (44) | uv | U | projects still pin their Python |
-| kaf | 4 (15) | kaf | U | |
-| visualvm | 4 (12) | visualvm | U | |
+| bd | 5 | beads | U | not added yet |
+| uv | 4 (44) | uv | U ✓ | projects still pin their Python |
+| kaf | 4 (15) | kaf | U ✓ | |
+| visualvm | 4 (12) | visualvm | U ✓ | |
 | websocat | 3 (29) | websocat | , | |
-| betterleaks | 3 | betterleaks | U | |
-| herdr | 3 | herdr | ? | |
-| tmux | 2 (43) | tmux | ? | fading, but aoe runs on it |
-| sops, age | 2 | sops, age | U | also what maxnix's own secrets need |
+| betterleaks | 3 | betterleaks | U ✓ | |
+| herdr | 3 | herdr 0.9.1, fails to link | U ✓ | upstream's flake instead, pinned to a release tag |
+| tmux | 2 (43) | tmux | U ✓ | fading, but aoe runs on it |
+| sops, age | 2 | sops, age | U ✓ | also what maxnix's own secrets need |
 | dolt | 2 | dolt | , | |
-| pwgen | 2 (17) | pwgen | , | |
-| logcli | via completion | grafana-loki | U | its address variable goes with it |
-| promtool | 1 (19) | prometheus | , | |
-| tree, unzip, whois, traceroute, wget, gpg | low | all present | U | small basics |
+| pwgen | 2 (17) | pwgen | U ✓ | proposed `,`; went in with the basics |
+| logcli | via completion | grafana-loki | U ✓ | its address variable goes with it |
+| promtool | 1 (19) | prometheus | U ✓ | proposed `,`; `prometheus.cli` brings promtool without the server |
+| tree, unzip, whois, traceroute, wget, gpg | low | all present | U ✓ | small basics |
 
 ## Used before, not this quarter
 
 opencode 0 (208), mysql 0 (165), psql 0 (128), sbt 0 (28), restish 0 (41).
-Candidates for `,` — or P for sbt.
+Candidates for `,` — or P for sbt. Harlequin covers mysql and psql.
 
 ## Installed, never in the history
 
@@ -111,7 +128,8 @@ ast-grep, nushell, babashka, typst, pandoc, yt-dlp, lnav, jo, jd, dotenvx,
 temporal, cdk8s, cdxgen, opentofu, terraform, act, semgrep, usql, mongosh,
 kind, kustomize, kubetail, mirrord, telepresence, minikube, talosctl, devpod,
 dagger, flyway, powerpipe, coder, racket, aider, codex, gemini-cli, llm,
-aichat, markitdown, docling, specify, httpie, rclone, onefetch, go, rustup.
+aichat, markitdown, docling, specify, httpie, rclone (now in the dev shell,
+for the backup), onefetch, go, rustup.
 
 Default is to drop them or use `,`. The exception is anything run by scripts
 or IDEs rather than typed, which history cannot see.
@@ -123,18 +141,18 @@ or IDEs rather than typed, which history cannot see.
 | IntelliJ IDEA Ultimate | launcher alias | jetbrains.idea-ultimate | U (unfree) |
 | CLion | launcher alias | jetbrains.clion | ? |
 | Rider | installed | jetbrains.rider | ? |
-| DataGrip | installed | jetbrains.datagrip | ? |
+| DataGrip | installed | jetbrains.datagrip | X — DBeaver replaced it |
 | Thunderbird | dock favourite | thunderbird | U |
 | Zoom | installed | zoom-us | U |
 | Obsidian | installed | obsidian | U |
 | Threema | installed | threema-desktop | U |
 | LibreOffice | dock favourite | libreoffice | U |
 | Zed, Cursor, VS Code | installed; `code` 2 runs | all present | ? |
-| DBeaver | installed | dbeaver-bin | ? (overlaps DataGrip) |
+| DBeaver | installed | dbeaver-bin | U ✓ |
 | Google Chrome | installed | google-chrome | ? |
 | Wireshark | installed | wireshark | S (capture group) |
 | Altair, GitButler, Unity Hub | installed | all present | ? |
-| OBS, GIMP | installed | both present | , or U |
+| OBS, GIMP | installed | both present | U ✓ |
 | Flameshot | installed | present | X — X11; niri and DMS have screenshots |
 | JupyterLab desktop | installed | missing | X — marimo is here |
 | Emacs, WezTerm | installed | both present | X — nvim and ghostty won |
@@ -150,11 +168,13 @@ or IDEs rather than typed, which history cannot see.
 ## Shell configuration to port
 
 - **Aliases:** `ll`/`la`/`l`, `kubectx`/`kubens`/`kubepo`, `jtop`, `clip`,
-  `jsontidy`, `tp`, and launchers for IntelliJ and CLion.
-- **Functions:** `rt`, `svim`.
-- **Hooks:** starship, atuin, mise and sdkman (both going), cargo and deno
-  env, and a long run of `source <(… completion bash)` lines. Most of those
-  completions come free once the package is in Home Manager.
+  `jsontidy`, `tp`, and launchers for IntelliJ and CLion. None ported; the
+  `kubectx`/`kubens` aliases are moot now that the real tools are in.
+- **Functions:** `rt`, `svim`. Not ported.
+- **Hooks:** starship and atuin ✓ (Home Manager modules); mise and sdkman
+  going; cargo and deno env; and a long run of `source <(… completion bash)`
+  lines. Most of those completions come free once the package is in Home
+  Manager.
 
 ## Unidentified
 
