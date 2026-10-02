@@ -202,7 +202,9 @@ disko.lib.testLib.makeDiskoTest {
     # if /home had been missed entirely — the exclude would look like it
     # worked while the backup quietly covered half of what it should.
     machine.succeed("echo keep > /home/max/kept-marker")
-    machine.succeed("systemctl start restic-backups-maxnix.service")
+    # Through backup-now, the way it is started by hand, which is also the
+    # unit the timer starts. Its exit status is the unit's result.
+    machine.succeed("backup-now")
 
     # A snapshot exists at all.
     snapshots = machine.succeed("restic-maxnix snapshots")

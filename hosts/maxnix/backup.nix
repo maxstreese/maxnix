@@ -134,6 +134,52 @@ in
     # than discovered at 03:00 by a timer.
     systemd.services.restic-backups-maxnix.path = lib.mkIf isRclone [ pkgs.rclone ];
 
+    # backup-now: the nightly backup, started by hand and watched until it
+    # ends. Starting the unit rather than calling restic is the point — the
+    # same paths, excludes, secrets and pruning as the timer's run, and
+    # systemd will not start a second one beside a run already going.
+    #
+    # The unit is a oneshot, so `systemctl start` returns only once it has
+    # finished, with its result as the exit status; the journal is followed
+    # meanwhile. Ctrl-C stops the watching, not the backup. For everything
+    # else — snapshots, restore, mount — there is `sudo restic-maxnix`, the
+    # nixpkgs module's wrapper with the unit's environment.
+    environment.systemPackages = [
+      (pkgs.writeShellApplication {
+        name = "backup-now";
+        runtimeInputs = [
+          pkgs.coreutils
+          config.systemd.package
+        ];
+        text = ''
+          unit=restic-backups-maxnix.service
+
+          # Root for systemctl start and for reading the unit's journal. The
+          # setuid sudo, not one from the store.
+          if [ "$(id -u)" -ne 0 ]; then
+            exec ${config.security.wrapperDir}/sudo "$(readlink -f "$0")" "$@"
+          fi
+
+          echo "starting $unit; Ctrl-C stops watching, not the backup" >&2
+          journalctl --follow --lines=0 --output=cat --unit="$unit" &
+          follow=$!
+          trap 'kill "$follow" 2>/dev/null || true' EXIT
+
+          status=0
+          systemctl start "$unit" || status=$?
+          # Let the last lines through before the follower is stopped.
+          sleep 1
+
+          if [ "$status" -eq 0 ]; then
+            echo "backup finished" >&2
+          else
+            echo "backup FAILED; the whole run: journalctl -u $unit -n 200" >&2
+          fi
+          exit "$status"
+        '';
+      })
+    ];
+
     services.restic.backups.maxnix = {
       inherit (cfg) repository passwordFile rcloneConfigFile;
 

@@ -688,7 +688,9 @@ and the **repository password**, the client-side encryption key. Lose that one
 and the backups are permanently unreadable, which is why it must not live
 *only* on `/persist`.
 
-`nix run .#backup -- <command>` runs rclone or restic against the Drive with
+On the machine, `backup-now` runs the nightly backup by hand and follows its
+log, and `sudo restic-maxnix …` is restic with the unit's settings, for
+snapshots, restores and `mount`. `nix run .#backup -- <command>` runs rclone or restic against the Drive with
 those values from 1Password, from any machine with `op` signed in — the restore
 path for the day this disk is gone along with its sops key. `nix run .#backup
 -- authorize` issues a new token if the grant is ever revoked.
