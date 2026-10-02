@@ -158,6 +158,10 @@
     gnupg
     pwgen
 
+    # Not from the inventory: asked for directly. Counts lines of code,
+    # split into code, comments and blanks per language.
+    cloc
+
     # Terminal multiplexer, and aoe, which runs its sessions inside it. aoe
     # and herdr come from upstream's flakes: nixpkgs lacks the first and
     # cannot build the second (see the inputs in ../../flake.nix).
