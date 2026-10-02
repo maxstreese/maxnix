@@ -49,7 +49,13 @@
 # the newline `op read` ends with, which would otherwise end up in the
 # secret. For a multi-line value, `jq -Rs .` instead — that one keeps it.
 #
-# Fleet's two are `fleet-url` and `fleet-enroll-secret`.
+# Fleet's two are `fleet-url` and `fleet-enroll-secret`. The backup's four
+# come from two 1Password items, the same ones `nix run .#backup` reads:
+#
+#   restic-password             MaxNix Backup Restic Repository Password  password
+#   rclone-drive-client-id      MaxNix Backup Google OAuth Client  client_id
+#   rclone-drive-client-secret  MaxNix Backup Google OAuth Client  client_secret
+#   rclone-drive-token          MaxNix Backup Google OAuth Client  token
 #
 # and declare it below, next to whatever consumes it.
 #
@@ -62,6 +68,12 @@
 { config, lib, ... }:
 let
   harlequin = config.maxnix.harlequin.profiles;
+  backup = config.maxnix.backup;
+
+  # The Drive secrets only for an rclone: repository; a local one, as in
+  # checks.metal-boots, needs the password alone.
+  backupDrive =
+    backup.enable && backup.repository != null && lib.hasPrefix "rclone:" backup.repository;
 in
 {
   options.maxnix.harlequin.profiles.enable = lib.mkEnableOption ''
@@ -102,6 +114,14 @@ in
         trino-host = { };
         trino-user = { };
       })
+      (lib.mkIf backup.enable {
+        restic-password = { };
+      })
+      (lib.mkIf backupDrive {
+        rclone-drive-client-id = { };
+        rclone-drive-client-secret = { };
+        rclone-drive-token = { };
+      })
     ];
     sops.templates."orbit.env" = lib.mkIf config.maxnix.fleet.enable {
       content = "ORBIT_FLEET_URL=${config.sops.placeholder.fleet-url}\n";
@@ -112,6 +132,29 @@ in
     maxnix.fleet.urlEnvironmentFile =
       lib.mkIf config.maxnix.fleet.enable
         config.sops.templates."orbit.env".path;
+
+    # The backup's rclone.conf. Its shape is public, its three values are
+    # not, so a template like the ones above rather than one opaque secret
+    # holding the whole file. The remote name is the `gdrive` in the default
+    # maxnix.backup.repository. Root-owned, which is who the restic unit runs
+    # as.
+    #
+    # rclone writes refreshed access tokens back into its config file. Here
+    # that lands in the rendered copy and is replaced at the next activation,
+    # which is harmless: the refresh token is the credential, and Google does
+    # not rotate it.
+    sops.templates."rclone.conf" = lib.mkIf backupDrive {
+      content = ''
+        [gdrive]
+        type = drive
+        scope = drive.file
+        client_id = ${config.sops.placeholder.rclone-drive-client-id}
+        client_secret = ${config.sops.placeholder.rclone-drive-client-secret}
+        token = ${config.sops.placeholder.rclone-drive-token}
+      '';
+    };
+    maxnix.backup.passwordFile = lib.mkIf backup.enable config.sops.secrets.restic-password.path;
+    maxnix.backup.rcloneConfigFile = lib.mkIf backupDrive config.sops.templates."rclone.conf".path;
 
     # Harlequin's profiles. The file's shape is public; which systems it points
     # at is not, so host and user come from sops like Fleet's URL. Rendered

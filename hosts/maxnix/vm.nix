@@ -174,6 +174,17 @@
       # for the same reason as Fleet: it is the one machine holding a key.
       maxnix.harlequin.profiles.enable = true;
 
+      # Backups to Drive, from sops (./secrets.nix), so the whole path is
+      # exercised before install day. Into a folder of its own: the VM has
+      # metal's hostname, so in the real repository its snapshots would share
+      # retention with metal's and could crowd them out. Its /home and
+      # /persist are small and disposable; see the folder with
+      #   nix run .#backup -- rclone lsd gdrive:
+      maxnix.backup = {
+        enable = true;
+        repository = "rclone:gdrive:maxnix-backup-vm";
+      };
+
       virtualisation = {
         # Default is "./${hostname}.qcow2", i.e. wherever you happened to cd.
         # Pinned so a forgotten image in another directory cannot silently

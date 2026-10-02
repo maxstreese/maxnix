@@ -23,10 +23,15 @@
 # anywhere is the safer default — and awscli2 is already installed here, so S3
 # is a plausible landing place.
 #
-# ── Off until two things exist ───────────────────────────────────────────
+# The destination was settled afterwards, and constrained rather than chosen:
+# Google Drive is the only one the employer permits on this machine (learned
+# 2026-09-23), so the default repository is a Drive folder over rclone.
 #
-# A repository to write to, and a password to encrypt with. Neither can be
-# invented here, so this is disabled by default and asserts rather than
+# ── Off until enabled on a machine holding the secrets ───────────────────
+#
+# The Drive credentials and the repository password come from sops
+# (./secrets.nix), which declares them only once this is enabled. So this is
+# disabled by default, switched on per machine, and asserts rather than
 # silently doing nothing when half-configured.
 #
 # On the password specifically: it must NOT live only on this machine. A
@@ -54,8 +59,10 @@ in
 
     repository = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
-      default = null;
-      example = "s3:s3.eu-central-1.amazonaws.com/maxnix-backups";
+      # The `gdrive` remote is the one ./secrets.nix renders into
+      # rclone.conf, and `nix run .#backup` reads this same value, so the
+      # machine and the restore path cannot point at different folders.
+      default = "rclone:gdrive:maxnix-backup";
       description = ''
         The restic repository to write to. Any restic backend: a path, an
         sftp: URL, s3:, b2:, rclone:.
@@ -73,18 +80,17 @@ in
         long-lived credential and belongs with the repository password rather
         than on disk beside it.
 
-        Getting one is a three-step job that cannot happen here:
+        ./secrets.nix renders it from three sops values and sets this; the
+        values come from the 1Password item `nix run .#backup` reads:
 
-          1. Create an OAuth client ID in Google Cloud Console with the Drive
-             API enabled. This is no longer optional — rclone's shared
-             credentials are rate-limited and are being retired during 2026 —
-             and on a managed Workspace account it may be blocked by admin
-             policy, which is the thing to check before anything else.
-          2. On a machine that has a browser:
-               rclone authorize "drive" <client-id> <client-secret>
-             and approve. Keep the rclone versions close; mismatched ones
-             produce token format errors.
-          3. Put the resulting token into an rclone.conf and point this at it.
+          1. An OAuth client of our own, in the company Workspace's Google
+             Cloud project `maxstreese-laptop-backup`: Desktop type, Internal
+             audience (no verification, no 7-day token expiry), scope
+             drive.file. rclone's shared credentials are rate-limited and
+             being retired during 2026.
+          2. A token for it, from `nix run .#backup -- authorize` on a machine
+             with a browser, saved as the item's `token` field.
+          3. The client id, secret and token piped into sops (./secrets.nix).
 
         Note what this does NOT replace: restic still encrypts everything
         client-side with maxnix.backup.passwordFile before anything is
@@ -131,6 +137,12 @@ in
     services.restic.backups.maxnix = {
       inherit (cfg) repository passwordFile rcloneConfigFile;
 
+      # Drive accepts 750 GB of uploads per user per day, and the first
+      # backup can be larger. Past the limit rclone would otherwise retry for
+      # hours; this makes the run fail instead, and restic picks up from its
+      # saved progress the next night.
+      rcloneOptions = lib.mkIf isRclone { drive-stop-on-upload-limit = true; };
+
       # Creates the repository on first run, so a fresh machine needs no
       # manual `restic init` step.
       initialize = true;
@@ -141,8 +153,11 @@ in
       ];
 
       exclude = [
-        # Caches: large, and by definition rebuildable.
+        # Caches: large, and by definition rebuildable. restic's own is
+        # preserved on /persist (./persistence.nix) and would otherwise be
+        # backed up into the repository it caches.
         "/home/*/.cache"
+        "/persist/var/cache/restic-backups-maxnix"
         "/home/*/.local/share/Trash"
 
         # Steam. Tens of gigabytes of game data that Valve will happily send

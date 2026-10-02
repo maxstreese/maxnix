@@ -597,7 +597,10 @@
             # exist, and `op run` refuses a reference it cannot resolve.
             export RCLONE_CONFIG_GDRIVE_TYPE=drive
             export RCLONE_CONFIG_GDRIVE_TOKEN="${item}/token"
-            export RESTIC_REPOSITORY=rclone:gdrive:maxnix-backup
+            # The machine's own setting, so the two cannot drift apart, unless
+            # overridden: RESTIC_REPOSITORY=rclone:gdrive:maxnix-backup-vm for
+            # the VM's (hosts/maxnix/vm.nix).
+            export RESTIC_REPOSITORY="''${RESTIC_REPOSITORY:-${maxnix.config.maxnix.backup.repository}}"
             export RESTIC_PASSWORD="${resticPassword}"
 
             op run --account my.1password.com -- "$@"

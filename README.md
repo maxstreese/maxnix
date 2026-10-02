@@ -158,10 +158,10 @@ and KVM — even the QEMU binary comes from the Nix store.
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17 — but impermanence has since changed what that *means*; see the open point below |
-| backups | restic, to Google Drive over rclone, off until configured | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
+| backups | restic, to Google Drive over rclone; VM only until install day | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
 | containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
 | device management | Fleet's agent (Orbit + osquery) via nixpkgs' `services.orbit`, off until configured | the employer is adopting Fleet (learned 2026-09-29). Wired ahead of the URL and enroll secret; both come from sops, so turning it on is one line. `osquery` itself is a general system tool in `configuration.nix`; `osqueryi` also lets the machine be checked the way Fleet will check it. NixOS is not a Fleet-supported distro, so its disk-encryption and firewall checks may misreport — a question for IT |
-| backup secrets | sops-nix, imported and empty | the repository password and the rclone OAuth token are both long-lived and must survive a reinstall, so neither can live only on the machine being backed up |
+| backup secrets | sops-nix, rendered into an rclone.conf template | the repository password and the rclone OAuth token are both long-lived and must survive a reinstall, so neither can live only on the machine being backed up |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
 | git config | declared, not `git config --global` | a fresh guest had no identity at all, so the first commit inside would have failed. The cost is that the file is a store symlink, so `git config --global` no longer works |
 | commit signing | SSH keys via 1Password, not GPG | supported by git since 2.34 and verified by GitHub, GitLab and Bitbucket; the private half never leaves the vault, and only public keys appear in this repo. Two keys: auth is scoped to an account on one host, signing to one identity everywhere |
@@ -671,51 +671,39 @@ claims.
 
 ## Open points
 
-**Backups are wired but unconfigured, and there is no backup of this machine
-today — not here, not anywhere.** `hosts/maxnix/backup.nix` has the whole
+**Backups are wired and authorised, and run in the VM only; there is no
+backup of this machine on metal yet.** `hosts/maxnix/backup.nix` has the
 mechanism: restic, nightly, `/persist` and `/home`, caches and Steam excluded,
 7/5/12/3 retention, and `checks.metal-boots` runs a real backup into a local
-repository and inspects what landed in it. It is off by default and asserts
-rather than half-running, because two things have to be chosen and neither can
-be invented here:
+repository and inspects what landed in it. The destination is constrained:
+this is a company machine and Google Drive is the only one the employer
+permits (learned 2026-09-23), so the repository is `rclone:gdrive:maxnix-backup`.
 
-- **A repository.** Constrained as of 2026-09-23: this is a company machine
-  and Google Drive is the only destination the employer permits, which means
-  `rclone:<remote>:<path>`. The mechanism is in place — `maxnix.backup.
-  rcloneConfigFile`, and `pkgs.rclone` added to the unit's PATH, which the
-  nixpkgs module does *not* do (it sets `path = [ ssh ]` only, and restic's
-  rclone backend shells out to the binary). Setting an `rclone:` repository
-  without a config file is an assertion rather than a nightly failure nobody
-  is watching.
-- **A password.** Not a service login: it is the client-side encryption key
-  for the repository. Lose it and the backups are permanently unreadable,
-  which is why it must not live *only* on `/persist` — one disk failure would
-  take the data and its only key together. 1Password for the human copy,
-  sops-nix in this repo for the machine's.
+The Google side is done (2026-10-02): a Cloud project `maxstreese-laptop-backup`
+in the company Workspace, an Internal OAuth client of type Desktop with the
+`drive.file` scope, and a token for it. Four values make it work, each kept in
+1Password and, for the machine, in sops: the client id, secret and token,
+rendered into an `rclone.conf` by a template in `hosts/maxnix/secrets.nix`,
+and the **repository password**, the client-side encryption key. Lose that one
+and the backups are permanently unreadable, which is why it must not live
+*only* on `/persist`.
 
-Google Drive means **two** secrets, not one: the repository password, and an
-`rclone.conf` holding an OAuth refresh token. Both are long-lived and both
-must survive a reinstall, which is what finally gives the secrets layer real
-customers rather than a mechanism looking for a use.
+`nix run .#backup -- <command>` runs rclone or restic against the Drive with
+those values from 1Password, from any machine with `op` signed in — the restore
+path for the day this disk is gone along with its sops key. `nix run .#backup
+-- authorize` issues a new token if the grant is ever revoked.
 
-Three things gate it, none of them code:
+The VM backs up into a folder of its own, `maxnix-backup-vm`, so the whole path
+is exercised before install day without its snapshots sharing retention with
+metal's under the same hostname. Metal gets `maxnix.backup.enable = true` with
+its key on install day.
 
-- **An OAuth client ID of your own.** rclone's shared credentials are
-  rate-limited and are being retired during 2026, so this is required rather
-  than advisable — and on a managed Workspace account, creating Cloud projects
-  may be blocked by admin policy. Check this first; everything else is moot
-  if it is refused.
-- **A headless authorisation.** `rclone authorize "drive" <id> <secret>` on a
-  machine with a browser, then the token goes into the rclone.conf here. Keep
-  the rclone versions close; mismatched ones produce token format errors.
-- **Three questions for the employer.** restic encrypts client-side, so IT
-  cannot read these backups — that may be the requirement or may violate one.
-  `/home` sweeps in 1Password's local state, the browser profile and SSH keys,
-  encrypted but held on company infrastructure. And the Drive quota needs a
-  number before `/persist` plus `/home` is pointed at it.
-
-Deferred deliberately 2026-09-22 rather than guessed at. The mechanism and its
-test are in place, so turning it on is two option values.
+Still open, and none of it code — three questions for the employer. restic
+encrypts client-side, so IT cannot read these backups — that may be the
+requirement or may violate one. `/home` sweeps in 1Password's local state, the
+browser profile and SSH keys, encrypted but held on company infrastructure.
+And the Drive quota: the organisation pools 190 TiB with no per-user cap set,
+so ~1 TB fits, but whether it may be used is theirs to say.
 
 **The Fleet agent is wired but not enrolled.** The employer is adopting
 Fleet (learned 2026-09-29), and `hosts/maxnix/fleet.nix` has the agent side:
@@ -796,11 +784,11 @@ placeholder, and `checks.secrets` shows sops-nix decrypting a post-quantum
 key at activation: the sops CLI handling one says nothing about sops-nix,
 which decrypts with its own, older build.
 
-Three consumers are waiting. The **Fleet enroll secret**, now in hand and
+Three consumers use it. The **Fleet enroll secret**, now in hand and
 gated on the questions for IT above. The **restic repository password**, which
 must not live only on `/persist` since one disk failure would take the data
-and the only key to its backups together. And the **rclone OAuth token** for
-Google Drive, blocked on a client ID a managed Workspace account may refuse.
+and the only key to its backups together. And the **rclone OAuth client and token** for
+Google Drive, rendered into an `rclone.conf` template.
 
 `nix run .#vm-restore-key` puts the VM's key back from 1Password and checks
 it against `.sops.yaml`. The dev shell sets `SOPS_AGE_KEY_CMD` to the admin item, so `sops` in

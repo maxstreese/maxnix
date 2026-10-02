@@ -89,6 +89,12 @@
         # every boot a fresh enrollment, i.e. a new host in their console. An
         # empty directory until maxnix.fleet is enabled; see ./fleet.nix.
         "/var/lib/orbit"
+
+        # restic's cache of the repository's index and snapshots. Rebuildable,
+        # but from Google Drive: without this, the first backup after every
+        # boot downloads all of that metadata again. Excluded from the backup
+        # itself; see ./backup.nix.
+        "/var/cache/restic-backups-maxnix"
       ];
     };
   };
