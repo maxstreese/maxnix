@@ -99,7 +99,9 @@
   #
   # Both timers are Persistent (the NixOS default, and it is what you want):
   # systemd records the last run, so a trigger missed while the machine was
-  # off fires shortly after the next boot instead of being skipped. The
+  # off fires shortly after the next boot instead of being skipped — given
+  # that the record survives the root wipe, which is why ./persistence.nix
+  # preserves /var/lib/systemd/timers. The
   # consequence is that scheduling this for 03:15 on a Sunday — which looks
   # considerate — means a machine that sleeps at night never runs it *then*
   # and instead runs it at Monday's first boot, with no jitter

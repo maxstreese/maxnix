@@ -95,6 +95,14 @@
         # boot downloads all of that metadata again. Excluded from the backup
         # itself; see ./backup.nix.
         "/var/cache/restic-backups-maxnix"
+
+        # systemd's record of when each timer last ran. Persistent=true
+        # catches up a missed run from it after boot — the backup's and the
+        # GC's, ./backup.nix and ./configuration.nix. Without it every boot
+        # starts with no record, systemd treats the timer as never run and
+        # waits for the next scheduled time, so a laptop that was off at
+        # midnight never backs up, and nothing says so.
+        "/var/lib/systemd/timers"
       ];
     };
   };

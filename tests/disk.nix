@@ -137,6 +137,10 @@ disko.lib.testLib.makeDiskoTest {
     # under /persist. If preservation silently did nothing, it is not.
     machine.succeed("echo marker > /var/lib/sbctl/preserved-marker")
     machine.succeed("test -f /persist/var/lib/sbctl/preserved-marker")
+    # Timer stamps, the same way: without them Persistent=true has nothing to
+    # catch up from after a boot (../hosts/maxnix/persistence.nix).
+    machine.succeed("echo marker > /var/lib/systemd/timers/preserved-marker")
+    machine.succeed("test -f /persist/var/lib/systemd/timers/preserved-marker")
     first_machine_id = machine.succeed("cat /etc/machine-id").strip()
 
     machine.succeed("sync")
@@ -185,6 +189,8 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("test -f /var/lib/sbctl/preserved-marker")
     machine.succeed("test -f /persist/var/lib/sbctl/preserved-marker")
     machine.succeed("findmnt -no SOURCE /var/lib/sbctl | grep -q '\\[/persist/'")
+    machine.succeed("test -f /var/lib/systemd/timers/preserved-marker")
+    machine.succeed("findmnt -no SOURCE /var/lib/systemd/timers | grep -q '\\[/persist/'")
 
     # ── Backups ────────────────────────────────────────────────────────
     #
