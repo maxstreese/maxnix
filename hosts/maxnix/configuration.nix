@@ -244,6 +244,8 @@
     "spotify"
     "claude-code"
     "slack"
+    # See home/max/dev.nix: agent-browser's browser, and a real Chrome.
+    "google-chrome"
     # Both halves: the wrapper and the derivation it wraps each carry the
     # licence, and the allow-list matches on pname, so listing one leaves
     # the other refused.

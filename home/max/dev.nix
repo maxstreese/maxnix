@@ -224,6 +224,24 @@
     sbomnix
     nix-tree
 
+    # ── Browser automation for agents ─────────────────────────────────────
+    #
+    # agent-browser drives a Chrome over CDP. Without one it offers
+    # `agent-browser install`, which downloads Chrome for Testing — a
+    # generic-linux binary this distribution cannot execute. It also searches
+    # PATH (google-chrome first, then chromium and brave), so Google Chrome
+    # here serves both agent-browser and any site that wants real Chrome.
+    # Unfree; its allow-list entry is in ../../hosts/maxnix/configuration.nix.
+    # Started from somewhere without this profile's PATH, agent-browser will
+    # not find it; AGENT_BROWSER_EXECUTABLE_PATH is the way round that.
+    #
+    # Microsoft's playwright-cli, the same idea built on Playwright, is not
+    # in nixpkgs: NixOS/nixpkgs#490230 adds it and was still open on
+    # 2026-10-02. Until it lands, `, playwright-mcp` covers the occasional
+    # need.
+    agent-browser
+    google-chrome
+
     # ── Secrets ───────────────────────────────────────────────────────────
     sops
     age
