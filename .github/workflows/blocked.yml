@@ -18,8 +18,10 @@ name: blocked
 
 on:
   schedule:
-    # Mondays, 04:00 UTC.
-    - cron: "0 4 * * 1"
+    # Mondays, 04:17 UTC. Off the full and quarter hours on purpose: GitHub
+    # delays scheduled runs at the start of the hour under load, and drops
+    # some outright — renovate.yml's 02:00 never ran on 2026-10-02.
+    - cron: "17 4 * * 1"
   push:
     branches: [main]
     paths:

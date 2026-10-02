@@ -13,11 +13,15 @@
 name: renovate
 
 on:
-  # 02:00 UTC is 03:00/04:00 in Berlin. The only schedule there is:
+  # 02:17 UTC is 03:17/04:17 in Berlin. The only schedule there is:
   # renovate.jsonc sets none of its own, so every run may open or refresh
   # any PR, the lock file maintenance one included.
+  #
+  # Minute 17, not 0: GitHub delays scheduled runs at the start of the hour
+  # under load, and drops some outright. The first night on "0 2 * * *"
+  # (2026-10-02) produced no run at all.
   schedule:
-    - cron: "0 2 * * *"
+    - cron: "17 2 * * *"
   # By hand: gh workflow run renovate.yml -f log-level=debug
   workflow_dispatch:
     inputs:
