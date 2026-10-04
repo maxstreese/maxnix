@@ -195,6 +195,9 @@
             binds = null;
             expectBinds = null;
             declaredBinds = null;
+            # The bar-placement subtest reads geometry niri's IPC does not
+            # report; see tests/compositor.nix.
+            hyprctl = null;
           }
         );
 
@@ -261,6 +264,10 @@
             # check from "the shared ones are there" into "and nothing else
             # was lost".
             declaredBinds = "grep -c '^hl\.bind(' /home/max/.config/hypr/hyprland.lua";
+
+            # hyprctl with the environment the backdoor shell lacks, for the
+            # subtests that ask Hyprland for JSON.
+            hyprctl = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl";
           }
         );
       };

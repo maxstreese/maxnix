@@ -84,6 +84,43 @@
       "toggle"
     ];
   }
+  # The bar. Auto-hide rather than hiding outright: windows get the full
+  # screen either way, but an auto-hidden bar still slides in at the top
+  # edge, so the clock and tray are a mouse move away instead of a keypress.
+  # Mod+Shift+B slides it in and out from the keyboard; DMS ignores that one
+  # (BAR_AUTO_HIDE_DISABLED) unless auto-hide is on. Both save to DMS's
+  # settings.json, so the state survives a restart.
+  {
+    mods = [ "mod" ];
+    key = "B";
+    repeat = false;
+    title = "Toggle Bar Auto-Hide";
+    spawn = [
+      "dms"
+      "ipc"
+      "bar"
+      "toggleAutoHide"
+      "index"
+      "0"
+    ];
+  }
+  {
+    mods = [
+      "mod"
+      "shift"
+    ];
+    key = "B";
+    repeat = false;
+    title = "Reveal or Tuck the Bar";
+    spawn = [
+      "dms"
+      "ipc"
+      "bar"
+      "toggleReveal"
+      "index"
+      "0"
+    ];
+  }
   {
     mods = [ "mod" ];
     key = "N";

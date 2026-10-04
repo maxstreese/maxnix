@@ -205,27 +205,19 @@ in
         # VM, that should be attributable to virgl rather than to our tuning.
       };
 
-      # Reserve the top strip for DankMaterialShell's bar.
+      # No space is reserved for DankMaterialShell's bar, on purpose.
       #
-      # `hyprctl layers` shows the bar as a top-level layer surface
-      # (namespace dms:bar, 1920x64) but it reserves no exclusive zone, so
-      # tiled windows are placed straight over it. niri does not need this
-      # because DMS generates ~/.config/niri/dms/layout.kdl for it; for
-      # Hyprland it writes only colors.lua, leaving the layout to us.
-      #
-      # This was `monitor = ,addreserved,64,0,0,0` and was the one thing
-      # blocking the move to Lua, because the replacement could not be found
-      # by guessing at shapes. It is a typed field, and the package says so:
-      # $out/share/hypr/stubs/hl.meta.lua declares
-      #   ---@field reserved_area? integer|HL.CssGap
-      #   ---@alias HL.CssGap integer|{top?,right?,bottom?,left?}
-      # An empty `output` means "every monitor", as the hyprlang leading comma
-      # did. 64 is the bar height DMS actually reports; if you restyle the bar,
-      # this needs to follow.
-      monitor = {
-        output = "";
-        reserved_area.top = 64;
-      };
+      # The bar claims its own exclusive zone (DankBarBody.qml,
+      # surfaceExclusiveZone), the same on both compositors, and drops it when
+      # hidden or auto-hidden — which is what lets the Mod+B binds in
+      # ./binds.nix hand windows the full screen. This used to set
+      # `reserved_area.top = 64` on the belief that the bar claimed nothing
+      # here. Measured in the GPU test VM (2026-10-04), it did the opposite of
+      # its intent: Hyprland applies reserved area to layer surfaces too, so
+      # the bar was pushed down to y=64 under an empty strip, its own 44px
+      # stacked on top for 108 reserved in all, and hiding it still left the
+      # 64. tests/compositor.nix now asserts the bar sits flush and windows
+      # clear it, so a static reservation cannot quietly come back.
 
       # One list now. hyprlang needed three (bind/bindl/bindm) because the
       # flags were part of the directive name; here they are an options table,

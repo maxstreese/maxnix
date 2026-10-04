@@ -255,5 +255,52 @@ compositor:
       # and wallpaper (~6500). So this asserts the whole stack is on screen,
       # not merely that the compositor is not black.
       wait_for_rich_screen(machine, "${compositor.name}-session", minimum=3000)
+    ''
+    + lib.optionalString (compositor.gpu && compositor.hyprctl != null) ''
+
+      with subtest("${compositor.name} places the bar flush and tiles below it"):
+          # Guards against reserving space for the bar in the compositor
+          # config. That was done once, on the belief that the bar claimed no
+          # exclusive zone here; it does, and Hyprland applies reserved area
+          # to layer surfaces too, so the bar was pushed down under an empty
+          # strip. See home/max/hyprland.nix.
+          #
+          # Polled rather than read once: the bar's exclusive zone arrives
+          # when DMS lays it out, which can trail the screen looking rich.
+          import json, time
+
+          def geometry():
+              monitors = json.loads(machine.succeed("${compositor.hyprctl} monitors -j"))
+              layers = json.loads(machine.succeed("${compositor.hyprctl} layers -j"))
+              clients = json.loads(machine.succeed("${compositor.hyprctl} clients -j"))
+              bars = [
+                  s
+                  for output in layers.values()
+                  for level in output.get("levels", {}).values()
+                  for s in level
+                  if s.get("namespace") == "dms:bar"
+              ]
+              tiled = [c for c in clients if not c.get("floating")]
+              return monitors[0]["reserved"][1], bars, tiled
+
+          deadline = time.monotonic() + 60
+          while True:
+              reserved_top, bars, tiled = geometry()
+              if (bars and tiled and reserved_top > 0) or time.monotonic() > deadline:
+                  break
+              time.sleep(2)
+          machine.log(f"reserved top={reserved_top} bars={bars} tiled={tiled}")
+
+          assert bars, "no dms:bar layer surface"
+          assert tiled, "no tiled client to measure"
+          # Flush: nothing above the bar pushed it down.
+          assert bars[0]["y"] == 0, f"bar starts at y={bars[0]['y']}, not 0"
+          # Self-claimed: the bar reserves its own space, so no config has to.
+          assert reserved_top > 0, "bar claims no exclusive zone"
+          # Cleared: the tiled window starts below what the bar claims.
+          top = tiled[0]["at"][1]
+          assert top >= reserved_top, (
+              f"tiled window at y={top} overlaps the bar's {reserved_top}px"
+          )
     '';
 }
