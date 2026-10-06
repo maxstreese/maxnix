@@ -70,7 +70,8 @@
   // issue, only in the run's log.
   "dependencyDashboard": false,
 
-  // Flake inputs pinned to a release tag (aoe). The nix manager above
+  // Flake inputs pinned to a release tag (none at present; aoe was the
+  // last, removed 2026-10-06). The nix manager above
   // cannot bump these: it reads inputs from flake.lock and gives every one
   // but nixpkgs a locked commit and no version, so it has nothing to compare
   // a newer tag against — and lockFileMaintenance re-resolves the same tag to

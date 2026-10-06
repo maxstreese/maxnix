@@ -79,7 +79,7 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 | tool | 90d (all) | nixpkgs | home | note |
 |---|---|---|---|---|
 | nvim | 508 (2362) | neovim 0.12.5 | U+cfg | decision 1; `svim` function uses it |
-| aoe | 372 (806) | **missing** | U ✓ | upstream's flake, pinned to a release tag |
+| aoe | 372 (806) | **missing** | X | was upstream's flake; removed 2026-10-06, as building it from source took CI from ~15 to ~55 min |
 | rg | 269 (791) | ripgrep | U ✓ | also used by the `rt` function |
 | mill | 130 (863) | mill 1.1.8 | P or U | not added yet |
 | bat | 106 (264) | bat | U+cfg ✓ | `programs.bat` |
@@ -108,7 +108,7 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 | websocat | 3 (29) | websocat | , | |
 | betterleaks | 3 | betterleaks | U ✓ | |
 | herdr | 3 | herdr | U ✓ | was upstream's flake while nixpkgs' 0.9.1 failed to link |
-| tmux | 2 (43) | tmux | U ✓ | fading, but aoe runs on it |
+| tmux | 2 (43) | tmux | U ✓ | fading |
 | sops, age | 2 | sops, age | U ✓ | also what maxnix's own secrets need |
 | dolt | 2 | dolt | , | |
 | pwgen | 2 (17) | pwgen | U ✓ | proposed `,`; went in with the basics |

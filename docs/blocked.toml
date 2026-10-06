@@ -94,7 +94,7 @@ id = "renovate-flake-tags"
 title = "Let Renovate's nix manager bump tag-pinned flake inputs"
 upstream = "https://github.com/renovatebot/renovate/pull/45258"
 workaround = "renovate.jsonc: a regex manager reads the tag out of each flake input URL"
-then = "Once a Renovate release includes it, drop the first regex manager and check aoe still gets bumped"
+then = "Once a Renovate release includes it, drop the first regex manager and check a tag-pinned flake input, if there is one by then, still gets bumped"
 check = { github-pr-merged = "renovatebot/renovate#45258" }
 
 [[entry]]

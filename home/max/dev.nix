@@ -162,11 +162,8 @@
     # split into code, comments and blanks per language.
     cloc
 
-    # Terminal multiplexer, and aoe, which runs its sessions inside it. aoe
-    # comes from upstream's flake, as nixpkgs lacks it (see the input in
-    # ../../flake.nix).
+    # Terminal multiplexer.
     tmux
-    inputs.aoe.packages.${pkgs.stdenv.hostPlatform.system}.default
 
     # herdr, a terminal workspace manager for coding agents. Came from
     # upstream's flake while nixpkgs' 0.9.1 failed to link; 0.9.3 builds.

@@ -72,15 +72,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Agent of Empires (`aoe`), a tmux-based session manager for coding
-    # agents. Not in nixpkgs; upstream's own flake builds it from source (no
-    # binary cache). Pinned to a release tag rather than main, which moves
-    # daily — bump the tag here to update. See home/max/dev.nix.
-    aoe = {
-      url = "github:agent-of-empires/agent-of-empires/v1.18.0";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # Drives `nix fmt` and the formatting check. Config in ./treefmt.nix.
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
