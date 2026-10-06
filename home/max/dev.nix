@@ -163,11 +163,14 @@
     cloc
 
     # Terminal multiplexer, and aoe, which runs its sessions inside it. aoe
-    # and herdr come from upstream's flakes: nixpkgs lacks the first and
-    # cannot build the second (see the inputs in ../../flake.nix).
+    # comes from upstream's flake, as nixpkgs lacks it (see the input in
+    # ../../flake.nix).
     tmux
     inputs.aoe.packages.${pkgs.stdenv.hostPlatform.system}.default
-    inputs.herdr.packages.${pkgs.stdenv.hostPlatform.system}.default
+
+    # herdr, a terminal workspace manager for coding agents. Came from
+    # upstream's flake while nixpkgs' 0.9.1 failed to link; 0.9.3 builds.
+    herdr
 
     # ── Kubernetes and the platform around it ─────────────────────────────
     kubectx # kubectx and kubens

@@ -107,7 +107,7 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 | visualvm | 4 (12) | visualvm | U ✓ | |
 | websocat | 3 (29) | websocat | , | |
 | betterleaks | 3 | betterleaks | U ✓ | |
-| herdr | 3 | herdr 0.9.1, fails to link | U ✓ | upstream's flake instead, pinned to a release tag |
+| herdr | 3 | herdr | U ✓ | was upstream's flake while nixpkgs' 0.9.1 failed to link |
 | tmux | 2 (43) | tmux | U ✓ | fading, but aoe runs on it |
 | sops, age | 2 | sops, age | U ✓ | also what maxnix's own secrets need |
 | dolt | 2 | dolt | , | |

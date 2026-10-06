@@ -81,16 +81,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # herdr, a terminal workspace manager for coding agents. nixpkgs has it,
-    # but its 0.9.1 fails to link there (ld.bfd: "overlapping FDEs" against
-    # the bundled libghostty-vt), so it is not in the binary cache either.
-    # Upstream's flake, pinned to a release tag; bump the tag to update, and
-    # retry nixpkgs' `herdr` when it moves past 0.9.1.
-    herdr = {
-      url = "github:herdrdev/herdr/v0.9.3";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # Drives `nix fmt` and the formatting check. Config in ./treefmt.nix.
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
