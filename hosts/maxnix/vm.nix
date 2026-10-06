@@ -157,6 +157,18 @@
       # separate decision.
       nix.settings.trusted-users = [ "max" ];
 
+      # No store optimisation in the VM. The guest's /nix/store is an overlay
+      # whose lower layer is the host's entire store, shared over virtiofs,
+      # and `nix-store --optimise` reads every file in it. virtiofsd runs
+      # unprivileged, so it holds an fd per inode the guest has looked up, and
+      # with the runner's --cache=always the guest rarely lets go of them: the
+      # walk exhausts its ~524k fds and every later lookup on the store fails.
+      # Persistent timer stamps (./persistence.nix) made this bite, since a
+      # missed Monday run now catches up at the next boot. There is nothing
+      # to gain here anyway — the store is mostly the host's, and hardlinking
+      # it would only copy files up into the guest's disk.
+      nix.optimise.automatic = lib.mkForce false;
+
       # The VM's sops key, on the /home disk so a root reset keeps it. A full
       # reset (deleting .vm/home.qcow2) loses it; `nix run .#vm-restore-key`
       # puts it back from 1Password. Root-only: install -m 600 as root.
