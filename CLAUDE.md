@@ -21,7 +21,7 @@ nix build .#ci                   # shellchecks the ci runner itself without runn
 nix run .#blocked                # which workarounds in docs/blocked.toml upstream has unblocked
 ```
 
-VM loop: `nix run .#vm` (window), `.#vm-headless` (VNC on 127.0.0.1:5909), `.#vm-deploy` (build on host, activate in running VM, no reboot), `.#vm-ssh -- <cmd>` (e.g. `niri msg outputs`, `hyprctl …`, `dms ipc …`, `'grim -' > shot.png`). Inside the guest: `rebuild` (~30 s). `qs-dev` runs `home/max/quickshell/` live; `dms-capture` / `dms-restore` move DMS theming state between `~/.config/DankMaterialShell` and `home/max/dms-state`. Guest login: `max` / `maxnix`.
+VM loop: `nix run .#vm` (window), `.#vm-headless` (VNC on 127.0.0.1:5909), `.#vm-deploy` (build on host, activate in running VM, no reboot), `.#vm-ssh -- <cmd>` (imports the graphical session's `WAYLAND_DISPLAY`/`NIRI_SOCKET`/`HYPRLAND_INSTANCE_SIGNATURE`, so e.g. `niri msg outputs`, `hyprctl …`, `dms ipc …`, `dms screenshot all --stdout --no-clipboard > shot.png` just work; there is no grim in the guest). Inside the guest: `rebuild` (~30 s). `qs-dev` runs `home/max/quickshell/` live; `dms-capture` / `dms-restore` move DMS theming state between `~/.config/DankMaterialShell` and `home/max/dms-state`. Guest login: `max` / `maxnix`.
 
 Run the GPU `test-*` apps one at a time — they share a VNC port.
 

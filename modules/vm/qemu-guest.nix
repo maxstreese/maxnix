@@ -120,6 +120,13 @@ in
     max-free = 3 * 1024 * 1024 * 1024; # 3 GiB
   };
 
+  # No gpu-screen-recorder on any VM, a fact about the virtual GPU: virtio-gpu
+  # has no video encoder (no NVENC, no VA-API), so it would only ever fail and
+  # leave Quick Capture to fall back to wf-recorder anyway. Leaving it out lets
+  # the plugin's "auto" backend pick wf-recorder at its first probe instead.
+  # Overrides the mkDefault in ../desktop/screen-recording.nix.
+  config.programs.gpu-screen-recorder.enable = false;
+
   config.virtualisation = {
     cores = 4;
     memorySize = 8192; # MiB

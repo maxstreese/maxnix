@@ -157,7 +157,9 @@ in
         #   Mod+V           Mod+C             Mod+V      toggle-window-floating
         # Media and brightness keys. Portable across layouts, and allowed
         # while the screen is locked.
-        "Print".screenshot = { };
+        #
+        # Print used to be niri's own `screenshot` here. It is Quick Capture
+        # in ./binds.nix now, shared with Hyprland.
         "Mod+Shift+7".show-hotkey-overlay = { };
         "Mod+Shift+E".quit = { };
       }

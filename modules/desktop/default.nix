@@ -11,6 +11,7 @@
     ./onepassword.nix
     ./gpu-check.nix
     ./steam.nix
+    ./screen-recording.nix
   ];
 
   # The login screen lives in ./greeter.nix. It used to be configured here as

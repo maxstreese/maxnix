@@ -112,6 +112,22 @@
         "type": "github"
       }
     },
+    "dms-plugins-hthienloc": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791357118,
+        "narHash": "sha256-u9yEKvnG4bKZBaQKdDJ+YEXqUsG4XlUQduvPdwzRirU=",
+        "owner": "hthienloc",
+        "repo": "dms-plugins",
+        "rev": "47c78e4147ea7acbfd71ee3e7bdf1bb1bdc6007d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hthienloc",
+        "repo": "dms-plugins",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -354,6 +370,7 @@
         "dank-greeter": "dank-greeter",
         "disko": "disko",
         "dms": "dms",
+        "dms-plugins-hthienloc": "dms-plugins-hthienloc",
         "home-manager": "home-manager",
         "lanzaboote": "lanzaboote",
         "nix-index-database": "nix-index-database",

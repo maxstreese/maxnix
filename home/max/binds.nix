@@ -227,6 +227,61 @@
     ];
   }
 
+  # Screen capture, through the Quick Capture plugin (./dms.nix). This
+  # replaces niri's built-in Print screenshot, which Hyprland had no
+  # counterpart for, so Hyprland had no screenshot key at all. Print is a
+  # named keysym on no layer of any layout, so it holds on `de` as everywhere.
+  # Alt is avoided on purpose: Alt+Print is Sys_Req.
+  #
+  # `edit` opens the annotator after capturing; `float` would pin the image on
+  # screen instead.
+  {
+    mods = [ ];
+    key = "Print";
+    repeat = false;
+    title = "Capture a Region";
+    spawn = [
+      "dms"
+      "ipc"
+      "call"
+      "quickCapture"
+      "screenshot"
+      "region"
+      "edit"
+    ];
+  }
+  {
+    mods = [ "shift" ];
+    key = "Print";
+    repeat = false;
+    title = "Capture the Screen";
+    spawn = [
+      "dms"
+      "ipc"
+      "call"
+      "quickCapture"
+      "screenshot"
+      "full"
+      "edit"
+    ];
+  }
+  # A toggle: the first press starts a region recording, the next stops it.
+  # gpu-screen-recorder on metal, wf-recorder in the VM; see ./dms.nix.
+  {
+    mods = [ "mod" ];
+    key = "Print";
+    repeat = false;
+    title = "Start or Stop Recording a Region";
+    spawn = [
+      "dms"
+      "ipc"
+      "call"
+      "quickCapture"
+      "recordToggle"
+      "region"
+    ];
+  }
+
   # Media and brightness. No modifier, and allowed while locked — turning the
   # volume down should not require logging in first.
   {

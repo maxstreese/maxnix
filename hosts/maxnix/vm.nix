@@ -134,7 +134,7 @@
       #
       # The host-side way to drive the VM you are actually using: run
       # `rebuild`, poke the compositors and DMS over their IPC, take a
-      # screenshot with grim and copy it out, read the journal — without a
+      # screenshot with `dms screenshot` and copy it out, read the journal — without a
       # fresh boot through the test driver each time. `nix run .#vm-ssh -- …`
       # (flake.nix) wraps the connection.
       #

@@ -11,6 +11,15 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # DMS plugins by hthienloc, one directory per plugin; home/max/dms.nix
+    # picks the ones it wants by subpath. Not a flake, just source. Quick
+    # Capture moved here from its own repo, hthienloc/dms-quick-capture,
+    # which was archived on 2026-09-19.
+    dms-plugins-hthienloc = {
+      url = "github:hthienloc/dms-plugins";
+      flake = false;
+    };
+
     # Dank Greeter — the graphical login screen matching DMS. It lives in its
     # own repo; the DMS flake's nixosModules.greeter is now only a deprecation
     # warning pointing here.
@@ -419,13 +428,36 @@
       # Run a command in the running VM, or open a shell with no arguments.
       # The host-side way to look at and poke the machine you are using:
       #   nix run .#vm-ssh -- niri msg outputs
-      #   nix run .#vm-ssh -- 'grim -' > shot.png       # screenshot, copied out
+      #   nix run .#vm-ssh -- dms screenshot all --stdout --no-clipboard > shot.png
       #   nix run .#vm-ssh -- journalctl --user -u dms -n 50
+      #
+      # An ssh login is not part of the graphical session, so on its own it has
+      # none of the variables that point at it: no WAYLAND_DISPLAY, no
+      # NIRI_SOCKET, no HYPRLAND_INSTANCE_SIGNATURE. `niri msg` then fails,
+      # `hyprctl` and anything Wayland cannot find the compositor, and the
+      # screenshot example above used to be `grim -`, which had both problems
+      # (grim is not even installed) and so printed nothing (found 2026-10-08).
+      # Both compositors already export exactly these into the systemd user
+      # manager — niri itself, Hyprland through UWSM — so the session's own
+      # values are imported from there rather than guessed from socket names.
+      # With no session (greeter only) the grep finds nothing and the command
+      # runs as before.
+      #
+      # ssh joins its arguments into one string for the remote shell anyway,
+      # so prefixing that string with the import changes nothing about how a
+      # command is quoted. The remote shell is bash, so `eval` also handles the
+      # $'…' quoting systemd uses for values with special characters.
       vmSsh = pkgs.writeShellApplication {
         name = "vm-ssh";
         runtimeInputs = [ vmSshShim ];
         text = ''
-          exec ssh max@127.0.0.1 "$@"
+          # shellcheck disable=SC2016  # expanded in the guest, not here
+          session='set -a; eval "$(systemctl --user show-environment 2>/dev/null | grep -E "^(WAYLAND_DISPLAY|DISPLAY|NIRI_SOCKET|HYPRLAND_INSTANCE_SIGNATURE)=")"; set +a'
+          if [ $# -eq 0 ]; then
+            # A command suppresses ssh's automatic tty, so ask for one back.
+            exec ssh -t max@127.0.0.1 "$session; exec \"\$SHELL\" -l"
+          fi
+          exec ssh max@127.0.0.1 "$session; $*"
         '';
       };
 

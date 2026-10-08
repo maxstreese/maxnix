@@ -65,7 +65,7 @@ Two ways to iterate on the running machine, both faster than a test run:
 - **From the host.** Edit here, `nix run .#vm-deploy`: builds on the host,
   copies the closure in over ssh, activates. Then drive and observe the
   desktop over the same channel: `nix run .#vm-ssh -- niri msg …`, `hyprctl`,
-  `dms ipc`, and `nix run .#vm-ssh -- 'grim -' > shot.png` for a screenshot
+  `dms ipc`, and `nix run .#vm-ssh -- dms screenshot all --stdout --no-clipboard > shot.png` for a screenshot
   to look at.
 
 First run only: open 1Password, sign in, and in Settings → Developer switch on
@@ -166,6 +166,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | git config | declared, not `git config --global` | a fresh guest had no identity at all, so the first commit inside would have failed. The cost is that the file is a store symlink, so `git config --global` no longer works |
 | commit signing | SSH keys via 1Password, not GPG | supported by git since 2.34 and verified by GitHub, GitLab and Bitbucket; the private half never leaves the vault, and only public keys appear in this repo. Two keys: auth is scoped to an account on one host, signing to one identity everywhere |
 | design loop | Quickshell config points at the clone in the VM; DMS theming is captured, not declared | the store is read-only, so a colour tweak would otherwise cost a 30 s rebuild. `maxnix.dev.liveConfig` makes generated Quickshell config an out-of-store symlink into the clone, so Quickshell's own file watcher has something that can change; it is off everywhere but the VM. DMS is the other way round — its settings UI already writes a mutable file, so `dms-capture` records that into the repo rather than declaring it and taking the UI's ability to save |
+| DMS plugins | declared via `programs.dank-material-shell.plugins`, source as `flake = false` inputs; settings captured | pinned by `flake.lock` and bumped by Renovate like every other input, instead of whatever `dms plugins install` fetched that day. Settings stay out of Nix for the same reason as DMS theming: declaring any of them makes `plugin_settings.json` a store file the UI cannot save. Quick Capture records through gpu-screen-recorder on metal and wf-recorder in the VM, which has no encoder |
 | shared bindings | one list, with `repeat` stated per binding | niri defaults repeat to true and Hyprland to false, so every shared binding behaved differently depending on which session you logged into, until it was named. The rule is repeat a step, never a spawn or a toggle — which overrides niri's default *and* upstream Hyprland's own example on mute |
 | app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
 | terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup on both compositors |

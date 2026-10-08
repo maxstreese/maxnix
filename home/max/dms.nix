@@ -56,8 +56,9 @@ let
   # clsettings.json  clipboard
   # plugin_settings.json  per-plugin, and small
   #
-  # plugins/ is excluded on purpose: that is third-party code DMS installs,
-  # not configuration, and it does not belong in this repo.
+  # plugins/ is excluded on purpose: that is third-party code, not
+  # configuration. It is declared instead — see `plugins` below — so its
+  # entries are store symlinks and there is nothing in it to capture.
   files = [
     "settings.json"
     "clsettings.json"
@@ -149,7 +150,24 @@ in
   home.packages = [
     capture
     restore
-  ];
+  ]
+  # What Quick Capture shells out to, from grepping its QML rather than
+  # trusting plugin.json alone (the registry entry has missed some before).
+  # DMS runs as a user service and inherits the user manager's PATH, which
+  # includes this profile, so nothing needs wrapping.
+  ++ (with pkgs; [
+    # The CPU recording backend. gpu-screen-recorder is the preferred one and
+    # comes from the system layer, metal only — see
+    # ../../modules/desktop/screen-recording.nix. The plugin's "auto" backend
+    # probes for it with `command -v` and falls back to this, so the VM records
+    # through wf-recorder and metal through the GPU, with no setting to change.
+    wf-recorder
+    ffmpeg # video thumbnails
+    imagemagick # WebP/JPEG export, OCR/QR crops
+    img2pdf # PDF export
+    tesseract # OCR
+    zbar # QR scanning (zbarimg)
+  ]);
 
   programs.dank-material-shell = {
     enable = true;
@@ -167,6 +185,24 @@ in
 
     # The CPU/memory/network widgets in the bar.
     enableSystemMonitoring = true;
+
+    # Plugins are declared rather than installed with `dms plugins install`:
+    # the module links each `src` into ~/.config/DankMaterialShell/plugins/
+    # under its attribute name, which must be the plugin's `id` from its
+    # plugin.json. The code is pinned by flake.lock and read-only.
+    #
+    # `settings` is deliberately unset on every plugin, for the same reason as
+    # programs.dank-material-shell.settings above: any non-empty one turns on
+    # managePluginSettings, which puts plugin_settings.json in the store and
+    # stops the UI saving. Enable and configure a plugin in the settings UI,
+    # then `dms-capture` — whether it is enabled lives in plugin_settings.json
+    # and where its bar widget sits in settings.json, both captured.
+    plugins = {
+      # Screenshot annotation, screen recording, OCR and QR scanning. A
+      # subpath of the monorepo, which works because quickCapture/ is
+      # self-contained: its own shared/, no symlinks or imports out of it.
+      quickCapture.src = "${inputs.dms-plugins-hthienloc}/quickCapture";
+    };
 
     # Off for now — each pulls a package for something the VM cannot
     # exercise. All three become relevant on metal (ROAD TO METAL):
