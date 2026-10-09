@@ -123,3 +123,20 @@ upstream = "https://github.com/fleetdm/fleet/issues/54422"
 workaround = "None; Fleet never offers NixOS hosts the escrow flow"
 then = "On metal, check whether escrow needs zenity or a cryptsetup path, and test the flow"
 check = { github-issue-closed = "fleetdm/fleet#54422" }
+
+[[entry]]
+id = "alloy-journal-zstd"
+title = "Use nixpkgs' grafana-alloy as is, without re-pointing its libsystemd"
+upstream = "nixpkgs pkgs/by-name/gr/grafana-alloy: postFixup adds systemd-minimal-libs (no zstd) to Alloy's RUNPATH"
+workaround = "hosts/maxnix/observability.nix: `alloy`, a copy of the package with the full systemd's lib/ first in its RUNPATH"
+then = "Drop the `alloy` derivation and services.alloy.package from observability.nix; tests/observability.nix proves the journal still arrives"
+check = { nix = '''
+  pkgs: let minimal = pkgs.lib.hasInfix "systemd-minimal" pkgs.grafana-alloy.postFixup; in {
+    unblocked = !minimal;
+    evidence =
+      if minimal then
+        "grafana-alloy ${pkgs.grafana-alloy.version} still links systemd-minimal-libs"
+      else
+        "grafana-alloy ${pkgs.grafana-alloy.version} no longer links systemd-minimal-libs";
+  }
+''' }

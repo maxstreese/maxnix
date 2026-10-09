@@ -212,6 +212,14 @@ in
         # here without it.
         "/home/*/.local/share/Steam"
 
+        # The observability stack's stores (./observability.nix). Months of
+        # metrics and logs: losing them costs history, not configuration, and
+        # they would dominate the backup.
+        "/persist/var/lib/prometheus2"
+        "/persist/var/lib/loki"
+        "/persist/var/lib/grafana"
+        "/persist/var/lib/private/alloy"
+
         # Rootless Docker's images, layers and volumes (./containers.nix).
         # Gigabytes, and every image is a pull away. A named volume holding
         # something irreplaceable is the one thing this loses — keep such data

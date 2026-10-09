@@ -119,6 +119,7 @@
         ./hosts/maxnix/fleet.nix
         ./hosts/maxnix/secrets.nix
         ./hosts/maxnix/dev.nix
+        ./hosts/maxnix/observability.nix
         inputs.sops-nix.nixosModules.sops
         inputs.disko.nixosModules.disko
         inputs.preservation.nixosModules.preservation
@@ -317,6 +318,10 @@
         # Rootless Docker running a Docker Hub image, and a second machine
         # checking its published port is behind the firewall.
         containers = pkgs.testers.runNixOSTest ./tests/containers.nix;
+
+        # The observability stack collecting, storing and serving, and nothing
+        # of it reachable from a second machine with the firewall off.
+        observability = pkgs.testers.runNixOSTest ./tests/observability.nix;
 
         # sops-nix decrypting a post-quantum age key at activation, the way
         # the real keys in .sops.yaml will be used.

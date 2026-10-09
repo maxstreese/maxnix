@@ -321,6 +321,11 @@
     osquery
   ];
 
+  # The machine observing itself: metrics, logs, Grafana, and Claude Code's
+  # telemetry. See ./observability.nix. Needs no secret, so on everywhere,
+  # metal and every test node alike.
+  maxnix.observability.enable = true;
+
   # Pins the defaults this config was written against so stateful services keep
   # their original semantics across nixpkgs upgrades. It is NOT a version to
   # keep current — set once, then leave alone.

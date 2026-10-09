@@ -257,6 +257,20 @@
           # keyring module — both halves of that chain are asserted.
           machine.succeed("grep -q pam_gnome_keyring /etc/pam.d/login")
           machine.succeed("grep -Eq '^auth[[:space:]]+substack[[:space:]]+login' /etc/pam.d/greetd")
+
+      with subtest("the observability stack runs on the whole machine"):
+          # ../tests/observability.nix covers what it does, on nodes without
+          # this machine's persistence. That gap hid a real failure: the
+          # preserved /var/lib/loki came up root-owned and Loki could not
+          # start. So here, on the full machine, every store must be up and
+          # its data directory owned by its service.
+          for unit in ["alloy", "prometheus", "loki", "grafana"]:
+              machine.wait_for_unit(f"{unit}.service")
+          for path, owner in [("/var/lib/prometheus2", "prometheus"),
+                              ("/var/lib/loki", "loki"),
+                              ("/var/lib/grafana", "grafana")]:
+              got = machine.succeed(f"stat -c %U {path}").strip()
+              assert got == owner, f"{path} owned by {got}, not {owner}"
     ''
     # Everything past here looks at the screen, which needs a real GPU:
     # without virgl the greeter never draws and gpu-check reports no

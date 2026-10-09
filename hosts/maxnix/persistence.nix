@@ -103,6 +103,56 @@
         # waits for the next scheduled time, so a laptop that was off at
         # midnight never backs up, and nothing says so.
         "/var/lib/systemd/timers"
+
+        # The observability stack's history (./observability.nix): months of
+        # metrics and logs that cannot be rebuilt. Excluded from the backup
+        # (./backup.nix).
+        #
+        # With their owners stated. preservation otherwise creates the
+        # directory root:root 0755 and bind-mounts it in place, and Loki — the
+        # one without a systemd StateDirectory to fix ownership — failed on
+        # the first boot with "mkdir /var/lib/loki/rules: permission denied"
+        # (2026-10-09). tests/observability.nix leaves this file out, and the
+        # desktop suite, which has it, never asked about Loki; it does now.
+        # Only where the user exists, so the disk test, which builds its
+        # system from this file without the rest of the machine, still
+        # evaluates.
+      ]
+      ++
+        lib.concatMap
+          (
+            { directory, user }:
+            lib.optional (config.users.users ? ${user}) {
+              inherit directory user;
+              group = user;
+              mode = "0700";
+            }
+          )
+          [
+            {
+              directory = "/var/lib/prometheus2";
+              user = "prometheus";
+            }
+            {
+              directory = "/var/lib/loki";
+              user = "loki";
+            }
+            {
+              directory = "/var/lib/grafana";
+              user = "grafana";
+            }
+          ]
+      ++ [
+        # Alloy runs with DynamicUser, so its state is under /var/lib/private,
+        # which systemd insists stays 0700, and systemd itself chowns it to
+        # the dynamic user at every start. It holds the journal read
+        # position: without it, every boot re-reads the last 12 hours of
+        # journal into Loki.
+        {
+          directory = "/var/lib/private/alloy";
+          configureParent = true;
+          parent.mode = "0700";
+        }
       ];
     };
   };
