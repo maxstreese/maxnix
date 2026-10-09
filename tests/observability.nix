@@ -11,9 +11,10 @@
 #            and is read back the way an agent would: PromQL, LogQL, Grafana's
 #            API, mcp-grafana over stdio. Also Grafana's access rules, and
 #            grafana-capture writing a UI-built dashboard into a clone.
-#   devbox   the same with maxnix.dev.liveConfig, as the VM runs it: a JSON
-#            file appearing in, and vanishing from, the clone's dashboards
-#            shows up in Grafana with no rebuild.
+#   devbox   the same with maxnix.dev.liveConfig, as the VM runs it: the
+#            deployed dashboards while the clone has none, then the clone's —
+#            a file appearing and vanishing — with no rebuild, and back to
+#            the deployed ones when the clone's directory goes.
 #   outside  a second machine, probing every port.
 #
 # The exposure check runs with the firewall OFF. Loopback binding is the
@@ -56,10 +57,9 @@ in
       liveConfig = true;
       clonePath = "/var/lib/test-clone";
     };
-    # A clone with the repo's dashboards in it, there from boot like the VM's.
-    systemd.tmpfiles.rules = [
-      "C+ /var/lib/test-clone/hosts/maxnix/dashboards - - - - ${../hosts/maxnix/dashboards}"
-    ];
+    # A clone without a dashboards directory, as a guest clone from before
+    # they existed is.
+    systemd.tmpfiles.rules = [ "d /var/lib/test-clone/hosts/maxnix 0755 root root -" ];
   };
 
   nodes.outside = { pkgs, ... }: { environment.systemPackages = [ pkgs.netcat ]; };
@@ -98,6 +98,8 @@ in
             print(node.execute("curl -fsS http://127.0.0.1:12345/api/v0/web/components | jq -c '.[] | {id: .localID, health: .health}'")[1])
             print(node.execute("journalctl -u alloy -n 40 --no-pager | grep -v collector")[1])
             print(node.execute("journalctl -u loki -u grafana-dashboards-live -n 30 --no-pager")[1])
+            print(node.execute("curl -fsS 'http://localhost:3000/api/search?tag=maxnix' | jq -c '[.[] | {uid, title}]'; ls -la /var/lib/grafana/dashboards-live")[1])
+            print(node.execute("journalctl -u grafana -n 20 --no-pager | grep -i provision")[1])
             raise AssertionError(f"timed out waiting for {what}")
 
     def titles(node, auth=None):
@@ -248,19 +250,30 @@ in
              " --data-urlencode 'query={service_name=\"claude-code\"} | session_id=\"test-session-4711\"'"
              " | jq -e '.data.result | length > 0'", "the event after a restart")
 
-    with subtest("live dashboards: the clone's files, with no rebuild"):
+    with subtest("live dashboards: the deployed ones while the clone has none"):
         devbox.wait_for_open_port(3000)
         wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 2'",
-             "the starter dashboards from the clone", devbox)
+             "the deployed dashboards, with no directory in the clone", devbox)
+
+    with subtest("live dashboards: the clone's, as soon as it has them, with no rebuild"):
+        clone = "/var/lib/test-clone/hosts/maxnix/dashboards"
         probe = {"uid": "live-probe", "title": "Live Probe", "tags": ["maxnix"], "panels": []}
-        devbox.succeed(
-            "cat > /var/lib/test-clone/hosts/maxnix/dashboards/live-probe.json <<'EOF'\n"
-            + json.dumps(probe) + "\nEOF")
-        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'any(.[]; .uid == \"live-probe\")'",
+        devbox.succeed(f"mkdir {clone} && cat > {clone}/live-probe.json <<'EOF'\n"
+                       + json.dumps(probe) + "\nEOF")
+        # The clone wins outright: its one file, not the deployed two.
+        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e '[.[].uid] == [\"live-probe\"]'",
+             "the clone's directory to replace the deployed dashboards", devbox)
+        devbox.succeed(f"cp ${../hosts/maxnix/dashboards}/host.json {clone}/")
+        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 2'",
              "a new file in the clone to appear in Grafana", devbox)
-        devbox.succeed("rm /var/lib/test-clone/hosts/maxnix/dashboards/live-probe.json")
-        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'all(.[]; .uid != \"live-probe\")'",
+        devbox.succeed(f"rm {clone}/live-probe.json")
+        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e '[.[].uid] == [\"maxnix-host\"]'",
              "a deleted file in the clone to vanish from Grafana", devbox)
+
+    with subtest("live dashboards: back to the deployed ones when the clone's directory goes"):
+        devbox.succeed(f"rm -r {clone}")
+        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 2'",
+             "the deployed dashboards again", devbox)
 
     with subtest("everything listens on loopback only"):
         listeners = machine.succeed("ss -Htln | awk '{print $4}'").split()

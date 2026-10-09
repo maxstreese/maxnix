@@ -74,6 +74,14 @@
 #           copies ./dashboards from the clone into Grafana's provisioning
 #           directory on every change and Grafana rereads it within seconds —
 #           no rebuild. Elsewhere the store copy is provisioned, as on metal.
+#
+#           Only while the clone has that directory. The guest's clone is its
+#           own checkout and lags whatever the host deployed until it pulls;
+#           without the directory (a fresh VM, a clone from before
+#           2026-10-09) the deployed store copy is used instead, so a deploy
+#           from the host never leaves Grafana empty. Once the directory is
+#           there, the clone wins outright, deletions included — the same
+#           rule as liveConfig for Quickshell.
 #   agent   Claude Code queries real metric and label names through
 #           grafana-local (read-only) and edits the JSON, same live loop.
 #
@@ -566,9 +574,10 @@ in
     };
 
     # The live dashboard loop, VM only (see "Dashboards" above). A path unit
-    # watching the clone's ./dashboards, and a copy into Grafana's own
-    # directory on every change — including deletions, so removing a file
-    # removes the dashboard.
+    # watching the clone's ./dashboards — its contents, and it appearing or
+    # disappearing — and a copy into Grafana's own directory on every change:
+    # from the clone while it has the directory, from the store otherwise.
+    # Deletions included, so removing a file removes the dashboard.
     systemd.paths.grafana-dashboards-live = lib.mkIf dev.liveConfig {
       wantedBy = [ "multi-user.target" ];
       pathConfig = {
@@ -577,21 +586,33 @@ in
       };
     };
     systemd.services.grafana-dashboards-live = lib.mkIf dev.liveConfig {
-      description = "Copy the clone's dashboards to Grafana";
+      description = "Copy the clone's (or the deployed) dashboards to Grafana";
       wantedBy = [ "grafana.service" ];
       before = [ "grafana.service" ];
       after = [ "grafana-secrets.service" ];
       path = [ pkgs.coreutils ];
       serviceConfig.Type = "oneshot";
       script = ''
-        tmp=$(mktemp -d ${grafanaDir}/.dashboards-live.XXXXXX)
         if [ -d ${cloneDashboards} ]; then
-          cp ${cloneDashboards}/*.json "$tmp"/ 2>/dev/null || true
+          src=${cloneDashboards}
+        else
+          src=${./dashboards}
         fi
-        chown -R grafana:grafana "$tmp"
-        chmod 0750 "$tmp"
-        rm -rf ${liveDashboards}
-        mv "$tmp" ${liveDashboards}
+        echo "dashboards from $src"
+
+        # In place, file by file. This used to replace the whole directory,
+        # leaving a moment with none at all, and a deleted dashboard then
+        # stayed in Grafana in one test run of two (2026-10-09) — most likely
+        # Grafana scanning in that moment. In place, it has not recurred.
+        install -d -o grafana -g grafana -m 0750 ${liveDashboards}
+        for f in ${liveDashboards}/*.json; do
+          [ -e "$f" ] || continue
+          [ -e "$src/''${f##*/}" ] || rm -f "$f"
+        done
+        for f in "$src"/*.json; do
+          [ -e "$f" ] || continue
+          install -o grafana -g grafana -m 0640 "$f" ${liveDashboards}/
+        done
       '';
     };
 
