@@ -77,9 +77,12 @@ in
   # not leave it dangling.
   home.activation.grafanaLocalMcp = lib.mkIf observability.enable (
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      # Bounded, so a claude that tries the network at activation time
-      # (first boot, offline) cannot hold the generation up.
-      if ! ${pkgs.coreutils}/bin/timeout 30 ${pkgs.claude-code}/bin/claude mcp get grafana-local >/dev/null 2>&1; then
+      # Checked by reading ~/.claude.json, not by asking `claude mcp get`:
+      # starting claude takes seconds, and this runs in home-manager-max,
+      # which login waits for — it put 2.5 s on every boot (2026-10-09).
+      # claude itself only runs when the server is actually missing,
+      # bounded so one that tries the network offline cannot hang it.
+      if ! ${pkgs.jq}/bin/jq -e '.mcpServers["grafana-local"]' "$HOME/.claude.json" >/dev/null 2>&1; then
         run ${pkgs.coreutils}/bin/timeout 30 ${pkgs.claude-code}/bin/claude mcp add --scope user grafana-local \
           -- ${config.home.profileDirectory}/bin/grafana-local-mcp \
           || warnEcho "could not register the grafana-local MCP server with Claude Code"

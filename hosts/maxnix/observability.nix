@@ -399,6 +399,17 @@ in
       extraFlags = [ "--disable-reporting" ];
     };
 
+    # Started after its sinks, so stopped before them. Unordered, shutdown
+    # stopped all three at once, and Alloy then spent its whole one-minute
+    # flush deadline trying to deliver its last samples to a Prometheus that
+    # was already gone — every shutdown took a minute longer, VM and metal
+    # alike ("task shutdown is taking longer than expected", 2026-10-09).
+    # Ordering only: Alloy still runs if either of them does not.
+    systemd.services.alloy.after = [
+      "prometheus.service"
+      "loki.service"
+    ];
+
     services.prometheus = {
       enable = true;
       listenAddress = "127.0.0.1";
