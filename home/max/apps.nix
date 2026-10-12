@@ -30,7 +30,12 @@ let
   # events (each prompt, tool call, API request and error), with Bash
   # commands and file paths (OTEL_LOG_TOOL_DETAILS). Not the text of prompts
   # or responses — decided 2026-10-08; OTEL_LOG_USER_PROMPTS=1 would add it.
-  # Traces are phase 2, with Tempo.
+  #
+  # Traces (beta, since 2026-10-09), into Tempo: interactive sessions root
+  # each prompt in a claude_code.interaction span, with model requests and
+  # tool calls under it and a tool's wait on a permission prompt as its own
+  # span. `claude -p` has no interaction span; measured 2026-10-12, its
+  # trace's root is the claude_code.llm_request itself.
   claudeWithTelemetry = pkgs.symlinkJoin {
     # claude-code's own pname, so the unfree allow-list entry for it (in
     # hosts/maxnix/configuration.nix, matched on pname) covers the wrapper.
@@ -43,6 +48,8 @@ let
         --set-default CLAUDE_CODE_ENABLE_TELEMETRY 1 \
         --set-default OTEL_METRICS_EXPORTER otlp \
         --set-default OTEL_LOGS_EXPORTER otlp \
+        --set-default OTEL_TRACES_EXPORTER otlp \
+        --set-default CLAUDE_CODE_ENHANCED_TELEMETRY_BETA 1 \
         --set-default OTEL_EXPORTER_OTLP_PROTOCOL grpc \
         --set-default OTEL_EXPORTER_OTLP_ENDPOINT http://127.0.0.1:4317 \
         --set-default OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE cumulative \

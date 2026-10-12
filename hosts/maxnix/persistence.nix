@@ -143,13 +143,19 @@
             }
           ]
       ++ [
-        # Alloy runs with DynamicUser, so its state is under /var/lib/private,
-        # which systemd insists stays 0700, and systemd itself chowns it to
-        # the dynamic user at every start. It holds the journal read
-        # position: without it, every boot re-reads the last 12 hours of
-        # journal into Loki.
+        # Alloy and Tempo run with DynamicUser, so their state is under
+        # /var/lib/private, which systemd insists stays 0700, and systemd
+        # itself chowns it to the dynamic user at every start. Alloy's holds
+        # the journal read position: without it, every boot re-reads the last
+        # 12 hours of journal into Loki.
         {
           directory = "/var/lib/private/alloy";
+          configureParent = true;
+          parent.mode = "0700";
+        }
+        # Tempo's traces and WAL, same arrangement.
+        {
+          directory = "/var/lib/private/tempo";
           configureParent = true;
           parent.mode = "0700";
         }

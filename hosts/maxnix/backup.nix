@@ -219,6 +219,7 @@ in
         "/persist/var/lib/loki"
         "/persist/var/lib/grafana"
         "/persist/var/lib/private/alloy"
+        "/persist/var/lib/private/tempo"
 
         # Rootless Docker's images, layers and volumes (./containers.nix).
         # Gigabytes, and every image is a pull away. A named volume holding

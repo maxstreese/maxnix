@@ -3,10 +3,10 @@
 #
 # ── Shape ────────────────────────────────────────────────────────────────
 #
-#   Claude Code ─OTLP─┐
-#   journald ─────────┤               ┌─ remote write ─► Prometheus  :9090
-#   node_exporter* ───┼─► Alloy ──────┤
-#                     │   OTLP :4317  └─ OTLP / push ─► Loki        :3100
+#   Claude Code ─OTLP─┐               ┌─ remote write ─► Prometheus  :9090
+#   journald ─────────┤               │                      ▲ span metrics
+#   node_exporter* ───┼─► Alloy ──────┼─ OTLP / push ─► Loki │      :3100
+#                     │   OTLP :4317  └─ OTLP ────────► Tempo ┘      :3200
 #                     │        :4318                         ▲
 #   (* built into Alloy)  UI   :12345      Grafana :3000 ────┘ ◄── mcp-grafana
 #
@@ -33,8 +33,13 @@
 #                (service_name="claude-code", from service.name) at megabytes
 #                a day, so a year of them scans quickly. Never make those IDs
 #                labels; journald stays in separate streams.
+#   Tempo        Traces: Claude Code's spans, one tree per prompt, with model
+#                requests and tool calls as children (added 2026-10-09). Its
+#                metrics generator also turns spans into Prometheus series
+#                (traces_spanmetrics_*), so "how long do Bash calls take" is a
+#                PromQL question, not a trace search.
 #   Grafana      Dashboards, and the API mcp-grafana talks to, so an agent can
-#                query everything above with PromQL and LogQL.
+#                query everything above with PromQL, LogQL and TraceQL.
 #
 # ── Claude Code ──────────────────────────────────────────────────────────
 #
@@ -87,8 +92,9 @@
 #
 # ── State ────────────────────────────────────────────────────────────────
 #
-# /var/lib/{prometheus2,loki,grafana} and Alloy's /var/lib/private/alloy (its
-# journal read position and remote-write WAL) are on /persist
+# /var/lib/{prometheus2,loki,grafana}, Alloy's /var/lib/private/alloy (its
+# journal read position and remote-write WAL) and Tempo's /var/lib/private/tempo
+# are on /persist
 # (./persistence.nix) and excluded from backups (./backup.nix): rebuildable
 # in the sense that losing them costs history, not configuration.
 {
@@ -107,6 +113,10 @@ let
     grafana = 3000;
     otlpGrpc = 4317;
     otlpHttp = 4318;
+    tempo = 3200;
+    tempoGrpc = 9095;
+    # Tempo's own OTLP receiver, fed only by Alloy. Off 4317, which Alloy has.
+    tempoOtlp = 4417;
     # Alloy's own UI, its default. Shows every component and what flows
     # between them — the first place to look when something does not arrive.
     alloy = 12345;
@@ -114,6 +124,7 @@ let
 
   prometheusUrl = "http://127.0.0.1:${toString ports.prometheus}";
   lokiUrl = "http://127.0.0.1:${toString ports.loki}";
+  tempoUrl = "http://127.0.0.1:${toString ports.tempo}";
   # localhost, not 127.0.0.1: see enforce_domain above.
   grafanaUrl = "http://localhost:${toString ports.grafana}";
 
@@ -141,6 +152,7 @@ let
         {"__address__" = "127.0.0.1:${toString ports.prometheus}", "job" = "prometheus"},
         {"__address__" = "127.0.0.1:${toString ports.loki}",       "job" = "loki"},
         {"__address__" = "localhost:${toString ports.grafana}",    "job" = "grafana"},
+        {"__address__" = "127.0.0.1:${toString ports.tempo}",      "job" = "tempo"},
       ]
       forward_to      = [prometheus.remote_write.local.receiver]
       scrape_interval = "60s"
@@ -212,6 +224,7 @@ let
       output {
         metrics = [otelcol.processor.batch.default.input]
         logs    = [otelcol.processor.batch.default.input]
+        traces  = [otelcol.processor.batch.default.input]
       }
     }
 
@@ -219,6 +232,16 @@ let
       output {
         metrics = [otelcol.exporter.prometheus.local.input]
         logs    = [otelcol.exporter.otlphttp.loki.input]
+        traces  = [otelcol.exporter.otlp.tempo.input]
+      }
+    }
+
+    otelcol.exporter.otlp "tempo" {
+      client {
+        endpoint = "127.0.0.1:${toString ports.tempoOtlp}"
+        tls {
+          insecure = true
+        }
       }
     }
 
@@ -251,6 +274,78 @@ let
         alloy validate ${alloyConfig}
         cp ${alloyConfig} $out
       '';
+
+  # Tempo, single binary. WorkingDirectory is /var/lib/tempo (the module's
+  # StateDirectory, DynamicUser, so /var/lib/private/tempo underneath).
+  tempoDir = "/var/lib/tempo";
+  tempoSettings = {
+    server = {
+      http_listen_address = "127.0.0.1";
+      http_listen_port = ports.tempo;
+      grpc_listen_address = "127.0.0.1";
+      grpc_listen_port = ports.tempoGrpc;
+      log_level = "warn";
+    };
+    # One instance gossiping with nobody, but memberlist starts anyway; on
+    # loopback it listens nowhere it should not.
+    memberlist = {
+      bind_addr = [ "127.0.0.1" ];
+      advertise_addr = "127.0.0.1";
+    };
+    distributor.receivers.otlp.protocols.grpc.endpoint = "127.0.0.1:${toString ports.tempoOtlp}";
+    storage.trace = {
+      backend = "local";
+      wal.path = "${tempoDir}/wal";
+      local.path = "${tempoDir}/blocks";
+    };
+    # Tempo 3.0's new components default to paths under /var/tempo, which
+    # the module's sandbox does not let it write. Each one failed at start
+    # ("mkdir /var/tempo: read-only file system") and took the OTLP receiver
+    # and every query down with it (2026-10-09). All of them, from the 3.0.3
+    # source, pointed into the state directory instead.
+    live_store = {
+      wal.path = "${tempoDir}/live-store/traces";
+      shutdown_marker_dir = "${tempoDir}/live-store/shutdown-marker";
+    };
+    block_builder.wal.path = "${tempoDir}/block-builder/traces";
+    backend_scheduler.local_work_path = "${tempoDir}/backend-scheduler";
+    # The backend worker (compaction, retention) waited out a 30 s
+    # finish-on-shutdown timeout at every stop, even idle — and caught in its
+    # backoff, the whole 90 s until systemd killed it, which then cost a WAL
+    # block on the next start (2026-10-09). Its jobs are built to be
+    # interrupted; 5 s is plenty for one machine's blocks. The shorter
+    # backoff ceiling keeps it from sleeping through a stop.
+    backend_worker = {
+      finish_on_shutdown_timeout = "5s";
+      backoff.max_period = "15s";
+    };
+
+    # Span metrics into the same Prometheus. Only the span-metrics
+    # processor: service graphs need more than one service to say anything.
+    metrics_generator = {
+      storage = {
+        path = "${tempoDir}/generator/wal";
+        remote_write = [ { url = "${prometheusUrl}/api/v1/write"; } ];
+      };
+      registry.external_labels.source = "tempo";
+    };
+    overrides.defaults = {
+      metrics_generator.processors = [ "span-metrics" ];
+      # Retention is an override in Tempo 3.0: the `compactor` block is gone
+      # (compaction moved to the backend scheduler and worker), and the
+      # default for every tenant is the one place covering both. Caught by
+      # -config.verify, 2026-10-09.
+      compaction.block_retention = cfg.tracesRetention;
+    };
+    usage_report.reporting_enabled = false;
+  };
+  tempoConfig = (pkgs.formats.yaml { }).generate "tempo.yaml" tempoSettings;
+  # Validated at build time like Alloy's: `-config.verify` parses and checks
+  # the config and exits without starting anything.
+  tempoConfigChecked = pkgs.runCommand "tempo.yaml" { nativeBuildInputs = [ pkgs.tempo ]; } ''
+    tempo -config.file=${tempoConfig} -config.verify=true
+    cp ${tempoConfig} $out
+  '';
 
   grafanaDir = config.services.grafana.dataDir;
   adminPasswordFile = "${grafanaDir}/admin-password";
@@ -371,6 +466,12 @@ in
       description = "How long Loki keeps logs, in hours (Loki takes no `y` or `d`). 8760h is a year.";
     };
 
+    tracesRetention = lib.mkOption {
+      type = lib.types.str;
+      default = "720h";
+      description = "How long Tempo keeps traces, as a Go duration. 720h is 30 days.";
+    };
+
     mcpTokenFile = lib.mkOption {
       type = lib.types.path;
       default = "${mcpTokenDir}/token";
@@ -408,7 +509,23 @@ in
     systemd.services.alloy.after = [
       "prometheus.service"
       "loki.service"
+      "tempo.service"
     ];
+
+    services.tempo = {
+      enable = true;
+      configFile = tempoConfigChecked;
+    };
+
+    # A ceiling on stopping, as a guard rail rather than a fix. With
+    # backend_worker above, Tempo stops in about 5 s — but once in roughly
+    # seven stops (2026-10-12, VM shutdowns and test restarts) something
+    # after the worker still hung until systemd's 90 s kill, and it would not
+    # reproduce on demand. Within the first 100 ms of a stop Tempo has already
+    # cut everything it holds to its WAL ("done cutting all instances to
+    # WAL"); what follows is ring and scheduler teardown. So a kill at 20 s
+    # costs nothing that matters, and a hang costs 20 s instead of 90.
+    systemd.services.tempo.serviceConfig.TimeoutStopSec = "20s";
 
     services.prometheus = {
       enable = true;
@@ -483,12 +600,14 @@ in
       # it logs "plugin prometheus not found" and tries to download them from
       # grafana.com at every start (found 2026-10-08, in the test's offline
       # VM). Declared, they come from nixpkgs, pinned like everything else,
-      # and the module turns the background installer off. The two Drilldown
-      # apps are Grafana's query-less browsers for metrics and logs.
+      # and the module turns the background installer off. The Drilldown
+      # apps are Grafana's query-less browsers for metrics, logs and traces.
       declarativePlugins = with pkgs.grafanaPlugins; [
         prometheus
         loki
+        tempo
         grafana-metricsdrilldown-app
+        grafana-exploretraces-app
         grafana-lokiexplore-app
       ];
 
@@ -548,6 +667,12 @@ in
               uid = "loki";
               type = "loki";
               url = lokiUrl;
+            }
+            {
+              name = "Tempo";
+              uid = "tempo";
+              type = "tempo";
+              url = tempoUrl;
             }
           ];
         };

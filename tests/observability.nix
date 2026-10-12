@@ -8,8 +8,8 @@
 #   machine  the stack as metal runs it: dashboards from the store. Data goes
 #            in the ways it does on the machine — node_exporter scraped by
 #            Alloy, a line through journald, OTLP shaped like Claude Code's —
-#            and is read back the way an agent would: PromQL, LogQL, Grafana's
-#            API, mcp-grafana over stdio. Also Grafana's access rules, and
+#            and is read back the way an agent would: PromQL, LogQL, TraceQL,
+#            Grafana's API, mcp-grafana over stdio. Also Grafana's access rules, and
 #            grafana-capture writing a UI-built dashboard into a clone.
 #   devbox   the same with maxnix.dev.liveConfig, as the VM runs it: the
 #            deployed dashboards while the clone has none, then the clone's —
@@ -43,7 +43,7 @@ let
         pkgs.netcat
         pkgs.mcp-grafana
       ];
-      virtualisation.memorySize = 3072;
+      virtualisation.memorySize = 4096;
     };
 in
 {
@@ -108,7 +108,7 @@ in
     claude = {"attributes": [{"key": "service.name", "value": {"stringValue": "claude-code"}}]}
 
     start_all()
-    for unit in ["alloy", "prometheus", "loki", "grafana"]:
+    for unit in ["alloy", "prometheus", "loki", "tempo", "grafana"]:
         machine.wait_for_unit(f"{unit}.service")
     machine.wait_for_open_port(4318)
     machine.wait_for_open_port(3100)
@@ -165,6 +165,34 @@ in
              "the Claude Code metric in Prometheus")
         print(promql('{__name__=~"claude_code_cost_usage.*"}'))
 
+    with subtest("a Claude Code trace over OTLP reaches Tempo, and its span metrics Prometheus"):
+        machine.wait_for_open_port(3200)
+        trace_id = "5b8efff798038103d269b633813fc60c"
+        now = time.time_ns()
+        def span(span_id, name, parent=None, ms=100):
+            s = {"traceId": trace_id, "spanId": span_id, "name": name, "kind": 1,
+                 "startTimeUnixNano": str(now - ms * 10**6), "endTimeUnixNano": str(now),
+                 "attributes": [{"key": "session.id", "value": {"stringValue": "test-session-4711"}}]}
+            if parent:
+                s["parentSpanId"] = parent
+            return s
+        otlp("traces", {"resourceSpans": [{"resource": claude, "scopeSpans": [{
+            "scope": {"name": "com.anthropic.claude_code"},
+            "spans": [span("eee19b7ec3c1b174", "claude_code.interaction", ms=900),
+                      span("eee19b7ec3c1b175", "claude_code.tool", "eee19b7ec3c1b174", ms=300)]}]}]})
+        wait(f"curl -fsS http://127.0.0.1:3200/api/v2/traces/{trace_id} | jq -e '[.. | .name? | strings] | index(\"claude_code.tool\")'",
+             "the trace in Tempo by id")
+        # TraceQL, as an agent would search: by service and span name.
+        wait("curl -fsS -G http://127.0.0.1:3200/api/search --data-urlencode"
+             " 'q={resource.service.name=\"claude-code\" && name=\"claude_code.interaction\"}'"
+             f" | jq -e '[.traces[].traceID] | index(\"{trace_id}\")'",
+             "the trace through a TraceQL search")
+        # The metrics generator turns spans into series; logged for the names.
+        wait("curl -fsS 'http://127.0.0.1:9090/api/v1/query' --data-urlencode"
+             " 'query=traces_spanmetrics_calls_total{service=\"claude-code\"}' | jq -e '.data.result | length > 0'",
+             "span metrics in Prometheus")
+        print(promql('{__name__=~"traces_spanmetrics_.*", service="claude-code"}')[:3])
+
     # Its unit is up well before its HTTP server: migrations run first.
     machine.wait_for_open_port(3000)
     password = machine.succeed("cat /var/lib/grafana/admin-password")
@@ -176,8 +204,8 @@ in
         assert mode == "600 grafana", mode
         machine.fail("runuser -u max -- cat /var/lib/grafana/admin-password")
 
-    with subtest("Grafana: both datasources healthy, both dashboards there"):
-        for uid in ["prometheus", "loki"]:
+    with subtest("Grafana: every datasource healthy, both dashboards there"):
+        for uid in ["prometheus", "loki", "tempo"]:
             health = get(machine, f"{grafana}/api/datasources/uid/{uid}/health", admin)
             assert health["status"] == "OK", (uid, health)
         assert titles(machine, admin) == ["Claude Code", "Host"], titles(machine, admin)
@@ -215,7 +243,7 @@ in
             " timeout 20 mcp-grafana --disable-write || true")
         reply = next(json.loads(l) for l in out.splitlines() if '"id":2' in l.replace(" ", ""))
         text = json.dumps(reply)
-        assert "prometheus" in text and "loki" in text, text
+        assert all(ds in text for ds in ["prometheus", "loki", "tempo"]), text
 
     with subtest("a token that stopped working is replaced"):
         machine.succeed("echo garbage > /var/lib/grafana-mcp/token")
@@ -242,6 +270,13 @@ in
 
     with subtest("data survives a restart of the stores"):
         machine.succeed("systemctl restart prometheus loki")
+        # Tempo on its own, timed: it used to wait out a 30 s worker timeout
+        # at every stop, or sit until systemd killed it at 90 s and lose its
+        # newest WAL block. Both are asserted gone.
+        t0 = time.time()
+        machine.succeed("systemctl restart tempo")
+        took = time.time() - t0
+        assert took < 20, f"restarting tempo took {took:.0f} s"
         machine.wait_for_open_port(3100)
         wait("curl -fsS 'http://127.0.0.1:9090/api/v1/query' --data-urlencode"
              " 'query={__name__=~\"claude_code_cost_usage.*\"}' | jq -e '.data.result | length > 0'",
@@ -249,6 +284,14 @@ in
         wait("curl -fsS -G http://127.0.0.1:3100/loki/api/v1/query_range"
              " --data-urlencode 'query={service_name=\"claude-code\"} | session_id=\"test-session-4711\"'"
              " | jq -e '.data.result | length > 0'", "the event after a restart")
+        wait(f"curl -fsS http://127.0.0.1:3200/api/v2/traces/{trace_id} >/dev/null", "the trace after a restart")
+        # No WAL block lost to the restart. One kind of "failed to replay
+        # block" is expected at every start and is not a loss: the empty head
+        # block Tempo opens at shutdown has no meta.json, because a WAL block
+        # writes it only once it holds a trace (walBlock.Flush returns early
+        # on an empty one, vparquet4/wal_block.go in 3.0.3). Anything else is.
+        machine.fail("journalctl -u tempo | grep 'failed to replay block'"
+                     " | grep -v 'meta.json: no such file or directory'")
 
     with subtest("live dashboards: the deployed ones while the clone has none"):
         devbox.wait_for_open_port(3000)
@@ -280,7 +323,7 @@ in
         exposed = [l for l in listeners if not (l.startswith("127.0.0.1:") or l.startswith("[::1]:"))]
         assert not exposed, f"listening beyond loopback: {exposed}"
         outside.wait_for_unit("multi-user.target")
-        for port in [3000, 3100, 4317, 4318, 9090, 9096, 12345]:
+        for port in [3000, 3100, 3200, 4317, 4318, 4417, 7946, 9090, 9095, 9096, 12345]:
             outside.fail(f"nc -z -w 3 machine {port}")
 
     with subtest("and the probe does see a port that is open"):

@@ -96,7 +96,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
-| observability | Alloy → Prometheus (metrics, 2 y) and Loki (logs, 1 y), Grafana on top (anonymous read-only; admin password generated in `/var/lib/grafana/admin-password`), all on loopback; Claude Code's OTel export and `grafana-local` (mcp-grafana) for agents. Dashboards are JSON in `hosts/maxnix/dashboards`: build in the UI and `grafana-capture`, or edit the files — live in the VM |
+| observability | Alloy → Prometheus (metrics, 2 y), Loki (logs, 1 y) and Tempo (traces, 30 d, with span metrics into Prometheus), Grafana on top (anonymous read-only; admin password generated in `/var/lib/grafana/admin-password`), all on loopback; Claude Code's OTel export and `grafana-local` (mcp-grafana) for agents. Dashboards are JSON in `hosts/maxnix/dashboards`: build in the UI and `grafana-capture`, or edit the files — live in the VM |
 
 ```
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`

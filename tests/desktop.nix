@@ -264,7 +264,7 @@
           # preserved /var/lib/loki came up root-owned and Loki could not
           # start. So here, on the full machine, every store must be up and
           # its data directory owned by its service.
-          for unit in ["alloy", "prometheus", "loki", "grafana"]:
+          for unit in ["alloy", "prometheus", "loki", "tempo", "grafana"]:
               machine.wait_for_unit(f"{unit}.service")
           for path, owner in [("/var/lib/prometheus2", "prometheus"),
                               ("/var/lib/loki", "loki"),
