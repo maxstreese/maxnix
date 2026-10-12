@@ -776,17 +776,20 @@
             echo >&2
             echo "-- vm suites, portable tier --" >&2
             # --max-jobs 1 because these guests are the whole desktop machine,
-            # 8192 MiB each (observability's two at 4096). Measured on the
-            # host, 2026-10-12, peak resident memory per suite: desktop
-            # 2.8 GiB, niri 3.0, hyprland 3.6, observability 5.3 across its
-            # three guests. In parallel that is about 15 GiB, and a GitHub
-            # runner has 16; install-nix-action sets max-jobs = auto there.
-            # So it is stated here rather than left to whatever nix.conf
-            # says — the divergence this runner exists to prevent.
+            # 8192 MiB each: in parallel they may grow to 24 GiB, and a GitHub
+            # runner has 16 (install-nix-action sets max-jobs = auto there).
+            # A guest keeps every page it touches, page cache included, so
+            # the ceiling is what bounds it, not a typical run. Measured on
+            # the host, 2026-10-12, peaks were desktop 2.8 GiB, niri 3.0,
+            # hyprland 3.6. Stated here rather than left to whatever
+            # nix.conf says — the divergence this runner exists to prevent.
             #
-            # The metal stage above needs no such limit and has none: its
-            # guests are 1024 MiB, and their measured peaks add up to about
-            # 4 GiB.
+            # The metal stage above runs in parallel, on less margin: its
+            # ceilings add up to 15 GiB (observability's 4096 + 4096 + 1024,
+            # metal-boots' and containers' two 1024s, secrets' and fleet's
+            # one), right at a runner's 16, but its measured peaks only to
+            # about 9.4 GiB, observability 5.3 of that. Kept parallel for
+            # that; if a runner ever runs out there, it gets this flag too.
             nix build --max-jobs 1 --print-build-logs ${checkArgs portableVmTests}
 
             if [ "$have_gpu" = no ]; then

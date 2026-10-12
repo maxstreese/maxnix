@@ -473,9 +473,13 @@ greetd's `preStart`. They fight.
 
 ## Tests
 
-16 subtests across three `nixosTest` checks, plus a startup check. The three
-share `hostModules` with the real machine, so a test node cannot drift from what
-`nix run .#vm` builds.
+Eight VM suites, three static checks, a build of the metal system and a
+startup check. The three desktop suites — `desktop`, `niri`, `hyprland` — boot
+the whole machine from `hostModules`, so a test node cannot drift from what
+`nix run .#vm` builds. The other five (`secrets`, `fleet`, `containers`,
+`observability`, `metal-boots`) each import only what they test, on small
+nodes; the desktop suites already boot everything, and booting it again per
+module would cost minutes and gigabytes to prove nothing new.
 
 **One command runs all of it, here and in CI:**
 
@@ -495,8 +499,9 @@ The tiers come from one definition instantiated twice, differing only in a
 | --- | --- | --- |
 | `gpu` | `false` | `true` |
 | QEMU | `-device virtio-vga` | `-device virtio-vga-gl` + `egl-headless` + `-vnc` |
-| desktop | 4 subtests | 6 |
-| niri / hyprland | 2 subtests each | all |
+| desktop | 6 subtests | 8 |
+| niri | 2 | 5 |
+| hyprland | 3 | 7 |
 | sandboxed | yes, and cached | no — needs `/sys`, see above |
 
 The portable tier is everything that does not look at the screen. It is not a
@@ -515,16 +520,29 @@ reports that as exit 124, and any other status means QEMU bailed. It needs a
 graphical session and flashes a window; that is inherent to testing
 `-display gtk`.
 
-Five checks sit alongside the compositor and desktop suites in the portable
-tier: three static ones, and the two that cover the metal configuration.
+Nine checks sit alongside the desktop suites, all sandboxed and all in CI:
+three static ones, and the metal stage — the installable system and the
+suites for one module each. Subtest counts as of 2026-10-12.
 
-| check | what it asserts | fix it with |
+| check | what it asserts | subtests |
 | --- | --- | --- |
-| `formatting` | every `.nix` file is nixfmt-clean | `nix fmt` |
-| `lint` | statix, deadnix, actionlint and the Renovate config validator find nothing | by hand — see below |
-| `hyprland-config` | Hyprland parses its own generated config and would load it | by hand |
-| `metal` | the machine as it would be *installed* builds | by hand |
-| `metal-boots` | that layout partitions, formats and boots | by hand |
+| `formatting` | every `.nix` file is nixfmt-clean; fix with `nix fmt` | — |
+| `lint` | statix, deadnix, actionlint and the Renovate config validator find nothing; fix by hand, see below | — |
+| `hyprland-config` | Hyprland parses its own generated config and would load it | — |
+| `metal` | the machine as it would be *installed* builds | — |
+| `metal-boots` | that layout partitions, formats and boots | disko's own script |
+| `secrets` | sops-nix decrypts a post-quantum age key at activation, root-only and in memory, and Fleet and the backup get their values from it | 4 |
+| `fleet` | orbit starts with its secret, tries the configured server, keeps retrying without crashing, and stops promptly | 4 |
+| `containers` | rootless Docker is max's, runs a Docker Hub image under compose with its storage on `/home`, and a published port stays behind the firewall until opened | 7 |
+| `observability` | metrics, logs, events and traces reach their stores; Grafana, its datasources, dashboards and mcp-grafana work; data survives a restart; nothing listens beyond loopback | 18 |
+
+`ci` builds the static checks, then the metal stage, then the portable desktop
+suites, each stage one `nix build`. The metal stage runs its suites in
+parallel, the desktop stage one at a time: a guest keeps every page it
+touches, so what bounds it is its memory ceiling, and three 8 GiB desktop
+guests would add up to 24 GiB on a 16 GB runner. The metal stage's ceilings
+add up to 15 GiB, its measured peaks to about 9.4 (2026-10-12); the numbers
+are in the comment above the flag in `flake.nix`.
 
 `metal` is the one check nothing else can stand in for. `packages.vm` builds
 the vmVariant's toplevel and the three suites build a third variant again —
