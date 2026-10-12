@@ -775,12 +775,18 @@
 
             echo >&2
             echo "-- vm suites, portable tier --" >&2
-            # --max-jobs 1 because each guest is 8192 MiB and there are three
-            # of them: in parallel that is 24 GB, and a GitHub runner has 16.
-            # This host carries max-jobs = 1 in nix.conf, which is why it
-            # never bit locally — and leaning on a local setting for
-            # correctness in CI is precisely the divergence this runner
-            # exists to prevent, so it is stated rather than assumed.
+            # --max-jobs 1 because these guests are the whole desktop machine,
+            # 8192 MiB each (observability's two at 4096). Measured on the
+            # host, 2026-10-12, peak resident memory per suite: desktop
+            # 2.8 GiB, niri 3.0, hyprland 3.6, observability 5.3 across its
+            # three guests. In parallel that is about 15 GiB, and a GitHub
+            # runner has 16; install-nix-action sets max-jobs = auto there.
+            # So it is stated here rather than left to whatever nix.conf
+            # says — the divergence this runner exists to prevent.
+            #
+            # The metal stage above needs no such limit and has none: its
+            # guests are 1024 MiB, and their measured peaks add up to about
+            # 4 GiB.
             nix build --max-jobs 1 --print-build-logs ${checkArgs portableVmTests}
 
             if [ "$have_gpu" = no ]; then
