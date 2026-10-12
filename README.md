@@ -168,7 +168,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | commit signing | SSH keys via 1Password, not GPG | supported by git since 2.34 and verified by GitHub, GitLab and Bitbucket; the private half never leaves the vault, and only public keys appear in this repo. Two keys: auth is scoped to an account on one host, signing to one identity everywhere |
 | design loop | Quickshell config points at the clone in the VM; DMS theming is captured, not declared | the store is read-only, so a colour tweak would otherwise cost a 30 s rebuild. `maxnix.dev.liveConfig` makes generated Quickshell config an out-of-store symlink into the clone, so Quickshell's own file watcher has something that can change; it is off everywhere but the VM. DMS is the other way round — its settings UI already writes a mutable file, so `dms-capture` records that into the repo rather than declaring it and taking the UI's ability to save |
 | DMS plugins | declared via `programs.dank-material-shell.plugins`, source as `flake = false` inputs; settings captured | pinned by `flake.lock` and bumped by Renovate like every other input, instead of whatever `dms plugins install` fetched that day. Settings stay out of Nix for the same reason as DMS theming: declaring any of them makes `plugin_settings.json` a store file the UI cannot save. Quick Capture records through gpu-screen-recorder on metal and wf-recorder in the VM, which has no encoder |
-| observability | Alloy, Prometheus, Loki and Grafana; not Mimir, VictoriaMetrics, OpenObserve or SigNoz | decided 2026-10-08 after comparing all four as single-machine backends. Alloy is one binary for every planned input — OTLP, node_exporter, journald, and later eBPF network telemetry and profiling, both GA there. Loki's weakness, finding a record by an unindexed ID like Claude Code's `session.id`, costs the size of the streams a query selects; Claude Code's events are their own small stream, so at one machine's volume it does not bite. Prometheus over Mimir: clustering, tenants and object storage buy nothing on one box. mcp-grafana covers all of it, already the agent tool of choice. Claude Code's telemetry goes through a wrapper around `claude`, not session variables, so no other OTel SDK is redirected; prompt text is not sent. Grafana's admin password is generated on the machine, not kept in sops: Grafana applies it only when creating its database, so sops would suggest control it does not have, and it is the only reason the stack would need a secret. Anonymous visitors are Viewers, and `enforce_domain` refuses any host but `localhost`, which closes DNS rebinding from a browser tab |
+| observability | Alloy, Prometheus, Loki, Tempo and Grafana; not Mimir, VictoriaMetrics, OpenObserve or SigNoz | decided 2026-10-08 after comparing all four as single-machine backends; Tempo added 2026-10-09 for Claude Code's traces (beta since that day), with its span-metrics processor writing span durations into the same Prometheus rather than a second metrics store. Alloy is one binary for every planned input — OTLP, node_exporter, journald, and later eBPF network telemetry and profiling, both GA there. Loki's weakness, finding a record by an unindexed ID like Claude Code's `session.id`, costs the size of the streams a query selects; Claude Code's events are their own small stream, so at one machine's volume it does not bite. Prometheus over Mimir: clustering, tenants and object storage buy nothing on one box. mcp-grafana covers all of it, already the agent tool of choice. Claude Code's telemetry goes through a wrapper around `claude`, not session variables, so no other OTel SDK is redirected; prompt text is not sent. Grafana's admin password is generated on the machine, not kept in sops: Grafana applies it only when creating its database, so sops would suggest control it does not have, and it is the only reason the stack would need a secret. Anonymous visitors are Viewers, and `enforce_domain` refuses any host but `localhost`, which closes DNS rebinding from a browser tab |
 | shared bindings | one list, with `repeat` stated per binding | niri defaults repeat to true and Hyprland to false, so every shared binding behaved differently depending on which session you logged into, until it was named. The rule is repeat a step, never a spawn or a toggle — which overrides niri's default *and* upstream Hyprland's own example on mute |
 | app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
 | terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup on both compositors |
@@ -204,10 +204,38 @@ not. Loki failed its first boot in the VM on `mkdir /var/lib/loki/rules:
 permission denied`, so persisted service directories state their owner in
 `hosts/maxnix/persistence.nix`, and the desktop suite checks they are up.
 
-**Grafana 13 ships without its core datasources.** Prometheus and Loki are
-plugins now; without them Grafana logs `plugin prometheus not found` and tries to
-download them from grafana.com at every start. `services.grafana.declarativePlugins`
-with `pkgs.grafanaPlugins.{prometheus,loki}` pins them and turns the installer off.
+**Grafana 13 ships without its core datasources.** Prometheus, Loki and Tempo
+are plugins now; without them Grafana logs `plugin prometheus not found` and tries
+to download them from grafana.com at every start. `services.grafana.declarativePlugins`
+with `pkgs.grafanaPlugins.{prometheus,loki,tempo}` pins them and turns the
+installer off.
+
+**Tempo 3.0 writes outside its state directory by default.** Its new
+components (live store, block builder, backend scheduler) default to paths
+under `/var/tempo`, which the module's sandbox does not allow. Each failed at
+start with `mkdir /var/tempo: read-only file system` and took the OTLP receiver
+and every query down with it (2026-10-09). `hosts/maxnix/observability.nix`
+points all of them into `/var/lib/tempo`, a list taken from the 3.0.3 source.
+
+**Tempo's backend worker held up every stop.** Even idle, it waited out a 30 s
+finish-on-shutdown timeout; caught in its retry backoff, it sat the full 90 s
+until systemd killed it, and the next start lost the newest WAL block.
+`backend_worker.finish_on_shutdown_timeout = "5s"` and `backoff.max_period =
+"15s"` bring a stop to about 5 s; the observability suite times a restart and
+fails above 20 s, and fails at 90 s with the two settings removed (2026-10-12).
+One `failed to replay block … meta.json: no such file or directory` at every
+start is not a loss: it is the empty head block opened at shutdown, and a WAL
+block writes its `meta.json` only once it holds a trace. The suite allows that
+line and no other replay failure.
+
+**`claude -p` traces have no interaction span.** Interactive sessions root each
+prompt in `claude_code.interaction`, with model requests and tool calls under
+it; a `claude -p` run's trace is a bare `claude_code.llm_request` (measured
+2026-10-12). Searching on the interaction span alone finds nothing from
+scripted runs, which is why the dashboard's trace panel selects on
+`resource.service.name="claude-code"`. Give Tempo's search API `start` and
+`end`: without them, the same query returned no traces for one that was there
+and was found once a window was given (2026-10-12).
 
 **`screendump` cannot capture a GL scanout** — `Error: no surface` — so the test
 driver's `machine.screenshot()` and `get_screen_text()` are unusable here. VNC
@@ -691,6 +719,16 @@ claims.
 ---
 
 ## Open points
+
+**Tempo still hangs on an occasional stop.** With the backend worker fixed it
+stops in about 5 s, but in roughly one stop in seven (VM shutdowns and test
+restarts, 2026-10-12) something after the worker kept it alive until systemd's
+kill, and it did not reproduce on demand. `TimeoutStopSec = 20s` caps it:
+within 100 ms of a stop Tempo has cut everything it holds to its WAL, so the
+kill costs nothing but the wait. Catching the cause needs Tempo's info log
+running across ordinary shutdowns until the next one. Loki's stop, 9 s on
+earlier shutdowns, took 27 s on the last one; under systemd's 90 s, but worth a
+look if it grows.
 
 **Backups are wired and authorised, and run in the VM only; there is no
 backup of this machine on metal yet.** `hosts/maxnix/backup.nix` has the
