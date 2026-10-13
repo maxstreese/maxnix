@@ -418,7 +418,7 @@
       # exec whatever `ssh` they find, so this is how vm-deploy's copies get
       # their port and password without any of those tools knowing.
       vmSshShim = pkgs.writeShellScriptBin "ssh" ''
-        exec ${lib.getExe pkgs.sshpass} -p ${lib.escapeShellArg maxnix.config.users.users.max.initialPassword} \
+        exec ${lib.getExe pkgs.sshpass} -p ${lib.escapeShellArg maxnix.config.virtualisation.vmVariant.users.users.max.initialPassword} \
           ${pkgs.openssh}/bin/ssh \
             -p 2222 \
             -F /dev/null \
@@ -525,6 +525,91 @@
               echo "MISMATCH: ${key} is not the vm key in .sops.yaml" >&2
               exit 1
             fi
+          '';
+        };
+
+      # The admin key's command, shared by the dev shell and secret-set so the
+      # two cannot drift apart. See the dev shell for why a command.
+      sopsAgeKeyCmd = "op read --account my.1password.com op://uxobupcysqhat566ymgikx46fm/fsgcalkkn3guvyu6uf3blufipa/notesPlain";
+
+      # nix run .#secret-set -- <name> <op-reference>
+      #
+      # Put one value from 1Password into hosts/maxnix/secrets.yaml, from the
+      # repo root and your own terminal, where 1Password can prompt:
+      #
+      #   nix run .#secret-set -- restic-password "op://<vault>/<item>/password"
+      #
+      # What the hand-written `op read | jq -R . | sops set` in
+      # hosts/maxnix/secrets.nix did, with its gaps closed:
+      #
+      #   - Only names the machine declares, metal or VM, read off their
+      #     configs: a typo would otherwise sit in the file, unused, while the
+      #     declared secret stayed missing.
+      #   - Nothing written unless 1Password returned something. A plain pipe
+      #     carries on after a failed `op read` — prompt denied, 1Password
+      #     locked — the hazard vm-restore-key guards against too.
+      #   - Secrets decrypted for the users (neededForUsers) are login
+      #     passwords, stored as hashes; for those it hashes with yescrypt
+      #     itself, so a password can never land there in plaintext.
+      #   - Checked, not trusted: it decrypts what it wrote and compares.
+      #
+      # The value lives in shell variables and pipes, never in a file or an
+      # argument list, and is never printed; for a hash, the first seven
+      # characters ($y$j9T$) are, as proof of the kind. Trailing newlines are
+      # dropped, as `op read` adds one; a multi-line value keeps its inner
+      # ones. `op` is the host's, like vm-restore-key's.
+      secretSet =
+        let
+          secretsOf = cfg: builtins.attrNames cfg.sops.secrets;
+          declared = lib.unique (secretsOf maxnix.config ++ secretsOf maxnix.config.virtualisation.vmVariant);
+          hashed = builtins.attrNames (lib.filterAttrs (_: s: s.neededForUsers) maxnix.config.sops.secrets);
+        in
+        pkgs.writeShellApplication {
+          name = "secret-set";
+          runtimeInputs = [
+            pkgs.sops
+            pkgs.jq
+            pkgs.mkpasswd
+          ];
+          text = ''
+            export SOPS_AGE_KEY_CMD=${lib.escapeShellArg sopsAgeKeyCmd}
+            file=hosts/maxnix/secrets.yaml
+            declared=${lib.escapeShellArg (lib.concatStringsSep " " declared)}
+            hashed=${lib.escapeShellArg (lib.concatStringsSep " " hashed)}
+
+            if [ $# -ne 2 ]; then
+              echo "usage: secret-set <name> <op-reference>" >&2
+              echo "names: $declared" >&2
+              exit 2
+            fi
+            name=$1 ref=$2
+
+            case " $declared " in
+              *" $name "*) ;;
+              *)
+                echo "$name is not a secret the machine declares; declare it in hosts/maxnix/secrets.nix first" >&2
+                exit 1
+                ;;
+            esac
+            [ -f "$file" ] || { echo "no $file here; run this from the repo root" >&2; exit 1; }
+
+            echo "reading $name from 1Password..." >&2
+            value=$(op read --account my.1password.com "$ref")
+            [ -n "$value" ] || { echo "1Password returned nothing; $file left as it was" >&2; exit 1; }
+
+            case " $hashed " in
+              *" $name "*)
+                value=$(printf '%s' "$value" | mkpasswd -m yescrypt --stdin)
+                shown="a yescrypt hash, ''${value:0:7}…"
+                ;;
+              *) shown="the value from 1Password" ;;
+            esac
+
+            printf '%s' "$value" | jq -Rs . | sops set --value-stdin "$file" "[\"$name\"]"
+
+            [ "$(sops decrypt --extract "[\"$name\"]" "$file")" = "$value" ] \
+              || { echo "MISMATCH: $name in $file is not what was written" >&2; exit 1; }
+            echo "set $name to $shown, and read back to match" >&2
           '';
         };
 
@@ -865,6 +950,10 @@
           pkgs.sops
           pkgs.age
 
+          # The login password's hash, for the `login-password` secret
+          # (hosts/maxnix/secrets.nix): `mkpasswd -m yescrypt --stdin`.
+          pkgs.mkpasswd
+
           # `rclone authorize "drive" <id> <secret>` for the backup's Google
           # Drive token (hosts/maxnix/backup.nix). From the flake's nixpkgs so
           # it matches the rclone the backup unit runs; mismatched versions
@@ -882,7 +971,7 @@
         # editor and everything the editor starts. Through a pipe the key only
         # ever reaches sops. Opaque ids rather than names, so the public repo
         # says as little as possible about the vault.
-        env.SOPS_AGE_KEY_CMD = "op read --account my.1password.com op://uxobupcysqhat566ymgikx46fm/fsgcalkkn3guvyu6uf3blufipa/notesPlain";
+        env.SOPS_AGE_KEY_CMD = sopsAgeKeyCmd;
       };
 
       # nix run .#install -- root@<target>
@@ -1222,6 +1311,10 @@
         backup = {
           type = "app";
           program = lib.getExe backup;
+        };
+        secret-set = {
+          type = "app";
+          program = lib.getExe secretSet;
         };
         ci = {
           type = "app";

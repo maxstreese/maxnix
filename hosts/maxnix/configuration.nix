@@ -56,14 +56,20 @@
       "wheel"
       "video" # DRM access, needed by every compositor
     ];
-    # A plaintext credential, world-readable in the Nix store. Decided
-    # 2026-09-17: fine as it is, on the VM and on the eventual host alike, so
-    # this is not on the road to metal. `initialPassword` only applies when
-    # the user is first created — see the note about stale disk images in
-    # ./vm.nix.
-    initialPassword = "maxnix";
   };
-  users.users.root.initialPassword = "maxnix";
+
+  # Users exactly as declared, at every activation, and the password from
+  # sops (./secrets.nix). Measured 2026-10-13 in checks.metal-boots: with
+  # mutable users and the root wiped at every boot, /etc/shadow is rebuilt
+  # from the config each time, so a `passwd` was undone by the next boot. And
+  # nothing better was on offer — userborn's persistent password files are
+  # symlinks into /etc, which passwd and chpasswd replace with a plain file on
+  # the wiped root. So the password lives in the repo, encrypted, and
+  # changing it is a sops edit and a rebuild (README, "Decisions, and why").
+  # Every VM keeps a known plaintext one instead; see
+  # ../../modules/vm/qemu-guest.nix.
+  users.mutableUsers = false;
+  maxnix.loginPassword.fromSops = true;
 
   # ROAD TO METAL. No password prompt on sudo, purely to skip typing in a
   # guest whose disk is thrown away. On the real host this goes.

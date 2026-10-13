@@ -158,7 +158,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | modifier key | Super, as upstream | QEMU's keyboard grab makes Mutter inhibit its shortcuts for the window; `scripts/vm-keys` covers the two things the grab cannot: the overlay key, and GNOME's remembered permission |
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
-| login passwords | plaintext `initialPassword`, kept for metal too | decided 2026-09-17 — but impermanence has since changed what that *means*; see the open point below |
+| login passwords | metal: a yescrypt hash from sops (`login-password`) for `max` and root, users immutable; every VM: plaintext `maxnix` | decided 2026-09-17 as plaintext everywhere, changed 2026-10-13 for metal after measuring that the wiped root undid every `passwd` (Findings). Immutable users make the declared hash win at every activation, so `passwd` lasts only until the next one, and changing the password is a sops edit and a rebuild — the price of one a wipe cannot reset. Root shares the hash so the emergency shell still opens. The VMs hold no metal key and keep `maxnix`, which `vm-ssh` logs in with |
 | backups | restic, to Google Drive over rclone; VM only until install day | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
 | containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
 | device management | Fleet's agent (Orbit + osquery) via nixpkgs' `services.orbit`, off until configured | the employer is adopting Fleet (learned 2026-09-29). Wired ahead of the URL and enroll secret; both come from sops, so turning it on is one line. `osquery` itself is a general system tool in `configuration.nix`; `osqueryi` also lets the machine be checked the way Fleet will check it. NixOS is not a Fleet-supported distro, so its disk-encryption and firewall checks may misreport — a question for IT |
@@ -254,6 +254,22 @@ uses the newer one, so the agent sees such dashboards; a `curl` with the
 token does not, which is how this was first misread as "the agent cannot see
 them" (2026-10-08, corrected 2026-10-13). The observability suite has
 mcp-grafana read a UI-built dashboard, so an update that changes APIs shows.
+
+**With a wiped root, mutable users lose every `passwd` at the next boot.**
+`/etc/shadow` is on the root, so NixOS rebuilds it from the config each boot:
+in `checks.metal-boots`, a password changed with `chpasswd` on the first boot
+was back to the one from `initialPassword` on the second (2026-10-13). The
+dev VM never showed it — its root is ext4 on a kept image, not the wiped
+btrfs subvolume.
+
+**userborn's persistent password files do not make `passwd` persistent.**
+`services.userborn.passwordFilesLocation` keeps the files on a preserved
+path and symlinks them into `/etc`. The ordering was fine — the bind mount of
+`/var/lib/nixos` came up before userborn on both boots — but `passwd` and
+`chpasswd` write a new file and rename it over `/etc/shadow`, replacing the
+symlink with a plain file on the wiped root; the preserved copy never
+changed, and the second boot had the old password back. It suits a system
+nobody runs `passwd` on. Hence the hash from sops.
 
 **Beyla cannot see Claude Code's API calls.** An interactive session lives
 long enough for Beyla to attach, but Beyla skips its requests on purpose
@@ -902,34 +918,28 @@ runtime half is not — `hl.bind` succeeded, so the bind registers like any
 other and there is nothing for the suite to notice. It needs a human pressing
 the key.
 
-**The login password is probably reset on every boot, and that is a defect
-introduced here.** `/etc/shadow` lives on the root, the root is now wiped on
-every boot, and `users.users.max.initialPassword` is a plaintext value in the
-store. So the account is very likely recreated from `initialPassword` each
-boot and any `passwd` change is lost. The inputs are verified —
-`mutableUsers = true`, `hashedPasswordFile = null`, and `/etc/shadow` is not
-in `hosts/maxnix/persistence.nix` — but the *outcome* has never been
-observed, and the two-boot harness in `tests/disk.nix` could settle it in one
-run by changing the password on the first boot and checking on the second.
-The fix, if confirmed, is `hashedPasswordFile` pointing at a secret, which
-makes it the second customer for the secrets layer below.
-
-**The secrets layer has keys and no real secret yet.** Three post-quantum
+**The secrets layer is in use, on the VM and in tests; metal waits for install day.** Three post-quantum
 age keys are recipients in `.sops.yaml`: `admin`, for a person editing, and
 one each for the VM and metal. All three private halves are kept in
 1Password, and the machine keys are *restored* onto disk rather than
 generated there — the VM's onto its `/home` disk, metal's onto `/persist` at
 install — so a wipe or reinstall never changes `.sops.yaml`. The commands are
-in `hosts/maxnix/secrets.nix`. `hosts/maxnix/secrets.yaml` holds only a
-placeholder, and `checks.secrets` shows sops-nix decrypting a post-quantum
-key at activation: the sops CLI handling one says nothing about sops-nix,
+in `hosts/maxnix/secrets.nix`. `hosts/maxnix/secrets.yaml` holds the values for
+the consumers below, and `checks.secrets` shows sops-nix decrypting a
+post-quantum key at activation: the sops CLI handling one says nothing about sops-nix,
 which decrypts with its own, older build.
 
-Three consumers use it. The **Fleet enroll secret**, now in hand and
+Four consumers use it. The **login password**, as a yescrypt hash for
+`max` and root on metal, decrypted ahead of the users (`neededForUsers`). The **Fleet enroll secret**, now in hand and
 gated on the questions for IT above. The **restic repository password**, which
 must not live only on `/persist` since one disk failure would take the data
 and the only key to its backups together. And the **rclone OAuth client and token** for
 Google Drive, rendered into an `rclone.conf` template.
+
+`nix run .#secret-set -- <name> <op-reference>` puts one value from 1Password
+into `secrets.yaml`: only names the machine declares, nothing written if
+1Password returns nothing, login passwords hashed with yescrypt on the way,
+and read back to check.
 
 `nix run .#vm-restore-key` puts the VM's key back from 1Password and checks
 it against `.sops.yaml`. The dev shell sets `SOPS_AGE_KEY_CMD` to the admin item, so `sops` in

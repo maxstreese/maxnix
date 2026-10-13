@@ -37,17 +37,25 @@
 #
 # ── Adding a secret ──────────────────────────────────────────────────────
 #
-# Keep the value in 1Password too, then pipe it in so it never reaches an
-# argument list, an editor's swap file or the screen. Inside `nix develop`,
-# which provides sops, jq and the admin key:
+# Declare it below, next to whatever consumes it, and keep the value in
+# 1Password. Then, from the repo root and your own terminal, where 1Password
+# can prompt:
 #
-#   op read "op://<vault>/<item>/<field>" | jq -R . \
-#     | sops set --value-stdin hosts/maxnix/secrets.yaml '["<name>"]'
+#   nix run .#secret-set -- <name> "op://<vault>/<item>/<field>"
 #
-# `jq -R .` because --value-stdin wants JSON, not the raw value ("Value for
-# --set is not valid JSON"): it turns the line into a JSON string, and drops
-# the newline `op read` ends with, which would otherwise end up in the
-# secret. For a multi-line value, `jq -Rs .` instead — that one keeps it.
+# It refuses names not declared here, writes nothing if 1Password returns
+# nothing, and reads back what it wrote. The value goes through pipes only,
+# never an argument list, an editor's swap file or the screen. Under it is
+# what used to be typed by hand, `op read | jq -R . | sops set
+# --value-stdin` — --value-stdin wants JSON, not the raw value — with the
+# newline `op read` ends with dropped. See ../../flake.nix.
+#
+# The login password goes in as a hash, never as the password itself: the
+# machine needs nothing more to check a login. secret-set hashes it with
+# yescrypt by itself, for every secret declared neededForUsers, so the same
+# command does it:
+#
+#   nix run .#secret-set -- login-password "op://<vault>/<item>/password"
 #
 # Fleet's two are `fleet-url` and `fleet-enroll-secret`. The backup's four
 # come from two 1Password items, the same ones `nix run .#backup` reads:
@@ -56,8 +64,6 @@
 #   rclone-drive-client-id      MaxNix Backup Google OAuth Client  client_id
 #   rclone-drive-client-secret  MaxNix Backup Google OAuth Client  client_secret
 #   rclone-drive-token          MaxNix Backup Google OAuth Client  token
-#
-# and declare it below, next to whatever consumes it.
 #
 # ── What can never live here ─────────────────────────────────────────────
 #
@@ -76,6 +82,12 @@ let
     backup.enable && backup.repository != null && lib.hasPrefix "rclone:" backup.repository;
 in
 {
+  options.maxnix.loginPassword.fromSops = lib.mkEnableOption ''
+    max's and root's password from the `login-password` hash in sops. On
+    for the machine (./configuration.nix); off on every VM, which has no
+    machine key (../../modules/vm/qemu-guest.nix)
+  '';
+
   options.maxnix.harlequin.profiles.enable = lib.mkEnableOption ''
     Harlequin's connection profiles, rendered from sops into
     ~/.config/harlequin/config.toml (see home/max/harlequin.nix)
@@ -117,6 +129,11 @@ in
       (lib.mkIf backup.enable {
         restic-password = { };
       })
+      # Decrypted before the users are set up, into /run/secrets-for-users,
+      # which is what neededForUsers is for: /run/secrets comes later.
+      (lib.mkIf config.maxnix.loginPassword.fromSops {
+        login-password.neededForUsers = true;
+      })
       (lib.mkIf backupDrive {
         rclone-drive-client-id = { };
         rclone-drive-client-secret = { };
@@ -157,6 +174,17 @@ in
       '';
     };
     maxnix.backup.passwordFile = lib.mkIf backup.enable config.sops.secrets.restic-password.path;
+
+    # The login password, for max and root alike. Root keeps one so the
+    # emergency shell still opens when a boot goes wrong; a locked root would
+    # leave only the installer. With users.mutableUsers = false
+    # (./configuration.nix) the hash is applied at every activation, so a
+    # `passwd` lasts until the next one — the price of a password that a
+    # wiped root cannot reset (README, "Decisions, and why").
+    users.users = lib.mkIf config.maxnix.loginPassword.fromSops {
+      max.hashedPasswordFile = config.sops.secrets.login-password.path;
+      root.hashedPasswordFile = config.sops.secrets.login-password.path;
+    };
     maxnix.backup.rcloneConfigFile = lib.mkIf backupDrive config.sops.templates."rclone.conf".path;
 
     # Harlequin's profiles. The file's shape is public; which systems it points

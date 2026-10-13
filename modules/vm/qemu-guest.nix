@@ -127,6 +127,16 @@ in
   # Overrides the mkDefault in ../desktop/screen-recording.nix.
   config.programs.gpu-screen-recorder.enable = false;
 
+  # A known, plaintext login on every VM, where the machine's password from
+  # sops cannot be: no VM holds the metal key, and the test nodes hold no key
+  # at all. Plaintext and world-readable in the store, decided 2026-09-17 for
+  # the VM: nothing in it is worth a password, and `nix run .#vm-ssh` logs in
+  # with exactly this value (../../flake.nix). mkForce over the machine's
+  # `true` in ../../hosts/maxnix/configuration.nix.
+  config.maxnix.loginPassword.fromSops = lib.mkForce false;
+  config.users.users.max.initialPassword = "maxnix";
+  config.users.users.root.initialPassword = "maxnix";
+
   config.virtualisation = {
     cores = 4;
     memorySize = 8192; # MiB

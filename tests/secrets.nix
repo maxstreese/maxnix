@@ -12,7 +12,9 @@
 # env file, and Orbit connecting to it. With the backup switched on, the same
 # for its four: the password file, and the three Drive values rendered into
 # rclone.conf where the restic unit is told to look. Nothing is uploaded; the
-# timer does not fire on a first boot, and there is no network to reach.
+# timer does not fire on a first boot, and there is no network to reach. And
+# the login password: a hash in sops becoming max's and root's in
+# /etc/shadow, and winning over a `passwd` at the next activation.
 #
 # The key and the encrypted file are made at build time, so no real key is
 # involved and the fixture cannot rot. The node takes ../hosts/maxnix/
@@ -30,12 +32,16 @@ let
         nativeBuildInputs = [
           hostPkgs.age
           hostPkgs.sops
+          hostPkgs.mkpasswd
         ];
       }
       ''
             export HOME=$TMPDIR
             mkdir $out
             age-keygen -pq -o $out/key.txt 2>/dev/null
+            # A hash, as the real secret is, made the way ../hosts/maxnix/
+            # secrets.nix says to make it.
+            echo -n not-a-real-login | mkpasswd -m yescrypt --stdin > $out/login-hash
             cat > plain.yaml <<EOF
         probe: decrypted
         fleet-enroll-secret: not-a-real-secret
@@ -44,6 +50,7 @@ let
         rclone-drive-client-id: test-client-id
         rclone-drive-client-secret: test-client-secret
         rclone-drive-token: '{"token_type":"Bearer","refresh_token":"not-a-real-token"}'
+        login-password: '$(cat $out/login-hash)'
         EOF
             sops encrypt --age "$(age-keygen -y $out/key.txt)" plain.yaml > $out/secrets.yaml
       '';
@@ -67,6 +74,13 @@ in
     ];
     maxnix.fleet.enable = true;
     maxnix.backup.enable = true;
+    # As on the machine (../hosts/maxnix/configuration.nix).
+    maxnix.loginPassword.fromSops = true;
+    users.mutableUsers = false;
+    users.users.max.isNormalUser = true;
+    # The test framework gives root a hashedPasswordFile of its own for the
+    # backdoor console; ours has to win here, or this would test theirs.
+    users.users.root.hashedPasswordFile = lib.mkForce "/run/secrets-for-users/login-password";
 
     sops.defaultSopsFile = lib.mkForce "${fixture}/secrets.yaml";
     # A key file on disk, as a restored machine key would be. It cannot be
@@ -75,6 +89,10 @@ in
     sops.age.keyFile = lib.mkForce "/var/lib/sops-test/key.txt";
     system.activationScripts.sops-test-key = "install -D -m 600 ${fixture}/key.txt /var/lib/sops-test/key.txt";
     system.activationScripts.setupSecrets.deps = [ "sops-test-key" ];
+    # And before the step that decrypts the login password, which runs
+    # earlier still, ahead of the users (neededForUsers). Without this the
+    # users came up with "password file … does not exist".
+    system.activationScripts.setupSecretsForUsers.deps = [ "sops-test-key" ];
     # Not validated at build time: the fixture is a store path the sandbox
     # would otherwise have to read during evaluation.
     sops.validateSopsFiles = false;
@@ -118,5 +136,24 @@ in
         assert "RCLONE_CONFIG=/run/secrets/rendered/rclone.conf" in env, env
         assert "RESTIC_REPOSITORY=rclone:gdrive:maxnix-backup" in env, env
         assert "RCLONE_DRIVE_STOP_ON_UPLOAD_LIMIT=true" in env, env
+
+    with subtest("the login password is the hash from sops, and outlasts a passwd"):
+        want = "${fixture}/login-hash"
+        expected = machine.succeed(f"cat {want}").strip()
+        mode = machine.succeed("stat -L -c '%a %U' /run/secrets-for-users/login-password").strip()
+        assert mode == "400 root", mode
+        for user in ["max", "root"]:
+            got = machine.succeed(f"getent shadow {user} | cut -d: -f2").strip()
+            assert got == expected, f"{user}: {got!r}"
+        # A passwd works until the next activation, which puts the declared
+        # one back: what keeps a wiped root from resetting it is the same
+        # thing that undoes a manual change.
+        machine.succeed("echo 'max:set-by-hand' | chpasswd")
+        assert machine.succeed("getent shadow max | cut -d: -f2").strip() != expected
+        # The activation script itself: test nodes carry no
+        # switch-to-configuration.
+        machine.succeed("/run/current-system/activate")
+        got = machine.succeed("getent shadow max | cut -d: -f2").strip()
+        assert got == expected, f"after activation: {got!r}"
   '';
 }
