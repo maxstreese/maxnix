@@ -1,4 +1,4 @@
-# The machine observing itself: metrics, logs and (later) traces and
+# The machine observing itself: metrics, logs, traces and (later)
 # profiles, kept for months to years, for a person or an agent to dig into.
 #
 # ── Shape ────────────────────────────────────────────────────────────────
@@ -6,8 +6,8 @@
 #   Claude Code ─OTLP─┐               ┌─ remote write ─► Prometheus  :9090
 #   journald ─────────┤               │                      ▲ span metrics
 #   node_exporter* ───┼─► Alloy ──────┼─ OTLP / push ─► Loki │      :3100
-#                     │   OTLP :4317  └─ OTLP ────────► Tempo ┘      :3200
-#                     │        :4318                         ▲
+#   Beyla* (eBPF) ────┘   OTLP :4317  └─ OTLP ────────► Tempo ┘      :3200
+#                              :4318                         ▲
 #   (* built into Alloy)  UI   :12345      Grafana :3000 ────┘ ◄── mcp-grafana
 #
 # Everything listens on loopback only. That is the security model, not the
@@ -19,10 +19,11 @@
 # The comparison is in the README's decision table; the short version:
 #
 #   Alloy        One binary for every input planned here: OTLP, the host's
-#                metrics (node_exporter is compiled in), journald, and later
-#                eBPF network telemetry (beyla.ebpf) and profiling
-#                (pyroscope.ebpf), both GA in Alloy where the OTel Collector's
-#                equivalents are not. nixpkgs builds it with both.
+#                metrics (node_exporter is compiled in), journald, eBPF
+#                request and network telemetry (beyla.ebpf, since 2026-10-12)
+#                and later profiling (pyroscope.ebpf), both GA in Alloy where
+#                the OTel Collector's equivalents are not. nixpkgs builds it
+#                with both.
 #   Prometheus   Storage only — it scrapes nothing; Alloy pushes. Mimir would
 #                add clustering, tenants and object storage, none of which one
 #                machine needs, and the PromQL API is the same either way.
@@ -162,6 +163,97 @@ let
       endpoint {
         url = "${prometheusUrl}/api/v1/write"
       }
+    }
+
+    // ── eBPF: what the servers on this machine do ────────────────────────
+    // Beyla, compiled into Alloy. Request rates, errors and latency (HTTP,
+    // gRPC, SQL, Redis…) for every process that listens on a port, without
+    // touching it — dockerd, containers, whatever runs locally in
+    // development — plus that process's CPU, memory and I/O, and byte
+    // counts for the machine's network flows.
+    //
+    // Servers only, decided 2026-10-12 after a probe in the VM with
+    // everything instrumented: short-lived clients (claude, curl, nix) are
+    // gone before Beyla attaches, so instrumenting every process bought
+    // desktop daemons, misdetections (osqueryd as a Couchbase database) and
+    // uprobe errors, not the requests anyone asks about. Claude Code's own
+    // telemetry stays the source for Claude Code.
+    beyla.ebpf "servers" {
+      // Meant to stop Beyla at start when a capability is missing. It did
+      // not when CAP_PERFMON was removed (2026-10-12): Beyla started and
+      // only logged "operation not permitted" loading its process watcher.
+      // Kept for whatever it does check; what guards the capabilities is
+      // ../../tests/observability.nix, which fails on the missing metrics.
+      enforce_sys_caps = true
+
+      discovery {
+        // Anything with a port open to listen on.
+        instrument {
+          open_ports = "1-65535"
+        }
+        // Not the stack itself: it would chart its own remote writes and
+        // pushes, a third of the series for nothing. Alloy is excluded by
+        // Beyla's own default. exe_path is matched against the whole command
+        // line, hence the trailing *.
+        exclude_instrument {
+          exe_path = "*/bin/{prometheus,loki,tempo,grafana}*"
+        }
+        exclude_instrument {
+          exe_path = "*/gpx_*"
+        }
+      }
+
+      metrics {
+        features = ["application", "application_process", "network"]
+        // What servers here plausibly speak. Not genai, which reads LLM
+        // request bodies, nor dns, gpu, mqtt, memcached or couchbase.
+        instrumentations = ["http", "grpc", "sql", "redis", "kafka", "mongo"]
+        // Its default, stated: left empty, Beyla warns at every start.
+        exemplar_filter = "always_off"
+      }
+
+      attributes {
+        // Required by Alloy 1.17's decoder whenever `attributes` is present,
+        // although the reference lists it as optional.
+        kubernetes {
+          enable = "false"
+        }
+        // Flows are packets, not processes: a socket filter sees addresses
+        // and ports, never a PID or a hostname. By default they carry only
+        // their direction. Addresses and the server's port make them
+        // answerable ("how much went to 160.79.104.10:443"); the client's
+        // ephemeral port would make every connection its own series.
+        select {
+          attr    = "beyla_network_flow_bytes"
+          include = ["direction", "transport", "src.address", "dst.address", "server.port"]
+        }
+      }
+
+      // osqueryd's own traffic is taken for Couchbase operations. Leaving
+      // couchbase (and memcached) out of the instrumentations above does
+      // not stop it: the kernel side classifies the packets regardless, and
+      // the DB metrics, on for SQL, export whatever it found. Measured in
+      // the VM, 2026-10-12. Nothing here speaks Couchbase.
+      filters {
+        application {
+          attr      = "db.system.name"
+          not_match = "couchbase"
+        }
+      }
+
+      // Metrics only. Beyla's spans would be every request of every server
+      // in Tempo; its request metrics answer the questions here, and
+      // payload extraction (which can read Anthropic and OpenAI bodies)
+      // stays at its default, off.
+      output {}
+    }
+
+    prometheus.scrape "beyla" {
+      targets         = beyla.ebpf.servers.targets
+      // Beyla sets job and instance per service itself.
+      honor_labels    = true
+      forward_to      = [prometheus.remote_write.local.receiver]
+      scrape_interval = "15s"
     }
 
     // ── journald ─────────────────────────────────────────────────────────
@@ -510,6 +602,39 @@ in
       "prometheus.service"
       "loki.service"
       "tempo.service"
+    ];
+
+    # What beyla.ebpf needs, as capabilities on Alloy's dynamic user rather
+    # than running it as root: loading eBPF programs (BPF, PERFMON), reading
+    # other users' processes and their binaries to find what to attach to
+    # (SYS_PTRACE, DAC_READ_SEARCH, CHECKPOINT_RESTORE for /proc/*/map_files),
+    # and the flows' socket filter (NET_RAW). Beyla's own list for application
+    # observability, minus SYS_ADMIN: without it Beyla 3.9.8 reports only
+    # "Go context propagation at library level disabled", which nothing
+    # here uses, and request metrics arrive all the same (measured in the
+    # VM, 2026-10-12). Without CAP_PERFMON, application metrics stop
+    # entirely; the test catches that, enforce_sys_caps above did not.
+    #
+    # As a non-root user it cannot create its pin directory in the root-only
+    # /sys/fs/bpf, warns, and runs without pinned maps; it uses none of the
+    # features they serve. But a pin left there by anything running as root
+    # (/sys/fs/bpf/otel, 0600 root) makes it stop tracing processes with
+    # "load pinned map: permission denied" while flows carry on — so do not
+    # run Beyla or OBI as root on this machine, or remove that directory
+    # after.
+    #
+    # Also left without a cache directory on purpose: Beyla extracts a Java
+    # agent there to inject into JVMs that listen on a port, for their TLS
+    # traffic. Loading an agent into someone's JVM is a different order of
+    # intrusion from watching it from the kernel, so it logs "unable to
+    # inject OBI java agent" and does not.
+    systemd.services.alloy.serviceConfig.AmbientCapabilities = [
+      "CAP_BPF"
+      "CAP_PERFMON"
+      "CAP_SYS_PTRACE"
+      "CAP_DAC_READ_SEARCH"
+      "CAP_CHECKPOINT_RESTORE"
+      "CAP_NET_RAW"
     ];
 
     services.tempo = {

@@ -96,7 +96,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
-| observability | Alloy → Prometheus (metrics, 2 y), Loki (logs, 1 y) and Tempo (traces, 30 d, with span metrics into Prometheus), Grafana on top (anonymous read-only; admin password generated in `/var/lib/grafana/admin-password`), all on loopback; Claude Code's OTel export and `grafana-local` (mcp-grafana) for agents. Dashboards are JSON in `hosts/maxnix/dashboards`: build in the UI and `grafana-capture`, or edit the files — live in the VM |
+| observability | Alloy → Prometheus (metrics, 2 y), Loki (logs, 1 y) and Tempo (traces, 30 d, with span metrics into Prometheus), Grafana on top; Alloy's built-in Beyla (eBPF) adds request rates, errors and latency for every process listening on a port, their CPU, memory and I/O, and byte counts of network flows (anonymous read-only; admin password generated in `/var/lib/grafana/admin-password`), all on loopback; Claude Code's OTel export and `grafana-local` (mcp-grafana) for agents. Dashboards are JSON in `hosts/maxnix/dashboards`: build in the UI and `grafana-capture`, or edit the files — live in the VM |
 
 ```
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
@@ -168,7 +168,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | commit signing | SSH keys via 1Password, not GPG | supported by git since 2.34 and verified by GitHub, GitLab and Bitbucket; the private half never leaves the vault, and only public keys appear in this repo. Two keys: auth is scoped to an account on one host, signing to one identity everywhere |
 | design loop | Quickshell config points at the clone in the VM; DMS theming is captured, not declared | the store is read-only, so a colour tweak would otherwise cost a 30 s rebuild. `maxnix.dev.liveConfig` makes generated Quickshell config an out-of-store symlink into the clone, so Quickshell's own file watcher has something that can change; it is off everywhere but the VM. DMS is the other way round — its settings UI already writes a mutable file, so `dms-capture` records that into the repo rather than declaring it and taking the UI's ability to save |
 | DMS plugins | declared via `programs.dank-material-shell.plugins`, source as `flake = false` inputs; settings captured | pinned by `flake.lock` and bumped by Renovate like every other input, instead of whatever `dms plugins install` fetched that day. Settings stay out of Nix for the same reason as DMS theming: declaring any of them makes `plugin_settings.json` a store file the UI cannot save. Quick Capture records through gpu-screen-recorder on metal and wf-recorder in the VM, which has no encoder |
-| observability | Alloy, Prometheus, Loki, Tempo and Grafana; not Mimir, VictoriaMetrics, OpenObserve or SigNoz | decided 2026-10-08 after comparing all four as single-machine backends; Tempo added 2026-10-09 for Claude Code's traces (beta since that day), with its span-metrics processor writing span durations into the same Prometheus rather than a second metrics store. Alloy is one binary for every planned input — OTLP, node_exporter, journald, and later eBPF network telemetry and profiling, both GA there. Loki's weakness, finding a record by an unindexed ID like Claude Code's `session.id`, costs the size of the streams a query selects; Claude Code's events are their own small stream, so at one machine's volume it does not bite. Prometheus over Mimir: clustering, tenants and object storage buy nothing on one box. mcp-grafana covers all of it, already the agent tool of choice. Claude Code's telemetry goes through a wrapper around `claude`, not session variables, so no other OTel SDK is redirected; prompt text is not sent. Grafana's admin password is generated on the machine, not kept in sops: Grafana applies it only when creating its database, so sops would suggest control it does not have, and it is the only reason the stack would need a secret. Anonymous visitors are Viewers, and `enforce_domain` refuses any host but `localhost`, which closes DNS rebinding from a browser tab |
+| observability | Alloy, Prometheus, Loki, Tempo and Grafana; not Mimir, VictoriaMetrics, OpenObserve or SigNoz | decided 2026-10-08 after comparing all four as single-machine backends; Tempo added 2026-10-09 for Claude Code's traces (beta since that day), with its span-metrics processor writing span durations into the same Prometheus rather than a second metrics store. Beyla added 2026-10-12 for servers only, after a probe of every process in the VM: short-lived clients such as `claude`, `curl` and `nix` exit before it attaches, so instrumenting everything bought desktop daemons, misdetections and noise, not the requests anyone asks about; metrics only, no Beyla spans in Tempo, payload extraction off. Alloy is one binary for every planned input — OTLP, node_exporter, journald, and later eBPF network telemetry and profiling, both GA there. Loki's weakness, finding a record by an unindexed ID like Claude Code's `session.id`, costs the size of the streams a query selects; Claude Code's events are their own small stream, so at one machine's volume it does not bite. Prometheus over Mimir: clustering, tenants and object storage buy nothing on one box. mcp-grafana covers all of it, already the agent tool of choice. Claude Code's telemetry goes through a wrapper around `claude`, not session variables, so no other OTel SDK is redirected; prompt text is not sent. Grafana's admin password is generated on the machine, not kept in sops: Grafana applies it only when creating its database, so sops would suggest control it does not have, and it is the only reason the stack would need a secret. Anonymous visitors are Viewers, and `enforce_domain` refuses any host but `localhost`, which closes DNS rebinding from a browser tab |
 | shared bindings | one list, with `repeat` stated per binding | niri defaults repeat to true and Hyprland to false, so every shared binding behaved differently depending on which session you logged into, until it was named. The rule is repeat a step, never a spawn or a toggle — which overrides niri's default *and* upstream Hyprland's own example on mute |
 | app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
 | terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup on both compositors |
@@ -236,6 +236,30 @@ scripted runs, which is why the dashboard's trace panel selects on
 `resource.service.name="claude-code"`. Give Tempo's search API `start` and
 `end`: without them, the same query returned no traces for one that was there
 and was found once a window was given (2026-10-12).
+
+**Beyla's network flows are packets, not processes.** Its socket filter sees
+addresses and ports, never a PID or a hostname, and by default a flow carries
+only its direction. Which process talked comes from the request metrics, and
+only for processes it instruments; a CLI's traffic, Claude Code's included,
+is bytes to an address. `hosts/maxnix/observability.nix` adds addresses and
+the server's port and leaves out the client's, which would make every
+connection its own series. Probed in the VM, 2026-10-12.
+
+**Beyla in Alloy runs without root, but trips over a pin left by root.** With
+capabilities on Alloy's dynamic user and no `CAP_SYS_ADMIN`, request metrics
+arrive; it cannot create its pin directory in the root-only `/sys/fs/bpf`,
+warns, and does without. But once anything running as root had pinned
+`/sys/fs/bpf/otel/traces_ctx_v1` (`0600 root`) — a probe run by hand —
+Alloy's Beyla failed every process with `load pinned map: permission denied`
+and request metrics stopped, while flows carried on and nothing was marked
+unhealthy. Removing the directory fixed it. Two more quirks of Alloy 1.17.1:
+an `attributes` block must contain `kubernetes { enable = … }`, which the
+reference lists as optional; `enforce_sys_caps = true` did not stop Beyla
+when `CAP_PERFMON` was taken away, so the test, not that flag, guards the
+capabilities; and leaving a protocol out of `metrics.instrumentations` does
+not stop the kernel side from classifying packets as it — osqueryd's traffic
+kept arriving as Couchbase operations until a `filters` block dropped
+`db.system.name = couchbase`.
 
 **`screendump` cannot capture a GL scanout** — `Error: no surface` — so the test
 driver's `machine.screenshot()` and `get_screen_text()` are unusable here. VNC

@@ -42,6 +42,8 @@ let
         pkgs.jq
         pkgs.netcat
         pkgs.mcp-grafana
+        # A server Beyla has never heard of, for the eBPF subtest.
+        pkgs.python3
       ];
       virtualisation.memorySize = 4096;
     };
@@ -198,7 +200,41 @@ in
     password = machine.succeed("cat /var/lib/grafana/admin-password")
     admin = f"admin:{password}"
 
-    with subtest("Grafana's admin password is generated, root and grafana only"):
+    with subtest("eBPF: a server's requests are counted without touching it, the stack's are not"):
+        # An unmodified server on a port: Beyla has to find it by its open
+        # port and see its requests from the kernel. Traffic goes on every
+        # attempt, since it attaches a few seconds after the process starts
+        # and only counts what it sees after that.
+        machine.succeed("systemd-run --unit=probe-server python3 -m http.server 8090"
+                        " --bind 127.0.0.1 --directory /tmp")
+        machine.wait_for_open_port(8090)
+        found = ("curl -fsS -G http://127.0.0.1:9090/api/v1/query --data-urlencode "
+                 "'query=http_server_request_duration_seconds_count"
+                 "{service_name=~\"python.*\",http_response_status_code=\"404\"}'"
+                 " | jq -e '.data.result | length > 0'")
+        wait("for i in 1 2 3 4 5; do curl -s -o /dev/null http://127.0.0.1:8090/;"
+             " curl -s -o /dev/null http://127.0.0.1:8090/nope; done; " + found,
+             "the python server's requests, by status code, in Prometheus")
+        # By now the stack has served hundreds of requests of its own.
+        stack = promql('http_server_request_duration_seconds_count'
+                       '{service_name=~"prometheus|loki|tempo|grafana"}')
+        assert not stack, f"the stack is instrumented: {stack}"
+
+        # Flows: the machine's traffic off loopback, labelled by address and
+        # the server's port, never the client's ephemeral one.
+        machine.execute("curl -s --max-time 3 http://outside:80")
+        wait("curl -fsS 'http://127.0.0.1:9090/api/v1/query?query=beyla_network_flow_bytes_total'"
+             " | jq -e '.data.result | length > 0'", "network flows in Prometheus")
+        for f in promql("beyla_network_flow_bytes_total"):
+            labels = set(f["metric"])
+            assert {"src_address", "dst_address", "server_port", "transport"} <= labels, labels
+            assert not labels & {"client_port", "src_port", "dst_port"}, labels
+
+        # Capabilities, not root.
+        pid = machine.succeed("systemctl show alloy -p MainPID --value").strip()
+        assert machine.succeed(f"stat -c %u /proc/{pid}").strip() != "0", "alloy runs as root"
+
+
         assert len(password) == 32 and password.isalnum(), repr(password)
         mode = machine.succeed("stat -c '%a %U' /var/lib/grafana/admin-password").strip()
         assert mode == "600 grafana", mode
