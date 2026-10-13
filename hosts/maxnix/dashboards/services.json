@@ -1,0 +1,587 @@
+{
+  "uid": "maxnix-services",
+  "title": "Services",
+  "tags": [
+    "maxnix"
+  ],
+  "description": "What the servers on this machine do, seen by Beyla (eBPF) without touching them. hosts/maxnix/observability.nix says what is and is not instrumented.",
+  "editable": true,
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(process_cpu_time_seconds_total, job)",
+          "refId": "service"
+        },
+        "definition": "label_values(process_cpu_time_seconds_total, job)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "refresh": 2,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "panels": [],
+      "title": "Requests to the servers on this machine",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}} http",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name) (rate(rpc_server_duration_seconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}} grpc",
+          "refId": "B"
+        }
+      ],
+      "title": "Requests per second",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "description": "Requests each instrumented server answered, seen by Beyla from the kernel. Only processes listening on a port, minus the observability stack itself."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 3,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name=~\"$service\",http_response_status_code=~\"5..\"}[$__rate_interval])) or sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name=~\"$service\"}[$__rate_interval])) * 0) / sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}} http 5xx",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (service_name) (rate(rpc_server_duration_seconds_count{service_name=~\"$service\",rpc_grpc_status_code!=\"0\"}[$__rate_interval])) or sum by (service_name) (rate(rpc_server_duration_seconds_count{service_name=~\"$service\"}[$__rate_interval])) * 0) / sum by (service_name) (rate(rpc_server_duration_seconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}} grpc not OK",
+          "refId": "B"
+        }
+      ],
+      "title": "Error ratio",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "description": "Share of requests that failed: HTTP 5xx, or a gRPC status other than OK. 4xx are the client's doing and are in the table below. A service with no failures shows 0, not no data."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "id": 4,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (service_name, le) (rate(http_server_request_duration_seconds_bucket{service_name=~\"$service\"}[$__rate_interval])))",
+          "legendFormat": "{{service_name}} http",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (service_name, le) (rate(rpc_server_duration_seconds_bucket{service_name=~\"$service\"}[$__rate_interval])))",
+          "legendFormat": "{{service_name}} grpc",
+          "refId": "B"
+        }
+      ],
+      "title": "Latency, 95th percentile",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 5,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(25, sum by (service_name, http_request_method, http_route, http_response_status_code) (increase(http_server_request_duration_seconds_count{service_name=~\"$service\"}[$__range]))) > 0",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "title": "Routes in the selected range",
+      "type": "table",
+      "description": "Requests per route and status code over the whole time range. Routes are Beyla's heuristic grouping of paths (numbers and IDs become *).",
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "requests",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "requests",
+              "http_request_method": "method",
+              "http_response_status_code": "status",
+              "http_route": "route",
+              "service_name": "service",
+              "src_address": "from",
+              "dst_address": "to",
+              "server_port": "server port",
+              "transport": "protocol"
+            },
+            "indexByName": {
+              "service_name": 0,
+              "http_request_method": 1,
+              "http_route": 2,
+              "http_response_status_code": 3,
+              "Value": 4
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 6,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, server_address) (rate(http_client_request_duration_seconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}} \u2192 {{server_address}} http",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, server_address) (rate(rpc_client_duration_seconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}} \u2192 {{server_address}} grpc",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, db_system_name) (rate(db_client_operation_duration_seconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}} \u2192 {{db_system_name}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Calls the servers make",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "description": "Outgoing HTTP, gRPC and database calls of the instrumented servers. Encrypted calls are only seen where Beyla can hook the TLS library; Claude Code's API calls, for one, are not (README, Findings)."
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 7,
+      "panels": [],
+      "title": "The same processes: resources",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 27
+      },
+      "id": 8,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job) (max by (job, process_pid) (rate(process_cpu_time_seconds_total{job=~\"$service\"}[$__rate_interval])))",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "axisLabel": "cores"
+          }
+        },
+        "overrides": []
+      },
+      "description": "CPU time per second, in cores. Beyla briefly reports a new process twice (instance host:0:pid, then host:pid:pid); taking the larger per PID keeps that from counting double."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 27
+      },
+      "id": 9,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job) (max by (job, process_pid) (process_memory_usage_bytes{job=~\"$service\"}))",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Memory",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "description": "Resident memory, summed over a service's processes."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "id": 10,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job, network_io_direction) (max by (job, network_io_direction, process_pid) (rate(process_network_io_bytes_total{job=~\"$service\"}[$__rate_interval])))",
+          "legendFormat": "{{job}} {{network_io_direction}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Network I/O",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "id": 11,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job, disk_io_direction) (max by (job, disk_io_direction, process_pid) (rate(process_disk_io_bytes_total{job=~\"$service\"}[$__rate_interval])))",
+          "legendFormat": "{{job}} {{disk_io_direction}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Disk I/O",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "id": 12,
+      "panels": [],
+      "title": "Network flows: the whole machine, by address",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "id": 13,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(10, sum by (src_address, dst_address, server_port, transport) (rate(beyla_network_flow_bytes_total[$__rate_interval])))",
+          "legendFormat": "{{src_address}} \u2192 {{dst_address}}:{{server_port}} {{transport}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Busiest flows",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "description": "Bytes on the machine's interfaces, loopback excluded, from a socket filter: addresses and the server's port, never a process or a hostname. Not filtered by the service variable. A server port of 0 means Beyla could not tell which side served, as for UDP such as DNS."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "id": 14,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(25, sum by (src_address, dst_address, server_port, transport) (increase(beyla_network_flow_bytes_total[$__range])))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "title": "Flows in the selected range",
+      "type": "table",
+      "description": "Total bytes per flow over the whole time range. A server port of 0 means Beyla could not tell which side served, as for UDP such as DNS.",
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "bytes",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "bytes",
+              "http_request_method": "method",
+              "http_response_status_code": "status",
+              "http_route": "route",
+              "service_name": "service",
+              "src_address": "from",
+              "dst_address": "to",
+              "server_port": "server port",
+              "transport": "protocol"
+            },
+            "indexByName": {
+              "src_address": 0,
+              "dst_address": 1,
+              "server_port": 2,
+              "transport": 3,
+              "Value": 4
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bytes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

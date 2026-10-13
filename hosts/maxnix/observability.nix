@@ -466,10 +466,15 @@ let
   # the repo; with uids, exactly those. Written as ./dashboards/<slug>.json
   # minus the database's own id and version, which provisioning assigns. A
   # captured dashboard keeps its uid, so after the next rebuild provisioning
-  # takes over the UI copy instead of showing it twice. Reads as admin: a
-  # dashboard built at the top level is readable by its creator and editors,
-  # not by every Viewer — the mcp-grafana token got 403 on exactly that in the
-  # test (2026-10-08). The password is root-only, so it comes through sudo,
+  # takes over the UI copy instead of showing it twice. Reads as admin: on a
+  # dashboard built at the top level, Grafana 13's classic API
+  # (/api/dashboards/uid/…) refuses a Viewer *service account* with 403,
+  # "dashboards:read", although the dashboard grants Viewers View and an
+  # anonymous Viewer gets it (measured 2026-10-13). mcp-grafana is not
+  # affected: 1.2.0 reads dashboards through the newer Kubernetes-style API
+  # (/apis/dashboard.grafana.app/…, "via k8s api" in its errors), which
+  # lets the same token through, and the test checks that it does. A curl
+  # with the token against the classic API is what gets the 403. The password is root-only, so it comes through sudo,
   # unless this already runs as root. Like dms-capture, it finds the clone by
   # MAXNIX_FLAKE or maxnix.dev.clonePath.
   capture = pkgs.writeShellApplication {

@@ -245,6 +245,16 @@ is bytes to an address. `hosts/maxnix/observability.nix` adds addresses and
 the server's port and leaves out the client's, which would make every
 connection its own series. Probed in the VM, 2026-10-12.
 
+**Grafana 13's classic API refuses a Viewer service account on top-level
+dashboards.** A dashboard built in the UI without a folder grants Viewers
+View, and an anonymous Viewer reads it; mcp-grafana's token gets 403,
+"dashboards:read", from `/api/dashboards/uid/…` — and 200 from the newer
+`/apis/dashboard.grafana.app/…` for the same dashboard. mcp-grafana 1.2.0
+uses the newer one, so the agent sees such dashboards; a `curl` with the
+token does not, which is how this was first misread as "the agent cannot see
+them" (2026-10-08, corrected 2026-10-13). The observability suite has
+mcp-grafana read a UI-built dashboard, so an update that changes APIs shows.
+
 **Beyla cannot see Claude Code's API calls.** An interactive session lives
 long enough for Beyla to attach, but Beyla skips its requests on purpose
 (`beyla_avoided_services`, "existing OpenTelemetry instrumentation"), since

@@ -104,6 +104,25 @@ in
             print(node.execute("journalctl -u grafana -n 20 --no-pager | grep -i provision")[1])
             raise AssertionError(f"timed out waiting for {what}")
 
+    def mcp(tool, arguments):
+        # One tool call to mcp-grafana over stdio, as max, with the issued
+        # token: the way Claude Code runs it.
+        requests = [
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+                "protocolVersion": "2025-06-18", "capabilities": {},
+                "clientInfo": {"name": "test", "version": "0"}}},
+            {"jsonrpc": "2.0", "method": "notifications/initialized"},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+             "params": {"name": tool, "arguments": arguments}},
+        ]
+        machine.succeed("cat > /tmp/mcp.in <<'EOF'\n" + "\n".join(map(json.dumps, requests)) + "\nEOF")
+        out = machine.succeed(
+            "(cat /tmp/mcp.in; sleep 5) | runuser -u max -- env"
+            f" GRAFANA_URL={grafana}"
+            " GRAFANA_SERVICE_ACCOUNT_TOKEN_FILE=/var/lib/grafana-mcp/token"
+            " timeout 20 mcp-grafana --disable-write || true")
+        return next(json.loads(l) for l in out.splitlines() if '"id":2' in l.replace(" ", ""))
+
     def titles(node, auth=None):
         return sorted(d["title"] for d in get(node, f"{grafana}/api/search?tag=maxnix", auth))
 
@@ -240,14 +259,14 @@ in
         assert mode == "600 grafana", mode
         machine.fail("runuser -u max -- cat /var/lib/grafana/admin-password")
 
-    with subtest("Grafana: every datasource healthy, both dashboards there"):
+    with subtest("Grafana: every datasource healthy, all dashboards there"):
         for uid in ["prometheus", "loki", "tempo"]:
             health = get(machine, f"{grafana}/api/datasources/uid/{uid}/health", admin)
             assert health["status"] == "OK", (uid, health)
-        assert titles(machine, admin) == ["Claude Code", "Host"], titles(machine, admin)
+        assert titles(machine, admin) == ["Claude Code", "Host", "Services"], titles(machine, admin)
 
     with subtest("anonymous visitors can look, not change"):
-        assert titles(machine) == ["Claude Code", "Host"], titles(machine)
+        assert titles(machine) == ["Claude Code", "Host", "Services"], titles(machine)
         code = machine.succeed(
             f"curl -s -o /dev/null -w '%{{http_code}}' -H 'Content-Type: application/json'"
             f" -d '{{\"dashboard\":{{\"title\":\"nope\"}}}}' {grafana}/api/dashboards/db").strip()
@@ -263,22 +282,7 @@ in
         machine.wait_for_unit("grafana-mcp-token.service")
         mode = machine.succeed("stat -c '%a %U' /var/lib/grafana-mcp/token").strip()
         assert mode == "600 max", mode
-        requests = [
-            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
-                "protocolVersion": "2025-06-18", "capabilities": {},
-                "clientInfo": {"name": "test", "version": "0"}}},
-            {"jsonrpc": "2.0", "method": "notifications/initialized"},
-            {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-             "params": {"name": "list_datasources", "arguments": {}}},
-        ]
-        machine.succeed("cat > /tmp/mcp.in <<'EOF'\n" + "\n".join(map(json.dumps, requests)) + "\nEOF")
-        out = machine.succeed(
-            "(cat /tmp/mcp.in; sleep 5) | runuser -u max -- env"
-            f" GRAFANA_URL={grafana}"
-            " GRAFANA_SERVICE_ACCOUNT_TOKEN_FILE=/var/lib/grafana-mcp/token"
-            " timeout 20 mcp-grafana --disable-write || true")
-        reply = next(json.loads(l) for l in out.splitlines() if '"id":2' in l.replace(" ", ""))
-        text = json.dumps(reply)
+        text = json.dumps(mcp("list_datasources", {}))
         assert all(ds in text for ds in ["prometheus", "loki", "tempo"]), text
 
     with subtest("a token that stopped working is replaced"):
@@ -294,6 +298,11 @@ in
         machine.succeed(
             f"curl -fsS -u {admin} -H 'Content-Type: application/json' {grafana}/api/dashboards/db"
             " -d '{\"dashboard\":{\"uid\":\"ui-made\",\"title\":\"UI Made\",\"panels\":[]}}'")
+        # The agent sees it before it is captured. At the top level, Grafana's
+        # classic API refuses mcp-grafana's token with 403; mcp-grafana itself
+        # gets through, and this keeps it that way across its updates.
+        reply = mcp("get_dashboard_by_uid", {"uid": "ui-made"})
+        assert "UI Made" in json.dumps(reply) and not reply.get("result", {}).get("isError"), reply
         # As root, which reads the admin password directly; as max it would
         # go through sudo, which this node does not give max.
         machine.succeed("mkdir -p /tmp/clone && touch /tmp/clone/flake.nix")
@@ -331,7 +340,7 @@ in
 
     with subtest("live dashboards: the deployed ones while the clone has none"):
         devbox.wait_for_open_port(3000)
-        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 2'",
+        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 3'",
              "the deployed dashboards, with no directory in the clone", devbox)
 
     with subtest("live dashboards: the clone's, as soon as it has them, with no rebuild"):
@@ -339,7 +348,7 @@ in
         probe = {"uid": "live-probe", "title": "Live Probe", "tags": ["maxnix"], "panels": []}
         devbox.succeed(f"mkdir {clone} && cat > {clone}/live-probe.json <<'EOF'\n"
                        + json.dumps(probe) + "\nEOF")
-        # The clone wins outright: its one file, not the deployed two.
+        # The clone wins outright: its one file, not the deployed three.
         wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e '[.[].uid] == [\"live-probe\"]'",
              "the clone's directory to replace the deployed dashboards", devbox)
         devbox.succeed(f"cp ${../hosts/maxnix/dashboards}/host.json {clone}/")
@@ -351,7 +360,7 @@ in
 
     with subtest("live dashboards: back to the deployed ones when the clone's directory goes"):
         devbox.succeed(f"rm -r {clone}")
-        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 2'",
+        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 3'",
              "the deployed dashboards again", devbox)
 
     with subtest("everything listens on loopback only"):
