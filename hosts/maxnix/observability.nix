@@ -173,11 +173,18 @@ let
     // counts for the machine's network flows.
     //
     // Servers only, decided 2026-10-12 after a probe in the VM with
-    // everything instrumented: short-lived clients (claude, curl, nix) are
-    // gone before Beyla attaches, so instrumenting every process bought
+    // everything instrumented: short-lived clients (curl, nix, claude -p)
+    // are gone before Beyla attaches, so instrumenting every process bought
     // desktop daemons, misdetections (osqueryd as a Couchbase database) and
-    // uprobe errors, not the requests anyone asks about. Claude Code's own
-    // telemetry stays the source for Claude Code.
+    // uprobe errors, not the requests anyone asks about.
+    //
+    // Nor would it reach Claude Code. An interactive session lives long
+    // enough and gets attached to, but Beyla skips its requests because it
+    // exports OpenTelemetry itself; with that check off it saw only the
+    // plaintext OTLP export to Alloy, never one call to the API, which is
+    // encrypted inside the binary where its uprobes fail to attach. Four
+    // prompts, measured in the VM, 2026-10-13. Claude Code's own telemetry
+    // stays the source for Claude Code; Beyla adds nothing there.
     beyla.ebpf "servers" {
       // Meant to stop Beyla at start when a capability is missing. It did
       // not when CAP_PERFMON was removed (2026-10-12): Beyla started and
@@ -192,7 +199,9 @@ let
           open_ports = "1-65535"
         }
         // Not the stack itself: it would chart its own remote writes and
-        // pushes, a third of the series for nothing. Alloy is excluded by
+        // pushes, which its own metrics (scraped as "self" above) cover
+        // better — and 586 of 831 Beyla series, about 70%, measured with
+        // these exclusions removed in the VM, 2026-10-13. Alloy is excluded by
         // Beyla's own default. exe_path is matched against the whole command
         // line, hence the trailing *.
         exclude_instrument {
