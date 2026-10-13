@@ -788,9 +788,25 @@ restarts, 2026-10-12) something after the worker kept it alive until systemd's
 kill, and it did not reproduce on demand. `TimeoutStopSec = 20s` caps it:
 within 100 ms of a stop Tempo has cut everything it holds to its WAL, so the
 kill costs nothing but the wait. Catching the cause needs Tempo's info log
-running across ordinary shutdowns until the next one. Loki's stop, 9 s on
-earlier shutdowns, took 27 s on the last one; under systemd's 90 s, but worth a
-look if it grows.
+running across ordinary shutdowns until the next one.
+
+**Loki sometimes takes 9–27 s to stop, but only right after it started.**
+Across every stop in the VM's journal (2026-10-13): within about the first
+1.5 minutes of uptime, 8 of 21 stops took 9–27 s; later, 0 of 8 did, an hour's
+uptime included; all the others took 0.5–0.9 s. It did not reproduce on demand
+— repeated stops inside the same window were fast. In the one slow stop
+caught at info level, Loki had left its ring and kept answering Alloy's pushes
+(500, "empty ring") for seconds before exiting, so a module is still busy, not
+the HTTP server holding on at the end. Ruled out: a fixed wait, its tracing
+exporter (a no-op without OTEL environment variables), a process lingering
+after it exits. Every slow stop is from the VM, booted and shut down within
+minutes; on a machine up for hours it has always stopped in under a second,
+and 27 s is well inside systemd's 90 s. Left alone on purpose: a shorter
+TimeoutStopSec would kill it without knowing what it is doing. Finding the
+module means catching a slow stop with `-log.level=debug`, restarting Loki in
+a loop until one comes; time a stop by the journal's `Stopping`/`Stopped`
+lines, not by how long `systemctl stop` takes to return — the latter once
+read 9 s for a stop the journal put at 0.55 s.
 
 **Backups are wired and authorised, and run in the VM only; there is no
 backup of this machine on metal yet.** `hosts/maxnix/backup.nix` has the
