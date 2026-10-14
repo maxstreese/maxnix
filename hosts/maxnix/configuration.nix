@@ -151,45 +151,43 @@
     dates = [ "Mon 10:30" ];
   };
 
-  # ROAD TO METAL. Hardware detection, unconfigured because there is no
-  # machine to detect yet.
+  # Hardware detection, from a nixos-facter report of the machine itself: a
+  # Lenovo ThinkPad T14s Gen 2a (AMD), taken 2026-10-14 on its Ubuntu, with
+  # the pinned nixpkgs' nixos-facter 0.4.4 so the report matches the modules
+  # that read it. It is the modern replacement for `nixos-generate-config`,
+  # which writes Nix that you then hand-maintain forever; nixpkgs' modules
+  # under nixos/modules/hardware/facter turn the JSON into configuration —
+  # AMD microcode, redistributable firmware, the initrd's kernel modules.
   #
-  # nixos-facter snapshots a machine to JSON — controllers, firmware, CPU,
-  # graphics — and nixpkgs' own modules under nixos/modules/hardware/facter
-  # turn that report into configuration. It is the modern replacement for
-  # `nixos-generate-config`, which writes Nix that you then hand-maintain
-  # forever.
+  # Retaken the same way after a hardware change:
   #
-  # Nothing extra is needed to use it: the modules ship in nixpkgs and this
-  # option already exists. On install day the whole change is to drop the
-  # report next to this file and point at it:
+  #   sudo $(nix build --no-link --print-out-paths \
+  #     nixpkgs#nixos-facter)/bin/nixos-facter -o facter.json
   #
-  #   # on the target, booted from a NixOS installer USB:
-  #   sudo nix run nixpkgs#nixos-facter -- -o facter.json
-  #   ls -l /dev/disk/by-id            # for disk-layout.nix's device
+  # then stripped before it lands here, because the repo is public: every
+  # `serial` field (40 of them — disk, camera, monitor, USB devices) and the
+  # /dev/disk/by-id names that carry the disk's serial and EUI. None of the
+  # facter modules reads either; the metal toplevel's derivation was
+  # identical with and without them. jq does both:
   #
-  #   # here:
-  #   hardware.facter.reportPath = ./facter.json;
+  #   jq 'walk(if type == "object" and has("serial") then del(.serial) else . end)
+  #     | walk(if type == "object" and has("unix_device_names") then
+  #         .unix_device_names |= map(select(test("/by-id/") | not)) else . end)'
   #
-  # Note the second command. The report does NOT decide which disk to install
-  # onto — that is a choice a human makes from the by-id listing, and it goes
-  # in ./disk-layout.nix. Facter answers "what is this machine", not "where
-  # should the system live". Verified rather than assumed: a config carrying a
-  # complete report and no fileSystems still fails with "The 'fileSystems'
-  # option does not specify your root file system".
+  # The report does NOT choose the disk to install onto — that is
+  # ./disk-layout.nix's `device`, a human decision. A config with a complete
+  # report and no fileSystems still fails the root-filesystem assertion.
   #
-  # The consuming side is exercised, on this desktop, 2026-09-22: pointing
-  # reportPath at a real report flipped hardware.cpu.amd.updateMicrocode and
-  # hardware.enableRedistributableFirmware from false to true, left the Intel
-  # equivalent false, and populated boot.initrd.availableKernelModules with 36
-  # entries including nvme and tpm-crb. The report itself was thrown away —
-  # this machine's hardware is not the target's — but the wiring is known to
-  # work, which is the part that would be expensive to get wrong on the day.
+  # nixos-hardware has no profile for this model (t14s/amd has gen1 and gen4,
+  # checked 2026-10-14), and its shared T14s ones add nothing the report does
+  # not, beyond two hints for when the laptop services land: the kernel
+  # parameter acpi_backlight=native, for brightness through thinkpad_acpi,
+  # and, in the firmware, Config → Power → Sleep State set to "Linux" for
+  # suspend to RAM to work.
   #
-  # Left null rather than pointed at a placeholder file: with null the facter
-  # modules evaluate to nothing at all, so the metal configuration still
-  # builds, which is what keeps checks.metal honest in the meantime.
-  hardware.facter.reportPath = null;
+  # Metal only: ../../modules/vm/qemu-guest.nix sets it back to null for every
+  # VM, whose hardware is QEMU's, not this.
+  hardware.facter.reportPath = ./facter.json;
 
   # Mesa, and the userspace bits a Wayland compositor expects to find.
   hardware.graphics.enable = true;

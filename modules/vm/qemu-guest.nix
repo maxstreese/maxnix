@@ -134,6 +134,12 @@ in
   # with exactly this value (../../flake.nix). mkForce over the machine's
   # `true` in ../../hosts/maxnix/configuration.nix.
   config.maxnix.loginPassword.fromSops = lib.mkForce false;
+
+  # The machine's hardware report describes the ThinkPad, not QEMU: its
+  # microcode, firmware and initrd modules have no business in a VM, and
+  # would change every VM's and test node's closure for nothing. Off here,
+  # over ../../hosts/maxnix/configuration.nix.
+  config.hardware.facter.reportPath = lib.mkForce null;
   config.users.users.max.initialPassword = "maxnix";
   config.users.users.root.initialPassword = "maxnix";
 

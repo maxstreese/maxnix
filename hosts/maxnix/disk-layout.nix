@@ -32,9 +32,14 @@
 }:
 {
   disko.devices.disk.main = {
-    # ROAD TO METAL. Replace with the target's /dev/disk/by-id/… path, which
-    # is stable across reboots and enclosure changes in a way /dev/sdX is not.
-    device = "/dev/disk/by-id/PLACEHOLDER-run-nixos-facter";
+    # The ThinkPad's one M.2 slot, by PCI path. Stable across reboots in a way
+    # /dev/nvme0n1 is not guaranteed to be, and unlike /dev/disk/by-id/… it
+    # names the slot rather than the drive, so no serial number lands in this
+    # public repo (the same reason ./facter.json is stripped of them). With a
+    # single slot that loses nothing: a replacement drive sits at the same
+    # path. Only disko reads it, on install day — the installed system finds
+    # its partitions by label (disk-main-ESP, disk-main-luks).
+    device = "/dev/disk/by-path/pci-0000:01:00.0-nvme-1";
     type = "disk";
     content = {
       type = "gpt";

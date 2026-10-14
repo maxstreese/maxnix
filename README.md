@@ -1001,21 +1001,14 @@ undone or replaced when this becomes the host install:
 - ~~No disk layout or bootloader.~~ Done: `hosts/maxnix/disk.nix` declares
   systemd-boot plus a LUKS2 + btrfs layout through disko, so the metal
   configuration now evaluates, *builds*, and — via `checks.metal-boots` —
-  formats a disk and boots from it. What remains is the one fact that
-  needs the machine — `disko.devices.disk.main.device` is a placeholder until
-  `nixos-facter` on the target yields its `/dev/disk/by-id/…` path. Still
-  missing: a hardware module (`nixos-hardware` profiles or a facter report)
-  and swap, which wants RAM-sized hibernation space and is therefore also a
-  fact about the unchosen machine. A swapfile on btrfs is just a file, so it
-  costs nothing to defer; the partition layout around it does not.
-- No hardware report. `hardware.facter.reportPath` is `null`; nixpkgs ships
-  the facter modules, so install day is one line plus a JSON file — see the
-  ROAD TO METAL note in `hosts/maxnix/configuration.nix` for both commands.
-  The wiring is verified against a real report from the Ubuntu host: it turned
-  on AMD microcode and redistributable firmware and filled in the initrd
-  module list. It does *not* choose the disk — a report with no `fileSystems`
-  still fails the root-filesystem assertion — so `disk-layout.nix`'s `device`
-  stays a separate human decision from `ls /dev/disk/by-id`.
+  formats a disk and boots from it. The device is the ThinkPad's M.2 slot,
+  by PCI path (2026-10-14). Still missing: swap, which wants RAM-sized
+  hibernation space; a swapfile on btrfs is just a file, so it costs nothing
+  to defer, but the partition layout around it does not.
+- ~~No hardware report.~~ Done 2026-10-14: `hosts/maxnix/facter.json`, a
+  nixos-facter report of the T14s Gen 2a, stripped of serial numbers before
+  it entered this public repo (the metal toplevel is identical with and
+  without them). Metal only; every VM keeps QEMU's hardware.
 - No machine secrets. Nothing needs one yet, but a laptop wants a Wi‑Fi PSK
   at least; that is when sops-nix or agenix earns its place.
 - No networking beyond QEMU's user-mode DHCP. A laptop needs NetworkManager,

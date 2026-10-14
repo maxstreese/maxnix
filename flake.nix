@@ -995,9 +995,9 @@
       #
       # THIS DESTROYS THE TARGET'S DISK. Everything on it.
       #
-      # 1. hosts/maxnix/disk-layout.nix still names a placeholder device.
-      #    Replace it with the target's /dev/disk/by-id/… path first, or
-      #    disko will refuse to find it.
+      # 1. hosts/maxnix/disk-layout.nix names the ThinkPad's M.2 slot
+      #    (/dev/disk/by-path/…). Check it against `ls -l /dev/disk/by-path`
+      #    on the target before running this; on another machine it is wrong.
       # 2. The layout is encrypted and takes no passphrase from the config
       #    (maxnix.disk.passwordFile is null), so supply one for the
       #    formatting step:
