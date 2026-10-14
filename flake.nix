@@ -119,6 +119,7 @@
         ./hosts/maxnix/fleet.nix
         ./hosts/maxnix/secrets.nix
         ./hosts/maxnix/dev.nix
+        ./hosts/maxnix/login-limits.nix
         ./hosts/maxnix/observability.nix
         inputs.sops-nix.nixosModules.sops
         inputs.disko.nixosModules.disko
@@ -303,6 +304,60 @@
       # the answer to it is a disko VM test.
       metalChecks = {
         metal = maxnix.config.system.build.toplevel;
+
+        # How the machine lets people in, read off the files it would install
+        # rather than the options behind them. The VM suites cannot answer
+        # this for metal: every VM keeps passwordless sudo
+        # (modules/vm/qemu-guest.nix). tests/desktop.nix has the lockout's
+        # behaviour; this has metal's sudoers, and the lockout's place in each
+        # of its stacks (hosts/maxnix/login-limits.nix):
+        #
+        #   preauth   before the first line that can say yes (fingerprint or
+        #             password, `sufficient`), so a locked account stays locked
+        #   authfail  after the last password check and before pam_deny, so a
+        #             failure is counted rather than skipped
+        #   account   pam_faillock, to clear the count after a success
+        metal-auth =
+          let
+            etc = maxnix.config.environment.etc;
+            stacks = [
+              "login"
+              "sudo"
+              "su"
+              "polkit-1"
+              "dankshell"
+            ];
+          in
+          pkgs.runCommand "metal-auth" { } ''
+            set -eu
+            wheel=$(grep '^%wheel' ${etc.sudoers.source})
+            case "$wheel" in
+              *NOPASSWD*) echo "metal's sudo lets wheel in without a password: $wheel" >&2; exit 1 ;;
+            esac
+
+            for s in ${lib.concatStringsSep " " stacks}; do
+              f=${builtins.dirOf etc."pam.d/login".source}/$s
+              n() { grep -n -E "$1" "$f" | head -1 | cut -d: -f1; }
+              last() { grep -n -E "$1" "$f" | tail -1 | cut -d: -f1; }
+              pre=$(n '^auth +required +[^ ]*pam_faillock\.so .*\bpreauth\b')
+              fail=$(n '^auth +\[default=die\] +[^ ]*pam_faillock\.so .*\bauthfail\b')
+              yes=$(n '^auth +sufficient +[^ ]*pam_(unix|fprintd)\.so')
+              unix=$(last '^auth +sufficient +[^ ]*pam_unix\.so')
+              deny=$(n '^auth +required +[^ ]*pam_deny\.so')
+              acct=$(n '^account +required +[^ ]*pam_faillock\.so')
+              # Each with the config file: without conf=, pam_faillock reads
+              # its defaults from the store (hosts/maxnix/login-limits.nix).
+              [ "$(grep -c 'pam_faillock\.so .*conf=/etc/security/faillock\.conf' "$f")" = 3 ] \
+                || { echo "$s: a pam_faillock line without conf=" >&2; exit 1; }
+              for v in pre fail yes unix deny acct; do
+                [ -n "$(eval echo \$$v)" ] || { echo "$s: no $v line" >&2; cat "$f" >&2; exit 1; }
+              done
+              [ "$pre" -lt "$yes" ] || { echo "$s: preauth after the first sufficient line" >&2; exit 1; }
+              [ "$unix" -lt "$fail" ] && [ "$fail" -lt "$deny" ] \
+                || { echo "$s: authfail not between pam_unix and pam_deny" >&2; exit 1; }
+            done
+            touch $out
+          '';
 
         # And that the layout it describes actually partitions, formats and
         # boots. See ./tests/disk.nix for why that is a separate claim.

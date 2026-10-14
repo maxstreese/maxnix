@@ -141,6 +141,10 @@ disko.lib.testLib.makeDiskoTest {
     # catch up from after a boot (../hosts/maxnix/persistence.nix).
     machine.succeed("echo marker > /var/lib/systemd/timers/preserved-marker")
     machine.succeed("test -f /persist/var/lib/systemd/timers/preserved-marker")
+    # And the failed-login count, so a reboot does not lift a lockout
+    # (../hosts/maxnix/login-limits.nix).
+    machine.succeed("echo marker > /var/lib/faillock/preserved-marker")
+    machine.succeed("test -f /persist/var/lib/faillock/preserved-marker")
     first_machine_id = machine.succeed("cat /etc/machine-id").strip()
 
     machine.succeed("sync")
@@ -191,6 +195,10 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("findmnt -no SOURCE /var/lib/sbctl | grep -q '\\[/persist/'")
     machine.succeed("test -f /var/lib/systemd/timers/preserved-marker")
     machine.succeed("findmnt -no SOURCE /var/lib/systemd/timers | grep -q '\\[/persist/'")
+    machine.succeed("test -f /var/lib/faillock/preserved-marker")
+    machine.succeed("findmnt -no SOURCE /var/lib/faillock | grep -q '\\[/persist/'")
+    mode = machine.succeed("stat -c '%a %U' /var/lib/faillock").strip()
+    assert mode == "700 root", f"/var/lib/faillock is {mode}"
 
     # ── Backups ────────────────────────────────────────────────────────
     #

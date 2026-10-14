@@ -104,6 +104,13 @@
         # midnight never backs up, and nothing says so.
         "/var/lib/systemd/timers"
 
+        # Failed logins, counted by pam_faillock (./login-limits.nix). On the
+        # wiped root, a reboot would reset the count and with it the lockout.
+        {
+          directory = "/var/lib/faillock";
+          mode = "0700";
+        }
+
         # The observability stack's history (./observability.nix): months of
         # metrics and logs that cannot be rebuilt. Excluded from the backup
         # (./backup.nix).

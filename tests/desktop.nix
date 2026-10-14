@@ -49,7 +49,7 @@
   node.pkgsReadOnly = false;
 
   nodes.machine =
-    { lib, ... }:
+    { lib, pkgs, ... }:
     {
       # The real machine, plus the virtual hardware. hostModules comes from
       # flake.nix so this node is the same definition `nix run .#vm` builds.
@@ -57,6 +57,9 @@
 
       # Which virtio device the guest gets; see that module.
       maxnix.vm.gpu = gpu;
+
+      # To drive a PAM service directly, as the lockout subtest does.
+      environment.systemPackages = [ pkgs.pamtester ];
 
       # The driver appends -nographic when it finds no DISPLAY in its own
       # environment, which would leave virtio-vga-gl without a GL-capable
@@ -271,6 +274,33 @@
                               ("/var/lib/grafana", "grafana")]:
               got = machine.succeed(f"stat -c %U {path}").strip()
               assert got == owner, f"{path} owned by {got}, not {owner}"
+
+      with subtest("ten wrong passwords lock the account, at the console and the lock screen"):
+          # ../hosts/maxnix/login-limits.nix, through the stacks as built:
+          # login (the consoles, and the greeter by substack) and dankshell
+          # (DMS's lock screen). The VM's password is the plaintext one from
+          # ../modules/vm/qemu-guest.nix.
+          def tries(service, password):
+              return machine.execute(
+                  f"printf '%s\\n' '{password}' | pamtester {service} max authenticate")[0]
+
+          for service in ["login", "dankshell"]:
+              assert tries(service, "maxnix") == 0, f"{service}: the right password is refused"
+          for _ in range(10):
+              assert tries("login", "not-the-password") != 0
+          # Locked: the right password no longer gets through either way in.
+          for service in ["login", "dankshell"]:
+              assert tries(service, "maxnix") != 0, f"{service}: still open after ten failures"
+          # Counted where ../hosts/maxnix/persistence.nix keeps it, not in
+          # faillock's tmpfs default.
+          tally = machine.succeed("faillock --user max")
+          failures = machine.succeed("faillock --user max | grep -c ' V$'").strip()
+          assert failures == "10", f"faillock counted {failures}:\n{tally}"
+          machine.succeed("test -s /var/lib/faillock/max")
+          # And the way back short of waiting.
+          machine.succeed("faillock --user max --reset")
+          for service in ["login", "dankshell"]:
+              assert tries(service, "maxnix") == 0, f"{service}: still locked after a reset"
     ''
     # Everything past here looks at the screen, which needs a real GPU:
     # without virgl the greeter never draws and gpu-check reports no

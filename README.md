@@ -159,6 +159,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | login passwords | metal: a yescrypt hash from sops (`login-password`) for `max` and root, users immutable; every VM: plaintext `maxnix` | decided 2026-09-17 as plaintext everywhere, changed 2026-10-13 for metal after measuring that the wiped root undid every `passwd` (Findings). Immutable users make the declared hash win at every activation, so `passwd` lasts only until the next one, and changing the password is a sops edit and a rebuild — the price of one a wipe cannot reset. Root shares the hash so the emergency shell still opens. The VMs hold no metal key and keep `maxnix`, which `vm-ssh` logs in with |
+| failed logins | pam_faillock: 10 failures in 15 minutes lock an account for 10 minutes, root included; in `login` (consoles and greeter), `sudo`, `su`, `polkit-1` and the lock screen's `dankshell`; the count on `/persist` | decided 2026-10-14. The disk unlocks itself through the TPM, so a stolen laptop stops at the greeter and the password is the barrier; NIST SP 800-63B-4 asks for at most 100 failures, this is lenient enough for typos in a long passphrase. Root too, or a root login at the console would be the way around it; the emergency shell is unaffected, since `sulogin` does not use PAM. The lock screen gets a NixOS-built `/etc/pam.d/dankshell`, which DMS prefers over the `login` it ships without a lockout |
 | backups | restic, to Google Drive over rclone; VM only until install day | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
 | containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
 | device management | Fleet's agent (Orbit + osquery) via nixpkgs' `services.orbit`, off until configured | the employer is adopting Fleet (learned 2026-09-29). Wired ahead of the URL and enroll secret; both come from sops, so turning it on is one line. `osquery` itself is a general system tool in `configuration.nix`; `osqueryi` also lets the machine be checked the way Fleet will check it. NixOS is not a Fleet-supported distro, so its disk-encryption and firewall checks may misreport — a question for IT |
@@ -254,6 +255,16 @@ uses the newer one, so the agent sees such dashboards; a `curl` with the
 token does not, which is how this was first misread as "the agent cannot see
 them" (2026-10-08, corrected 2026-10-13). The observability suite has
 mcp-grafana read a UI-built dashboard, so an update that changes APIs shows.
+
+**nixpkgs' pam_faillock ignores `/etc/security/faillock.conf`.** linux-pam is
+built with its own etc in the store, and pam_faillock reads its defaults from
+there: with the file in `/etc`, the desktop suite's account locked after the
+built-in three failures, counted in the tmpfs `/var/run/faillock`, not the
+configured ten in `/var/lib/faillock` (2026-10-14). Every pam_faillock line
+in `hosts/maxnix/login-limits.nix` names the file with `conf=`, and the
+`faillock` command, which has no option for a config file, is wrapped with
+`--dir`. A test asserting only "locked or not" would have passed; this one
+counts.
 
 **With a wiped root, mutable users lose every `passwd` at the next boot.**
 `/etc/shadow` is on the root, so NixOS rebuilds it from the config each boot:
@@ -533,8 +544,8 @@ greetd's `preStart`. They fight.
 
 ## Tests
 
-Eight VM suites, three static checks, a build of the metal system and a
-startup check. The three desktop suites — `desktop`, `niri`, `hyprland` — boot
+Eight VM suites, three static checks, a build of the metal system, a check of
+how it lets people in, and a startup check. The three desktop suites — `desktop`, `niri`, `hyprland` — boot
 the whole machine from `hostModules`, so a test node cannot drift from what
 `nix run .#vm` builds. The other five (`secrets`, `fleet`, `containers`,
 `observability`, `metal-boots`) each import only what they test, on small
@@ -559,7 +570,7 @@ The tiers come from one definition instantiated twice, differing only in a
 | --- | --- | --- |
 | `gpu` | `false` | `true` |
 | QEMU | `-device virtio-vga` | `-device virtio-vga-gl` + `egl-headless` + `-vnc` |
-| desktop | 6 subtests | 8 |
+| desktop | 7 subtests | 9 |
 | niri | 2 | 5 |
 | hyprland | 3 | 7 |
 | sandboxed | yes, and cached | no — needs `/sys`, see above |
@@ -580,9 +591,10 @@ reports that as exit 124, and any other status means QEMU bailed. It needs a
 graphical session and flashes a window; that is inherent to testing
 `-display gtk`.
 
-Nine checks sit alongside the desktop suites, all sandboxed and all in CI:
-three static ones, and the metal stage — the installable system and the
-suites for one module each. Subtest counts as of 2026-10-12.
+Ten checks sit alongside the desktop suites, all sandboxed and all in CI:
+three static ones, and the metal stage — the installable system, a check of
+its login stacks, and the suites for one module each. Subtest counts as of
+2026-10-14.
 
 | check | what it asserts | subtests |
 | --- | --- | --- |
@@ -591,6 +603,7 @@ suites for one module each. Subtest counts as of 2026-10-12.
 | `hyprland-config` | Hyprland parses its own generated config and would load it | — |
 | `metal` | the machine as it would be *installed* builds | — |
 | `metal-boots` | that layout partitions, formats and boots | disko's own script |
+| `metal-auth` | metal's built `sudoers` asks `wheel` for a password, and each of its five password stacks has pam_faillock in place: before the first line that can let someone in, after the last password check, with its config file | — |
 | `secrets` | sops-nix decrypts a post-quantum age key at activation, root-only and in memory, and Fleet and the backup get their values from it | 4 |
 | `fleet` | orbit starts with its secret, tries the configured server, keeps retrying without crashing, and stops promptly | 4 |
 | `containers` | rootless Docker is max's, runs a Docker Hub image under compose with its storage on `/home`, and a published port stays behind the firewall until opened | 7 |
