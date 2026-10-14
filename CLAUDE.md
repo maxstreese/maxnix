@@ -29,6 +29,8 @@ Observability (`hosts/maxnix/observability.nix`, on everywhere): Prometheus `127
 
 Run the GPU `test-*` apps one at a time — they share a VNC port.
 
+Watch the host's disk. VM suites, system rebuilds and VM images pile up in `/nix/store` (and `./.vm/`) fast, and the Ubuntu host has run short more than once. Check `df -h /` before starting such work and again between long runs; if free space gets low (under ~50 GB), stop and tell the user rather than carry on. Collecting garbage (`nix-collect-garbage`, `nix store gc`) deletes things, so only with the user's go-ahead.
+
 ## Architecture
 
 - **One machine definition, several evaluations.** `hostModules` in `flake.nix` is the machine. `nixosConfigurations.maxnix` adds `hosts/maxnix/vm.nix`; `packages.vm` is its `virtualisation.vmVariant` (`build-vm` re-evaluates the same config with `qemu-vm.nix` layered on). The desktop suites' nodes (`desktop`, `niri`, `hyprland`) import the same `hostModules`, so they cannot drift from the real machine; the other suites boot small nodes that import only the module under test. VM-only settings belong under `virtualisation.vmVariant`, not in a separate description.
