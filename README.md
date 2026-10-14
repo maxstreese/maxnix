@@ -996,8 +996,9 @@ and disko's own shellcheck rejects it (SC2030/SC2031).
 **Road to metal.** Everything the config does *because it is only a VM*, to be
 undone or replaced when this becomes the host install:
 
-- `security.sudo.wheelNeedsPassword = false`, purely to skip typing in a
-  throwaway guest.
+- ~~`security.sudo.wheelNeedsPassword = false`~~ Done 2026-10-14: moved to
+  `modules/vm/qemu-guest.nix`, so only the VMs skip the password (and
+  `vm-deploy` and `vm-restore-key` keep their remote `sudo`); metal asks.
 - ~~No disk layout or bootloader.~~ Done: `hosts/maxnix/disk.nix` declares
   systemd-boot plus a LUKS2 + btrfs layout through disko, so the metal
   configuration now evaluates, *builds*, and — via `checks.metal-boots` —

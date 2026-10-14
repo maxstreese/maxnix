@@ -1,13 +1,10 @@
 # The machine.
 #
 # Nothing in this file knows or cares that it currently runs as a VM.
-# Everything VM-shaped lives in ./vm.nix. Keeping that line clean is the whole
-# point: this file stays true when the config is built for real hardware,
-# which is where it is headed (README, "Why this exists").
-#
-# One setting below is an honest shortcut taken because it is *only a VM
-# today*. It is marked "ROAD TO METAL" and listed in the README, so it is
-# found again when the time comes.
+# Everything VM-shaped lives in ./vm.nix and ../../modules/vm/qemu-guest.nix.
+# Keeping that line clean is the whole point: this file stays true when the
+# config is built for real hardware, which is where it is headed (README,
+# "Why this exists").
 { pkgs, ... }:
 {
   networking.hostName = "maxnix";
@@ -71,16 +68,13 @@
   users.mutableUsers = false;
   maxnix.loginPassword.fromSops = true;
 
-  # ROAD TO METAL. No password prompt on sudo, purely to skip typing in a
-  # guest whose disk is thrown away. On the real host this goes.
-  security.sudo.wheelNeedsPassword = false;
-
   # No console autologin, deliberately (decided 2026-09-17). The text
   # consoles on Ctrl+Alt+F2…F6 keep their password prompt, and that is the
   # rescue path if the graphical greeter ever fails to draw: it needs working
   # GL, a TTY does not (see ../../modules/desktop/greeter.nix). Autologin
   # would have made the lock screen decorative — anyone at the keyboard, two
-  # keystrokes, a root shell via passwordless sudo.
+  # keystrokes, the whole session; and in the VMs, whose sudo asks for no
+  # password (../../modules/vm/qemu-guest.nix), a root shell too.
 
   # The machine needs flakes so it can rebuild itself from a clone of this
   # repo. In the VM, `rebuild` (./vm.nix) activates the result without a

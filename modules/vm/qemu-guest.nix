@@ -140,6 +140,13 @@ in
   # would change every VM's and test node's closure for nothing. Off here,
   # over ../../hosts/maxnix/configuration.nix.
   config.hardware.facter.reportPath = lib.mkForce null;
+
+  # No password prompt on sudo, purely to skip typing in a guest whose disk
+  # is thrown away — and what lets vm-deploy and vm-restore-key run their
+  # remote `sudo` over ssh without a terminal (../../flake.nix). Here rather
+  # than in the machine's config since 2026-10-14, so metal keeps NixOS's
+  # default: wheel asks for its password.
+  config.security.sudo.wheelNeedsPassword = false;
   config.users.users.max.initialPassword = "maxnix";
   config.users.users.root.initialPassword = "maxnix";
 
