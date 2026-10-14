@@ -159,6 +159,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | login passwords | metal: a yescrypt hash from sops (`login-password`) for `max` and root, users immutable; every VM: plaintext `maxnix` | decided 2026-09-17 as plaintext everywhere, changed 2026-10-13 for metal after measuring that the wiped root undid every `passwd` (Findings). Immutable users make the declared hash win at every activation, so `passwd` lasts only until the next one, and changing the password is a sops edit and a rebuild — the price of one a wipe cannot reset. Root shares the hash so the emergency shell still opens. The VMs hold no metal key and keep `maxnix`, which `vm-ssh` logs in with |
+| networking | NetworkManager; networks joined in the UI (DMS's widget, `nmcli`) and preserved, not declared from sops | decided 2026-10-14. A laptop meets new networks all the time, and a rebuild per café would make the declarative way unusable; the profiles survive the wiped root on `/persist`, which the backup covers. sops-declared profiles can join them later for fixed networks, better once metal's secrets are out of the VM key's reach. `max` is in `networkmanager`, so saving a network asks for no password |
 | failed logins | pam_faillock: 10 failures in 15 minutes lock an account for 10 minutes, root included; in `login` (consoles and greeter), `sudo`, `su`, `polkit-1` and the lock screen's `dankshell`; the count on `/persist` | decided 2026-10-14. The disk unlocks itself through the TPM, so a stolen laptop stops at the greeter and the password is the barrier; NIST SP 800-63B-4 asks for at most 100 failures, this is lenient enough for typos in a long passphrase. Root too, or a root login at the console would be the way around it; the emergency shell is unaffected, since `sulogin` does not use PAM. The lock screen gets a NixOS-built `/etc/pam.d/dankshell`, which DMS prefers over the `login` it ships without a lockout |
 | backups | restic, to Google Drive over rclone; VM only until install day | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
 | containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
@@ -570,7 +571,7 @@ The tiers come from one definition instantiated twice, differing only in a
 | --- | --- | --- |
 | `gpu` | `false` | `true` |
 | QEMU | `-device virtio-vga` | `-device virtio-vga-gl` + `egl-headless` + `-vnc` |
-| desktop | 7 subtests | 9 |
+| desktop | 8 subtests | 10 |
 | niri | 2 | 5 |
 | hyprland | 3 | 7 |
 | sandboxed | yes, and cached | no — needs `/sys`, see above |
@@ -1023,10 +1024,14 @@ undone or replaced when this becomes the host install:
   nixos-facter report of the T14s Gen 2a, stripped of serial numbers before
   it entered this public repo (the metal toplevel is identical with and
   without them). Metal only; every VM keeps QEMU's hardware.
-- No machine secrets. Nothing needs one yet, but a laptop wants a Wi‑Fi PSK
-  at least; that is when sops-nix or agenix earns its place.
-- No networking beyond QEMU's user-mode DHCP. A laptop needs NetworkManager,
-  which is also what DMS's network widget talks to.
+- ~~No machine secrets.~~ Done: sops-nix, with the login password, Fleet's
+  and the backup's values (`hosts/maxnix/secrets.nix`). Wi-Fi is not among
+  them — networks are joined in the UI and preserved (see networking).
+- ~~No networking beyond QEMU's user-mode DHCP.~~ Done 2026-10-14:
+  NetworkManager everywhere, networks joined in DMS's widget or with `nmcli`
+  and kept on `/persist`, not declared; facter's own DHCP off so dhcpcd does
+  not run beside it. DNS goes through resolvconf, as nixpkgs pairs Twingate
+  with NetworkManager. Fixed networks could later come from sops as well.
 - `security.rtkit.enable` is off, so PipeWire cannot get real-time
   scheduling; every boot log shows the RTKit errors. Harmless without audio
   hardware, wrong on a machine with speakers.

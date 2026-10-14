@@ -141,6 +141,11 @@ disko.lib.testLib.makeDiskoTest {
     # catch up from after a boot (../hosts/maxnix/persistence.nix).
     machine.succeed("echo marker > /var/lib/systemd/timers/preserved-marker")
     machine.succeed("test -f /persist/var/lib/systemd/timers/preserved-marker")
+    # NetworkManager's saved networks and its state (../hosts/maxnix/
+    # configuration.nix): a Wi-Fi joined once stays joined.
+    for d in ["/etc/NetworkManager/system-connections", "/var/lib/NetworkManager"]:
+        machine.succeed(f"echo marker > {d}/preserved-marker")
+        machine.succeed(f"test -f /persist{d}/preserved-marker")
     # And the failed-login count, so a reboot does not lift a lockout
     # (../hosts/maxnix/login-limits.nix).
     machine.succeed("echo marker > /var/lib/faillock/preserved-marker")
@@ -195,6 +200,11 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("findmnt -no SOURCE /var/lib/sbctl | grep -q '\\[/persist/'")
     machine.succeed("test -f /var/lib/systemd/timers/preserved-marker")
     machine.succeed("findmnt -no SOURCE /var/lib/systemd/timers | grep -q '\\[/persist/'")
+    for d in ["/etc/NetworkManager/system-connections", "/var/lib/NetworkManager"]:
+        machine.succeed(f"test -f {d}/preserved-marker")
+        machine.succeed(f"findmnt -no SOURCE {d} | grep -q '\\[/persist/'")
+        mode = machine.succeed(f"stat -c '%a %U' {d}").strip()
+        assert mode == "700 root", f"{d} is {mode}"
     machine.succeed("test -f /var/lib/faillock/preserved-marker")
     machine.succeed("findmnt -no SOURCE /var/lib/faillock | grep -q '\\[/persist/'")
     mode = machine.succeed("stat -c '%a %U' /var/lib/faillock").strip()

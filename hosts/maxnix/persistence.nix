@@ -104,6 +104,21 @@
         # midnight never backs up, and nothing says so.
         "/var/lib/systemd/timers"
 
+        # NetworkManager's connections, Wi-Fi passwords included, as joined in
+        # DMS's widget or with nmcli (./configuration.nix). Root-only, as
+        # NetworkManager keeps them.
+        {
+          directory = "/etc/NetworkManager/system-connections";
+          mode = "0700";
+        }
+        # And its own state: whether Wi-Fi is switched on, when each network
+        # was last used, and the secret key behind stable private IPv6
+        # addresses, which would otherwise change at every boot.
+        {
+          directory = "/var/lib/NetworkManager";
+          mode = "0700";
+        }
+
         # Failed logins, counted by pam_faillock (./login-limits.nix). On the
         # wiped root, a reboot would reset the count and with it the lockout.
         {

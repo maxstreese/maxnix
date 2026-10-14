@@ -9,6 +9,32 @@
 {
   networking.hostName = "maxnix";
 
+  # NetworkManager, for a laptop that meets new networks all the time, and
+  # what DMS's network widget talks to. Networks are joined in that widget or
+  # with nmcli and kept, not declared: a rebuild for every café's Wi-Fi would
+  # make the declarative way unusable, and the profiles survive the wiped
+  # root on /persist (./persistence.nix), which the backup covers. A few
+  # fixed networks could still be declared from sops later
+  # (networking.networkmanager.ensureProfiles), next to these. Decided
+  # 2026-10-14. On every VM too: it hands QEMU's network the same DHCP the
+  # scripted networking did, and gives the widget something to show.
+  #
+  # DNS through resolvconf, not systemd-resolved. Before NetworkManager,
+  # resolved ran only because nixpkgs' Twingate module turns it on — and that
+  # module does so only while NetworkManager is off. With it on, NetworkManager
+  # writes /etc/resolv.conf through resolvconf and the Twingate client puts its
+  # resolvers there; in the VM, 2026-10-14, resolv.conf held the client's
+  # 100.95.0.x resolvers and names resolved. Left as nixpkgs pairs the two,
+  # rather than forcing resolved back on beside a combination it avoids.
+  networking.networkmanager.enable = true;
+
+  # Without facter's own DHCP: from the hardware report it gives every
+  # detected interface useDHCP — Wi-Fi, both Ethernets, the WWAN modem — and
+  # that starts dhcpcd next to NetworkManager, two DHCP clients on one card.
+  # Measured 2026-10-14: dhcpcd.service was wantedBy multi-user.target until
+  # this was off.
+  hardware.facter.detected.dhcp.enable = false;
+
   time.timeZone = "Europe/Berlin";
   i18n.defaultLocale = "en_US.UTF-8";
   # ── Keyboard layout, in two independent places ───────────────────────────
@@ -52,6 +78,7 @@
     extraGroups = [
       "wheel"
       "video" # DRM access, needed by every compositor
+      "networkmanager" # add, change and remove connections without a root prompt
     ];
   };
 
@@ -208,9 +235,12 @@
   #
   # The module runs the daemon, seeds /etc/twingate from the package on first
   # start, relaxes reverse-path filtering (the tunnel's replies arrive on a
-  # different interface than the kernel's strict check expects) and turns on
-  # systemd-resolved, since the client publishes split-DNS for the networks it
-  # serves. It also puts the `twingate` CLI on PATH.
+  # different interface than the kernel's strict check expects), and — only
+  # where NetworkManager is off — turns on systemd-resolved for the client's
+  # split DNS. Here NetworkManager is on, so DNS goes the way nixpkgs pairs
+  # with it: through resolvconf, where the client puts its own resolvers
+  # (see networking.networkmanager above). It also puts the `twingate` CLI
+  # on PATH.
   #
   # No credential here, and none possible: you run `twingate setup` once to
   # name the network, then `twingate start`, which opens a browser to

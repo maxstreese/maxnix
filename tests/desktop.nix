@@ -275,6 +275,22 @@
               got = machine.succeed(f"stat -c %U {path}").strip()
               assert got == owner, f"{path} owned by {got}, not {owner}"
 
+      with subtest("NetworkManager runs alone, and max can add a connection it keeps"):
+          # ../hosts/maxnix/configuration.nix: NetworkManager rather than
+          # the scripted networking, and no dhcpcd beside it.
+          machine.wait_for_unit("NetworkManager.service")
+          machine.fail("systemctl is-active dhcpcd.service")
+          # Joined as max, not root: the networkmanager group is what lets
+          # DMS's widget and nmcli save a network without a prompt.
+          machine.succeed("runuser -u max -- nmcli connection add type dummy"
+                          " ifname probe0 con-name probe")
+          # Saved where ../hosts/maxnix/persistence.nix keeps it, root-only.
+          path = "/etc/NetworkManager/system-connections/probe.nmconnection"
+          mode = machine.succeed(f"stat -c '%a %U' {path}").strip()
+          assert mode == "600 root", f"{path} is {mode}"
+          machine.succeed("runuser -u max -- nmcli connection delete probe")
+          machine.fail(f"test -e {path}")
+
       with subtest("ten wrong passwords lock the account, at the console and the lock screen"):
           # ../hosts/maxnix/login-limits.nix, through the stacks as built:
           # login (the consoles, and the greeter by substack) and dankshell
