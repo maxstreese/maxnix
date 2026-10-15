@@ -1022,12 +1022,16 @@ says to keep it out of public repositories, hence 1Password, not this repo
 (older versions of that guide, 2013–2020; the current wording was not
 found).
 
-Unverified for the personal account: an External app still in "Testing" is
-said to get refresh tokens that expire after seven days, which would mean
-adding the account again every week. Not yet checked against Google's own
-documentation (as of 2026-10-15); if it holds, the likely way out is
-publishing the app, and what that asks of a client only its owner uses is
-part of the same check.
+For the personal account, publish the app ("In production") before adding
+it. Google's OAuth documentation, checked 2026-10-15: an External app in
+"Testing" gets refresh tokens that expire after seven days unless it asks
+only for name, email and profile — Calendar is more — so it would have to be
+added again every week. Moving to production does not by itself require
+verification; an unverified app requesting sensitive scopes shows an
+"unverified app" screen before consent and is capped at 100 new users,
+neither of which matters for one person. Whether that screen can still be
+clicked through was not stated there; expect "Advanced → Go to …". The
+company client, Internal, is not affected.
 
 **Write our own Quickshell config** — the last piece of the original plan, and
 the reason Quickshell was on the list. Point
