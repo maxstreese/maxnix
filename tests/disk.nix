@@ -143,7 +143,12 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("test -f /persist/var/lib/systemd/timers/preserved-marker")
     # NetworkManager's saved networks and its state (../hosts/maxnix/
     # configuration.nix): a Wi-Fi joined once stays joined.
-    for d in ["/etc/NetworkManager/system-connections", "/var/lib/NetworkManager"]:
+    # And the laptop services' (../hosts/maxnix/laptop.nix): Bluetooth
+    # pairings, a staged firmware update, the chosen power profile, battery
+    # history.
+    laptop = ["/var/lib/bluetooth", "/var/lib/fwupd",
+              "/var/lib/power-profiles-daemon", "/var/lib/upower"]
+    for d in ["/etc/NetworkManager/system-connections", "/var/lib/NetworkManager"] + laptop:
         machine.succeed(f"echo marker > {d}/preserved-marker")
         machine.succeed(f"test -f /persist{d}/preserved-marker")
     # And the failed-login count, so a reboot does not lift a lockout
@@ -200,6 +205,11 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("findmnt -no SOURCE /var/lib/sbctl | grep -q '\\[/persist/'")
     machine.succeed("test -f /var/lib/systemd/timers/preserved-marker")
     machine.succeed("findmnt -no SOURCE /var/lib/systemd/timers | grep -q '\\[/persist/'")
+    for d in laptop:
+        machine.succeed(f"test -f {d}/preserved-marker")
+        machine.succeed(f"findmnt -no SOURCE {d} | grep -q '\\[/persist/'")
+    bt = machine.succeed("stat -c '%a %U' /var/lib/bluetooth").strip()
+    assert bt == "700 root", f"/var/lib/bluetooth is {bt}"
     for d in ["/etc/NetworkManager/system-connections", "/var/lib/NetworkManager"]:
         machine.succeed(f"test -f {d}/preserved-marker")
         machine.succeed(f"findmnt -no SOURCE {d} | grep -q '\\[/persist/'")

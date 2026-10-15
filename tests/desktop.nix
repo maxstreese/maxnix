@@ -291,6 +291,27 @@
           machine.succeed("runuser -u max -- nmcli connection delete probe")
           machine.fail(f"test -e {path}")
 
+      with subtest("the laptop services answer, the way DMS's widgets ask them"):
+          # ../hosts/maxnix/laptop.nix, over the system bus: what Quickshell's
+          # UPower service and DMS's power widget read. In a VM there is no
+          # battery and only a placeholder power driver, so this checks that
+          # each service answers, not what it reports.
+          def bus(args):
+              return machine.succeed(f"busctl --system {args}").strip()
+          profile = bus("get-property org.freedesktop.UPower.PowerProfiles"
+                        " /org/freedesktop/UPower/PowerProfiles"
+                        " org.freedesktop.UPower.PowerProfiles ActiveProfile")
+          assert profile == 's "balanced"', profile
+          bus("call org.freedesktop.UPower /org/freedesktop/UPower"
+              " org.freedesktop.UPower EnumerateDevices")
+          bus("get-property org.freedesktop.fwupd / org.freedesktop.fwupd DaemonVersion")
+          # Real-time audio: the greeter's PipeWire asks rtkit for it as it
+          # starts. Granted, rather than the "RTKit error: ... ServiceUnknown"
+          # every boot logged before rtkit was on.
+          machine.wait_until_succeeds(
+              "journalctl -b -u rtkit-daemon | grep -q 'owned by .* RT at priority'", timeout=120)
+          machine.fail("journalctl -b | grep -q 'RTKit error'")
+
       with subtest("ten wrong passwords lock the account, at the console and the lock screen"):
           # ../hosts/maxnix/login-limits.nix, through the stacks as built:
           # login (the consoles, and the greeter by substack) and dankshell

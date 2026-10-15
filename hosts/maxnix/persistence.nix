@@ -119,6 +119,22 @@
           mode = "0700";
         }
 
+        # The laptop services' state (./laptop.nix, and Bluetooth from the
+        # hardware report). Paired devices and their keys, root-only: without
+        # it every headset is a stranger after a reboot.
+        {
+          directory = "/var/lib/bluetooth";
+          mode = "0700";
+        }
+        # A firmware update staged for the next boot, and the history of
+        # applied ones: the reboot that applies a UEFI update is exactly the
+        # one that would otherwise forget it.
+        "/var/lib/fwupd"
+        # The power profile last chosen, so it is still chosen after a reboot.
+        "/var/lib/power-profiles-daemon"
+        # Battery charge history, which UPower's history graphs are made of.
+        "/var/lib/upower"
+
         # Failed logins, counted by pam_faillock (./login-limits.nix). On the
         # wiped root, a reboot would reset the count and with it the lockout.
         {

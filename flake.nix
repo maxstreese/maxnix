@@ -120,6 +120,7 @@
         ./hosts/maxnix/secrets.nix
         ./hosts/maxnix/dev.nix
         ./hosts/maxnix/login-limits.nix
+        ./hosts/maxnix/laptop.nix
         ./hosts/maxnix/observability.nix
         inputs.sops-nix.nixosModules.sops
         inputs.disko.nixosModules.disko
