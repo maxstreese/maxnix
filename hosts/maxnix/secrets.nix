@@ -93,8 +93,7 @@
 #
 # The LUKS passphrase. The machine key sits on the disk that passphrase
 # unlocks, so the secret would be needed before the thing holding it exists.
-# That is why ./disk.nix takes a typed passphrase and ./luks-tpm.nix layers
-# TPM unlock on top rather than a keyfile.
+# That is why ./disk.nix takes a typed passphrase rather than a keyfile.
 { config, lib, ... }:
 let
   harlequin = config.maxnix.harlequin.profiles;

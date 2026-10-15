@@ -164,7 +164,8 @@ and KVM — even the QEMU binary comes from the Nix store.
 | swap | zram (compressed RAM), no swap on disk, so no hibernation for now | decided 2026-10-15. zram absorbs memory spikes for one line of config. Whether hibernation resumes reliably on this ThinkPad's AMD graphics, and whether lanzaboote's Secure Boot leaves the kernel willing to hibernate, shows only on the hardware; a swapfile in its own btrfs subvolume adds it later without repartitioning, with suspend-then-hibernate for a lid closed for days |
 | power profiles | power-profiles-daemon, not TLP or tuned | decided 2026-10-14. DMS's power widget reads `org.freedesktop.UPower.PowerProfiles`, the interface power-profiles-daemon provides; TLP conflicts with it and DMS does not talk to it. Which driver it uses on this Ryzen shows only on the hardware (`powerprofilesctl`) |
 | calendar | DankCalendar syncing Google itself, for the company and a personal account, each through an OAuth client of its own; not khal | decided 2026-10-15. DMS prefers DankCalendar when it runs, and khal would need a separate sync (vdirsyncer) to have anything to read. Own clients rather than DankCalendar's built-in one, so no third-party app reads company calendar data: the company one Internal in the existing Workspace project, the personal one in a project of the personal account, since an Internal client admits only the organisation's accounts |
-| failed logins | pam_faillock: 10 failures in 15 minutes lock an account for 10 minutes, root included; in `login` (consoles and greeter), `sudo`, `su`, `polkit-1` and the lock screen's `dankshell`; the count on `/persist` | decided 2026-10-14. The disk unlocks itself through the TPM, so a stolen laptop stops at the greeter and the password is the barrier; NIST SP 800-63B-4 asks for at most 100 failures, this is lenient enough for typos in a long passphrase. Root too, or a root login at the console would be the way around it; the emergency shell is unaffected, since `sulogin` does not use PAM. The lock screen gets a NixOS-built `/etc/pam.d/dankshell`, which DMS prefers over the `login` it ships without a lockout |
+| failed logins | pam_faillock: 10 failures in 15 minutes lock an account for 10 minutes, root included; in `login` (consoles and greeter), `sudo`, `su`, `polkit-1` and the lock screen's `dankshell`; the count on `/persist` | decided 2026-10-14, when the TPM was to unlock the disk. Since the boot decision of 2026-10-15 (below) a cold boot stops at the LUKS passphrase, so this guards the lock screen of a laptop taken running or asleep; NIST SP 800-63B-4 asks for at most 100 failures, this is lenient enough for typos in a long passphrase. Root too, or a root login at the console would be the way around it; the emergency shell is unaffected, since `sulogin` does not use PAM. The lock screen gets a NixOS-built `/etc/pam.d/dankshell`, which DMS prefers over the `login` it ships without a lockout |
+| boot and login | one password at power-on: the LUKS passphrase, then greetd starts max's niri session (`initial_session`); no TPM unlock; the login keyring with an empty password | decided 2026-10-15, over typing a passphrase and then a password. Only someone who knows the passphrase gets past power-on, so the greeter added typing, not protection; the lock screen and sudo still take the login password. TPM unlock was dropped with it: together with autologin, the power button alone would open the session, and `modules/desktop/greeter.nix` refuses that combination. The keyring cannot be opened by the boot passphrase — greetd starts an autologin session without `pam_authenticate`, the step in which `pam_gnome_keyring` and `pam_systemd_loadkey` act (read in their sources) — so it has no password of its own, and LUKS protects its file. Metal only: VMs and test nodes have no LUKS and keep the greeter |
 | backups | restic, to Google Drive over rclone; VM only until install day | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
 | containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
 | device management | Fleet's agent (Orbit + osquery) via nixpkgs' `services.orbit`, off until configured | the employer is adopting Fleet (learned 2026-09-29). Wired ahead of the URL and enroll secret; both come from sops, so turning it on is one line. `osquery` itself is a general system tool in `configuration.nix`; `osqueryi` also lets the machine be checked the way Fleet will check it. NixOS is not a Fleet-supported distro, so its disk-encryption and firewall checks may misreport — a question for IT |
@@ -1061,8 +1062,9 @@ report, secrets, networking, the laptop services, DMS's features — and no
 
 Before the day:
 
-1. In 1Password: a new item for the **LUKS passphrase** (long, and not the
-   login password), the **metal sops key** (kept there since it was made),
+1. In 1Password: the **LUKS passphrase** (long and typeable, typed at every
+   boot; a new item, or the login password's own — nothing needs the two to
+   match or to differ), the **metal sops key** (kept there since it was made),
    the **login password**, the **metal restic password**, and the
    account's email and Secret Key, for signing the CLI in on the stick. The
    login password and the restic password are in
@@ -1094,16 +1096,21 @@ On the day:
    to type `erase`, partitions, puts the key on `/persist` and runs
    `nixos-install`. `checks.metal-install` runs all of that but the last
    step against a virtual disk.
-9. Reboot, take the stick out, type the LUKS passphrase, log in with the
-   password from 1Password.
+9. Reboot, take the stick out, type the LUKS passphrase: the niri session
+   starts by itself. The login password is for the lock screen and sudo.
 
 After:
 
-10. Secure Boot with the machine's own keys and the TPM bound to the disk,
-    in the order `hosts/maxnix/disk.nix` gives — once the open decisions are
-    made: TPM with or without a PIN, and Microsoft's keys kept beside the
-    machine's or not.
-11. `twingate setup`; the 1Password app; the calendar accounts (see
+10. Secure Boot with the machine's own keys, in the order
+    `hosts/maxnix/disk.nix` gives — once it is decided whether Microsoft's
+    keys stay beside the machine's. No TPM unlock (decided 2026-10-15; see
+    "Decisions, and why").
+11. The first app that asks for a keyring ("Choose password for new
+    keyring"): leave both fields **empty**, then "Store passwords
+    unencrypted?" → Continue. Autologin cannot unlock a keyring that has a
+    password; this one opens by itself at first use after every boot (tried
+    in the VM). Then
+    `twingate setup`; the 1Password app; the calendar accounts (see
     "Calendar accounts are added by hand"); Fleet enrolls and the backup
     runs by themselves — check both.
 12. What only the hardware shows: brightness (`acpi_backlight=native` if it
@@ -1137,8 +1144,8 @@ Still open before the day (as of 2026-10-15):
   boot it — possible once `secrets-metal.yaml` holds its values, as the
   machine does not build without them. That run is also the 1Password
   question above, asked on a device 1Password has not seen.
-- **The TPM and Secure Boot decisions** of step 10: TPM with or without a
-  PIN, and Microsoft's keys kept beside the machine's or not.
+- **The Secure Boot decision** of step 10: Microsoft's keys kept beside the
+  machine's or not.
 
 **Media and brightness keys** are GNOME keybindings like any other, so they
 should follow the grab now. Not yet verified with a keypress.

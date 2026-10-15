@@ -81,9 +81,8 @@
               allowDiscards = true;
             };
             # No keyFile and no passwordFile: the passphrase is typed, at
-            # install time and at every boot. TPM-backed unlock replaces the
-            # typing later (lanzaboote + systemd-cryptenroll) and is layered
-            # on top of exactly this — it does not change the layout.
+            # install time and at every boot, and is the one password typed
+            # before the session (no TPM unlock; ./disk.nix).
             content = {
               type = "btrfs";
               extraArgs = [ "-f" ];

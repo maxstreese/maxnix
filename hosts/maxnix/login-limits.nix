@@ -1,9 +1,11 @@
 # How many wrong passwords before an account locks, and for how long.
 #
-# The login password is the one barrier on a laptop that unlocks its disk by
-# itself (the TPM enrolment in ./luks-tpm.nix takes no PIN): a stolen,
-# powered-off machine boots to the greeter. Without a limit, that greeter,
-# the lock screen and sudo take guesses for as long as anyone cares to type.
+# The login password is the barrier on a laptop taken while running or
+# asleep: the disk is open then, and what stands between a thief and the
+# session is the lock screen. (Written 2026-10-14 for a disk the TPM would
+# unlock; since 2026-10-15 a cold boot asks for the LUKS passphrase and logs
+# in by itself, ./disk.nix.) Without a limit, the lock screen, the greeter
+# after a logout, and sudo take guesses for as long as anyone cares to type.
 # NIST SP 800-63B-4 asks for at most 100 consecutive failures; this is well
 # below that, and lenient enough that typos in a long passphrase do not lock
 # the owner out. Decided 2026-10-14.

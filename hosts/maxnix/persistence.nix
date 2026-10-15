@@ -13,8 +13,8 @@
 # A plain attrset, not a module function, so ../../tests/disk.nix can hand the
 # identical thing to makeDiskoTest as extraSystemConfig — that harness builds
 # its installed system from the layout plus its own defaults and imports none
-# of this host's modules. Same reason ./luks-tpm.nix exists; discovered by
-# getting it wrong there first.
+# of this host's modules. Discovered by getting it wrong with the TPM option
+# first, which then lived in a file of its own for the same reason.
 #
 # ── Why preservation and not impermanence ────────────────────────────────
 #
@@ -52,7 +52,7 @@
 # btrfs-progs in the initrd. That is still shareable with the disk test: this
 # goes into extraSystemConfig's `imports`, and the module system calls module
 # functions there like anywhere else. Only makeDiskoTest's `disko-config` has
-# the stricter requirement that forced ./luks-tpm.nix to stay an attrset.
+# the stricter requirement of a plain attrset.
 {
   config,
   lib,

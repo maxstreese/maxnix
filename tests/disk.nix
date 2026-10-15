@@ -33,18 +33,13 @@ disko.lib.testLib.makeDiskoTest {
     passwordFile = "/tmp/secret.key";
   };
 
-  # The TPM unlock option the real machine carries, so that the fallback it
-  # depends on is exercised here rather than assumed.
-  #
-  # It has to be passed explicitly: makeDiskoTest builds its installed system
-  # from disko-config plus its own defaults and never imports
-  # ../hosts/maxnix/disk.nix, so anything set there is invisible to this test.
-  # That is not a guess — adding the option to disk.nix alone left this test's
-  # derivation hash byte-identical.
+  # What the real machine adds to the layout, passed explicitly:
+  # makeDiskoTest builds its installed system from disko-config plus its own
+  # defaults and never imports ../hosts/maxnix/disk.nix, so anything set
+  # there is invisible to this test. That is not a guess — adding an option
+  # to disk.nix alone once left this test's derivation hash byte-identical.
   extraSystemConfig = {
     imports = [
-      ../hosts/maxnix/luks-tpm.nix
-
       # Impermanence's bind mounts, and the module that implements them. The
       # installed system this harness builds imports none of the host's
       # modules, so both have to be handed over explicitly or the test would

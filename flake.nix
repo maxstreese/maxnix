@@ -411,7 +411,26 @@
               "polkit-1"
               "dankshell"
             ];
+            # Autologin after the LUKS passphrase (modules/desktop/greeter.nix):
+            # on metal, and nowhere a passphrase did not come first — the VM
+            # stands for every node without LUKS.
+            autologin =
+              cfg:
+              let
+                s = cfg.services.greetd.settings;
+              in
+              if s ? initial_session then s.initial_session.user else null;
+            vmCfg = maxnix.config.virtualisation.vmVariant;
           in
+          assert lib.assertMsg (
+            autologin maxnix.config == "max"
+          ) "metal does not log max in after the passphrase";
+          assert lib.assertMsg (
+            maxnix.config.boot.initrd.luks.devices ? crypted
+          ) "metal has no LUKS volume to unlock";
+          assert lib.assertMsg (
+            autologin vmCfg == null
+          ) "the VM, which has no passphrase at boot, logs in by itself";
           pkgs.runCommand "metal-auth" { } ''
             set -eu
             wheel=$(grep '^%wheel' ${etc.sudoers.source})

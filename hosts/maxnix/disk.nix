@@ -24,12 +24,19 @@
 # LUKS2 + btrfs subvolumes rather than a plain ext4 root, because two things
 # already on the road to metal both require it:
 #
-#   Secure Boot with TPM unlock  needs the root to be encrypted at all, or
-#                                there is nothing for the TPM to release.
-#   Impermanence                 is implemented by rolling a subvolume back to
-#                                a blank snapshot on boot. ext4 cannot do that.
+#   Encryption    the passphrase typed at power-on is the one barrier: after
+#                 it the session starts by itself (../../modules/desktop/
+#                 greeter.nix).
+#   Impermanence  is implemented by rolling a subvolume back to a blank
+#                 snapshot on boot. ext4 cannot do that.
 #
 # Doing it later would mean reinstalling, so it is done now.
+#
+# No TPM unlock (decided 2026-10-15). It was planned, enrolled after Secure
+# Boot, but a disk that unlocks itself would leave the login password as the
+# barrier, and the passphrase typed once at boot was chosen over typing
+# twice. greeter.nix refuses autologin together with tpm2-device= or
+# fido2-device= unlock, so turning it back on means giving autologin up.
 #
 # ── What is deliberately missing ──────────────────────────────────────────
 #
@@ -52,8 +59,7 @@
       File holding the LUKS passphrase, used when *creating* the volume.
 
       null, the default and what the real machine uses, means disko prompts
-      and the passphrase is typed — at install time, and at every boot until
-      TPM unlock replaces the typing.
+      and the passphrase is typed — at install time, and at every boot.
 
       It exists because disko cannot create an encrypted volume without a
       passphrase from somewhere, and two callers need to supply one without
@@ -84,10 +90,6 @@
 
   config = lib.mkMerge [
     (import ./disk-layout.nix { inherit (config.maxnix.disk) passwordFile; })
-
-    # TPM unlock. Its own file because ../../tests/disk.nix needs the same
-    # attrset — see the note there.
-    (import ./luks-tpm.nix)
 
     {
       boot.loader.efi.canTouchEfiVariables = true;

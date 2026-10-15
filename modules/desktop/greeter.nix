@@ -23,13 +23,82 @@
 #
 # To go back: drop this file from ../desktop/default.nix's imports and restore
 # the tuigreet block there. Nothing else depends on it.
+#
+# ── Autologin, where the disk asked for a passphrase ─────────────────────────
+#
+# Decided 2026-10-15: one password at power-on, not two. On metal the LUKS
+# passphrase is typed at every boot, and only someone who knows it gets
+# that far, so asking again at the greeter adds typing, not protection. So
+# greetd starts max's niri session itself (initial_session), once per boot;
+# logging out, or wanting Hyprland, lands on the greeter as before. The lock
+# screen and sudo still ask for the login password.
+#
+# Only where a LUKS volume is unlocked at boot, which is metal alone: every
+# VM and test node gets an empty boot.initrd.luks.devices from qemu-vm.nix,
+# so they keep the greeter and the tests that go through it.
+#
+# And never with a disk that unlocks itself: TPM or FIDO2 unlock plus
+# autologin would open the session for anyone who presses the power button.
+# The assertion below stops such a build; the TPM layer this machine once
+# planned was dropped for this (hosts/maxnix/disk.nix).
+#
+# The keyring does not open through this. greetd starts an initial_session
+# without pam_authenticate (greetd's context.rs: authenticate = false), and
+# both pam_gnome_keyring and pam_systemd_loadkey — which would hand on the
+# boot passphrase — act only in that step (read in their sources,
+# 2026-10-15). So the keyring gets an empty password instead, chosen once
+# when an app first asks for it: its file on /home is then protected by
+# LUKS, and in backups by restic, rather than by a password of its own.
+# While the session runs it is open either way.
+#
+# Measured in the dev VM with autologin forced on (2026-10-15): the session
+# came up on tty1 with no greeter process; the existing keyring, which had a
+# password, stayed locked; on a fresh one the first `secret-tool store` put
+# up "Choose password for new keyring", and left empty, "Store passwords
+# unencrypted?" → Continue made "Default keyring". After a reboot it reported
+# Locked until first use and then opened without a prompt, secret intact.
 {
   config,
   lib,
+  pkgs,
   ...
 }:
+let
+  # The niri session as its .desktop entry runs it, the same way the
+  # greeter would start it.
+  niriSession = pkgs.writeShellScript "autologin-niri-session" ''
+    entry="${config.services.displayManager.sessionData.desktops}/share/wayland-sessions/niri.desktop"
+    exec $(${pkgs.gnused}/bin/sed -n 's/^Exec=//p' "$entry")
+  '';
+  selfUnlocking = lib.filter (o: lib.hasPrefix "tpm2-device=" o || lib.hasPrefix "fido2-device=" o) (
+    lib.concatMap (d: d.crypttabExtraOpts) (lib.attrValues config.boot.initrd.luks.devices)
+  );
+in
 {
-  programs.dms-greeter = {
+  options.maxnix.autoLogin.enable = lib.mkOption {
+    type = lib.types.bool;
+    default = config.boot.initrd.luks.devices != { };
+    defaultText = lib.literalExpression "config.boot.initrd.luks.devices != { }";
+    description = ''
+      Start max's niri session at boot without the greeter, because the
+      LUKS passphrase typed before it already identified the person. On
+      wherever a LUKS volume is unlocked at boot.
+    '';
+  };
+
+  config.assertions = [
+    {
+      assertion = !(config.maxnix.autoLogin.enable && selfUnlocking != [ ]);
+      message = "maxnix.autoLogin needs a disk unlocked by a typed passphrase, not by ${toString selfUnlocking}: together they would open the session for anyone at the power button";
+    }
+  ];
+
+  config.services.greetd.settings.initial_session = lib.mkIf config.maxnix.autoLogin.enable {
+    user = "max";
+    command = "${niriSession}";
+  };
+
+  config.programs.dms-greeter = {
     enable = true;
 
     # The greeter is a Quickshell client, so something has to be its Wayland
@@ -97,5 +166,5 @@
   #   --greeting / --asterisks            styled by the greeter instead
   #   --sessions                          the module discovers sessions itself
   #     from services.displayManager.sessionPackages
-  services.greetd.settings.default_session.user = lib.mkDefault "greeter";
+  config.services.greetd.settings.default_session.user = lib.mkDefault "greeter";
 }
