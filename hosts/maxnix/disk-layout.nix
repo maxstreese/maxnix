@@ -25,21 +25,27 @@
 #   passwordFile  disko needs a passphrase non-interactively to *create* the
 #                 LUKS volume. null (the default, and what the real machine
 #                 uses) means it is typed at the prompt. The test points it at
-#                 the key its harness writes; `nixos-anywhere
-#                 --disk-encryption-keys` uses the same hook on install day.
+#                 the key its harness writes; install-maxnix (../../flake.nix)
+#                 points it at the passphrase it read from 1Password.
+#   device        overridable for the same reason: install-maxnix takes a
+#                 --disk, which its test points at a virtual disk. The
+#                 default is still a plain string, for the reason above.
 {
   passwordFile ? null,
+  # The ThinkPad's one M.2 slot, by PCI path. Stable across reboots in a way
+  # /dev/nvme0n1 is not guaranteed to be, and unlike /dev/disk/by-id/… it
+  # names the slot rather than the drive, so no serial number lands in this
+  # public repo (the same reason ./facter.json is stripped of them). With a
+  # single slot that loses nothing: a replacement drive sits at the same
+  # path. Only disko reads it, on install day — the installed system finds
+  # its partitions by label (disk-main-ESP, disk-main-luks).
+  device ? "/dev/disk/by-path/pci-0000:01:00.0-nvme-1",
+  # disko's CLI calls this with arguments of its own (diskoFile, …).
+  ...
 }:
 {
   disko.devices.disk.main = {
-    # The ThinkPad's one M.2 slot, by PCI path. Stable across reboots in a way
-    # /dev/nvme0n1 is not guaranteed to be, and unlike /dev/disk/by-id/… it
-    # names the slot rather than the drive, so no serial number lands in this
-    # public repo (the same reason ./facter.json is stripped of them). With a
-    # single slot that loses nothing: a replacement drive sits at the same
-    # path. Only disko reads it, on install day — the installed system finds
-    # its partitions by label (disk-main-ESP, disk-main-luks).
-    device = "/dev/disk/by-path/pci-0000:01:00.0-nvme-1";
+    inherit device;
     type = "disk";
     content = {
       type = "gpt";

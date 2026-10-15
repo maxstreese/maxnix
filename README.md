@@ -548,11 +548,11 @@ greetd's `preStart`. They fight.
 
 ## Tests
 
-Eight VM suites, three static checks, a build of the metal system, a check of
-how it lets people in, and a startup check. The three desktop suites — `desktop`, `niri`, `hyprland` — boot
+Nine VM suites, three static checks, builds of the metal system and of the
+installer USB's, a check of how it lets people in, and a startup check. The three desktop suites — `desktop`, `niri`, `hyprland` — boot
 the whole machine from `hostModules`, so a test node cannot drift from what
-`nix run .#vm` builds. The other five (`secrets`, `fleet`, `containers`,
-`observability`, `metal-boots`) each import only what they test, on small
+`nix run .#vm` builds. The other six (`secrets`, `fleet`, `containers`,
+`observability`, `metal-boots`, `metal-install`) each import only what they test, on small
 nodes; the desktop suites already boot everything, and booting it again per
 module would cost minutes and gigabytes to prove nothing new.
 
@@ -595,7 +595,7 @@ reports that as exit 124, and any other status means QEMU bailed. It needs a
 graphical session and flashes a window; that is inherent to testing
 `-display gtk`.
 
-Ten checks sit alongside the desktop suites, all sandboxed and all in CI:
+Twelve checks sit alongside the desktop suites, all sandboxed and all in CI:
 three static ones, and the metal stage — the installable system, a check of
 its login stacks, and the suites for one module each. Subtest counts as of
 2026-10-14.
@@ -607,6 +607,8 @@ its login stacks, and the suites for one module each. Subtest counts as of
 | `hyprland-config` | Hyprland parses its own generated config and would load it | — |
 | `metal` | the machine as it would be *installed* builds | — |
 | `metal-boots` | that layout partitions, formats and boots | disko's own script |
+| `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk and puts the key on `/persist`, and the system booted from it decrypts with that key. Leaves only `nixos-install --flake …#maxnix` to the day | disko's own script, plus the script's |
+| `installer` | the installer USB's system builds; the image is that plus a squashfs, left to `nix build .#installer-iso` | — |
 | `metal-auth` | metal's built `sudoers` asks `wheel` for a password, and each of its five password stacks has pam_faillock in place: before the first line that can let someone in, after the last password check, with its config file | — |
 | `secrets` | sops-nix decrypts a post-quantum age key at activation, root-only and in memory, and Fleet and the backup get their values from it | 4 |
 | `fleet` | orbit starts with its secret, tries the configured server, keeps retrying without crashing, and stops promptly | 4 |
@@ -618,8 +620,9 @@ suites, each stage one `nix build`. The metal stage runs its suites in
 parallel, the desktop stage one at a time: a guest keeps every page it
 touches, so what bounds it is its memory ceiling, and three 8 GiB desktop
 guests would add up to 24 GiB on a 16 GB runner. The metal stage's ceilings
-add up to 15 GiB, its measured peaks to about 9.4 (2026-10-12); the numbers
-are in the comment above the flag in `flake.nix`.
+add up to 17 GiB, its measured peaks to about 9.4 (2026-10-12, before
+`metal-install`); the numbers are in the comment above the flag in
+`flake.nix`.
 
 `metal` is the one check nothing else can stand in for. `packages.vm` builds
 the vmVariant's toplevel and the three suites build a third variant again —
@@ -1010,6 +1013,13 @@ says to keep it out of public repositories, hence 1Password, not this repo
 (older versions of that guide, 2013–2020; the current wording was not
 found).
 
+Unverified for the personal account: an External app still in "Testing" is
+said to get refresh tokens that expire after seven days, which would mean
+adding the account again every week. Not yet checked against Google's own
+documentation (as of 2026-10-15); if it holds, the likely way out is
+publishing the app, and what that asks of a client only its owner uses is
+part of the same check.
+
 **Write our own Quickshell config** — the last piece of the original plan, and
 the reason Quickshell was on the list. Point
 `programs.quickshell.configs.<name>` at a *string* path inside the guest's
@@ -1020,65 +1030,97 @@ wired and the copy is verified byte-identical, but repainting `colors.json`
 changed nothing on screen. Upstream documents `settings.json` as the file
 carrying appearance; DMS has not written one here yet.
 
-Install day itself is `nix run .#install -- root@<target>`: nixos-anywhere
-kexecs the target into an installer, runs disko against
-`hosts/maxnix/disk-layout.nix`, installs and reboots — the same sequence
-`checks.metal-boots` rehearses against a virtual disk. Two things must be done
-first, both noted at the app in `flake.nix`: replace the placeholder device,
-and supply an encryption key for the formatting step. Its
-`--generate-hardware-config nixos-facter <path>` flag produces the facter
-report from the target as part of the run, which removes the separate
-installer-USB trip.
+`nix run .#install -- root@<target>` is the other way in, kept for a
+reinstall from a second machine: nixos-anywhere kexecs the target into an
+installer over SSH, runs disko against `hosts/maxnix/disk-layout.nix`,
+installs and reboots — the same sequence `checks.metal-boots` rehearses
+against a virtual disk. It is not the ThinkPad's path (there is no second
+machine, below), and what it needs first — the LUKS passphrase for the
+formatting step, the sops key through `--extra-files` — is noted at the app
+in `flake.nix`.
 
 There is deliberately no `install-vm-test` app. `--vm-test` is redundant with
 `checks.metal-boots`, and on a LUKS layout it fails upstream before starting:
 its harness injects `export password=disko` into the generated disko script
 and disko's own shellcheck rejects it (SC2030/SC2031).
 
-**Road to metal.** Everything the config does *because it is only a VM*, to be
-undone or replaced when this becomes the host install:
+**Road to metal: install day, in order.** Onto the ThinkPad T14s Gen 2a this
+repo was developed on, from a USB stick it builds itself (decided 2026-10-15:
+there is no second machine with Nix for `nix run .#install`). Everything the
+config did *because it was only a VM* is done — sudo, disk layout, hardware
+report, secrets, networking, the laptop services, DMS's features — and no
+`ROAD TO METAL` marker is left in the code.
 
-- ~~`security.sudo.wheelNeedsPassword = false`~~ Done 2026-10-14: moved to
-  `modules/vm/qemu-guest.nix`, so only the VMs skip the password (and
-  `vm-deploy` and `vm-restore-key` keep their remote `sudo`); metal asks.
-- ~~No disk layout or bootloader.~~ Done: `hosts/maxnix/disk.nix` declares
-  systemd-boot plus a LUKS2 + btrfs layout through disko, so the metal
-  configuration now evaluates, *builds*, and — via `checks.metal-boots` —
-  formats a disk and boots from it. The device is the ThinkPad's M.2 slot,
-  by PCI path (2026-10-14). Swap is zram only (2026-10-15); hibernation
-  waits for the hardware, and a swapfile in its own btrfs subvolume would add
-  it without repartitioning.
-- ~~No hardware report.~~ Done 2026-10-14: `hosts/maxnix/facter.json`, a
-  nixos-facter report of the T14s Gen 2a, stripped of serial numbers before
-  it entered this public repo (the metal toplevel is identical with and
-  without them). Metal only; every VM keeps QEMU's hardware.
-- ~~No machine secrets.~~ Done: sops-nix, with the login password, Fleet's
-  and the backup's values (`hosts/maxnix/secrets.nix`). Wi-Fi is not among
-  them — networks are joined in the UI and preserved (see networking).
-- ~~No networking beyond QEMU's user-mode DHCP.~~ Done 2026-10-14:
-  NetworkManager everywhere, networks joined in DMS's widget or with `nmcli`
-  and kept on `/persist`, not declared; facter's own DHCP off so dhcpcd does
-  not run beside it. DNS goes through resolvconf, as nixpkgs pairs Twingate
-  with NetworkManager. Fixed networks could later come from sops as well.
-- ~~`security.rtkit.enable` is off~~ and ~~nothing for Bluetooth, UPower or
-  power profiles~~. Done 2026-10-14 in `hosts/maxnix/laptop.nix`: rtkit,
-  UPower, power-profiles-daemon and fwupd, on every VM too, with their state
-  on `/persist`; Bluetooth comes from the hardware report, metal only.
-  Two things only the hardware can settle, from nixos-hardware's shared T14s
-  profiles: whether brightness needs the kernel parameter
-  `acpi_backlight=native`, and, in the firmware, Config → Power → Sleep
-  State set to "Linux" for suspend to RAM to work.
-- ~~The three DMS features left off~~: they never were — the module turns
-  them on by default and nothing set them. Since 2026-10-15 each is stated:
-  no VPN widget (no NetworkManager VPNs in use), the audio visualiser on, and
-  the calendar from DankCalendar rather than khal.
-- `scripts/vm-keys`, `grab-on-hover`, sshd on loopback, `vm-deploy` and
-  `rebuild`'s VM variant all describe the host/guest seam and stop meaning
-  anything on metal. The
-  compositor, shell, keyboard, 1Password and Firefox work transfers as-is.
+Before the day:
 
-Each shortcut in the config is marked `ROAD TO METAL` in its comment, so
-`grep -rn 'ROAD TO METAL'` lists them.
+1. In 1Password: a new item for the **LUKS passphrase** (long, and not the
+   login password), the **metal sops key** (kept there since it was made),
+   the **login password** (in sops already), and the account's email and
+   Secret Key, for signing the CLI in on the stick. Note each item's secret
+   reference (`op://…`; the item's menu has "Copy Secret Reference").
+2. Back up whatever on Ubuntu is in no other place: the install erases the
+   whole disk.
+3. Build and write the stick:
+   `nix build .#installer-iso`, then
+   `sudo dd if=result/iso/*.iso of=/dev/<stick> bs=4M status=progress oflag=sync`.
+4. In the firmware (F1 at power-on): turn **Secure Boot off** — expected to
+   be needed, since the stick is not signed for the factory keys; check on
+   the day — and set Config → Power → Sleep State to "Linux".
+
+On the day:
+
+5. Boot the stick (F12 at power-on for the boot menu).
+6. Wi-Fi: `nmtui`.
+7. 1Password's CLI: `op account add`, then `eval $(op signin)`.
+8. `sudo -i`, then
+   `install-maxnix --luks op://<…LUKS…> --sops-key op://<…metal key…>`.
+   It checks UEFI and the disk, shows the disk's size and model, reads both
+   secrets, refuses a sops key that is not `metal` in `.sops.yaml`, asks you
+   to type `erase`, partitions, puts the key on `/persist` and runs
+   `nixos-install`. `checks.metal-install` runs all of that but the last
+   step against a virtual disk.
+9. Reboot, take the stick out, type the LUKS passphrase, log in with the
+   password from 1Password.
+
+After:
+
+10. Secure Boot with the machine's own keys and the TPM bound to the disk,
+    in the order `hosts/maxnix/disk.nix` gives — once the open decisions are
+    made: TPM with or without a PIN, and Microsoft's keys kept beside the
+    machine's or not.
+11. `twingate setup`; the 1Password app; the calendar accounts (see
+    "Calendar accounts are added by hand"); Fleet enrolls and the backup
+    runs by themselves — check both.
+12. What only the hardware shows: brightness (`acpi_backlight=native` if it
+    does not work), suspend, `powerprofilesctl`, `fwupdmgr get-updates`,
+    and whether hibernation is worth adding (see the swap decision).
+
+Still open before the day (as of 2026-10-15):
+
+- **Metal's secrets in a file of their own**, out of the VM key's reach.
+  Today `secrets.yaml` is encrypted to all three keys, so the VM's key —
+  on a disk image on the Ubuntu host — decrypts metal's login password too.
+  Needs the admin key to re-encrypt.
+- **Can 1Password's CLI sign in on the stick at all?** The account asks for
+  a YubiKey on new devices, and step 7 is a new device without the desktop
+  app. 1Password's CLI documentation names address, email, Secret Key and
+  password and says nothing about a second factor; forum posts from
+  2020–2023 have the CLI asking for a six-digit code and security keys
+  working only in "supported apps and browsers". Settle it before the day by
+  signing in as a new device from Ubuntu:
+  `OP_CONFIG_DIR=$(mktemp -d) nix run nixpkgs#_1password-cli -- account add`.
+  If that fails, the stick needs the secrets another way: `install-maxnix`
+  already reads them from files (`--luks-file`, `--sops-key-file`), and a
+  passphrase-encrypted bundle (`age -p`) made on Ubuntu, where the app and
+  the YubiKey work, would carry them without leaving them readable on the
+  stick.
+- **The two steps no check reaches.** `checks.metal-install` stops before
+  `nixos-install --flake …#maxnix` (a sandbox cannot build the machine
+  offline) and never signs `op` in. Both run first on the day; a dry run
+  from the stick in the VM (`install-maxnix` against a scratch disk) would
+  cover them sooner.
+- **The TPM and Secure Boot decisions** of step 10: TPM with or without a
+  PIN, and Microsoft's keys kept beside the machine's or not.
 
 **Media and brightness keys** are GNOME keybindings like any other, so they
 should follow the grab now. Not yet verified with a keypress.

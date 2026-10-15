@@ -140,6 +140,89 @@
         modules = hostModules ++ [ ./hosts/maxnix/vm.nix ];
       };
 
+      # The installer USB and its script (hosts/installer). The key it must
+      # find is read off .sops.yaml, as vm-restore-key reads the VM's, so the
+      # two cannot disagree.
+      metalRecipient =
+        let
+          lines = lib.splitString "\n" (builtins.readFile ./.sops.yaml);
+          hits = lib.concatMap (
+            l:
+            let
+              m = builtins.match "  - &metal (age1[a-z0-9]+)" l;
+            in
+            lib.optional (m != null) (builtins.head m)
+          ) lines;
+        in
+        assert lib.assertMsg (builtins.length hits == 1) ".sops.yaml must name exactly one &metal key";
+        builtins.head hits;
+      # The repo as the installer carries it: what git tracks, which is all a
+      # build from git ever sees. A build from the working tree (`path:.`)
+      # would otherwise copy everything .gitignore keeps out — .vm/ above
+      # all, the dev VM's disk images, 8 GB with the VM's sops key on them,
+      # which a first image built that way carried onto the stick
+      # (2026-10-15). Filtered here so how the image is built cannot matter.
+      repoSource = builtins.path {
+        name = "maxnix-source";
+        path = inputs.self;
+        filter =
+          path: _type:
+          let
+            rel = lib.removePrefix "${toString inputs.self}/" (toString path);
+          in
+          !(
+            builtins.elem rel [
+              ".vm"
+              ".direnv"
+              ".git"
+            ]
+            || lib.hasPrefix "result" rel && !(lib.hasInfix "/" rel)
+          );
+      };
+
+      # install-maxnix for one disk, with disko's partitioning script for
+      # that disk built here, from the pinned nixpkgs, through disko's own
+      # module (system.build.destroyFormatMount, what its test harness runs).
+      # Nothing is evaluated or built on the installer. The passphrase file is
+      # where the script puts it, in a tmpfs.
+      mkInstallMaxnix =
+        disk:
+        let
+          workDir = "/run/install-maxnix";
+          layout = lib.nixosSystem {
+            inherit system;
+            modules = [
+              inputs.disko.nixosModules.disko
+              (import ./hosts/maxnix/disk-layout.nix {
+                device = disk;
+                passwordFile = "${workDir}/luks.key";
+              })
+            ];
+          };
+        in
+        import ./hosts/installer/install-maxnix.nix {
+          inherit
+            pkgs
+            disk
+            workDir
+            metalRecipient
+            ;
+          diskoScript = lib.getExe layout.config.system.build.destroyFormatMount;
+          flake = repoSource;
+        };
+      installMaxnix =
+        mkInstallMaxnix
+          (import ./hosts/maxnix/disk-layout.nix { }).disko.devices.disk.main.device;
+      installer = lib.nixosSystem {
+        inherit system;
+        modules = [ ./hosts/installer ];
+        specialArgs = {
+          inherit installMaxnix;
+          flake = repoSource;
+          disko = inputs.disko.packages.${system}.disko;
+        };
+      };
+
       # Integration tests over that same machine definition. The two compositor
       # tests differ only in how you ask a compositor what it is doing, so the
       # test body is shared — see tests/compositor.nix. `session` is the
@@ -366,6 +449,19 @@
           inherit pkgs;
           inherit (inputs) disko preservation;
         };
+
+        # install-maxnix, the installer USB's script (hosts/installer): its
+        # refusals, then partitioning a virtual disk and placing the sops
+        # key, which the booted result must decrypt with. See
+        # ./tests/install.nix for what it leaves to install day.
+        metal-install = import ./tests/install.nix {
+          inherit pkgs mkInstallMaxnix;
+          inherit (inputs) disko preservation sops-nix;
+        };
+
+        # The installer USB's system builds: the image is this plus a
+        # squashfs, which is left to `nix build .#installer-iso`.
+        installer = installer.config.system.build.toplevel;
 
         # The Fleet agent, switched on against a server that is not there.
         # See ./tests/fleet.nix for what that does and does not prove.
@@ -926,11 +1022,13 @@
             # nix.conf says — the divergence this runner exists to prevent.
             #
             # The metal stage above runs in parallel, on less margin: its
-            # ceilings add up to 15 GiB (observability's 4096 + 4096 + 1024,
-            # metal-boots' and containers' two 1024s, secrets' and fleet's
-            # one), right at a runner's 16, but its measured peaks only to
-            # about 9.4 GiB, observability 5.3 of that. Kept parallel for
-            # that; if a runner ever runs out there, it gets this flag too.
+            # ceilings add up to 17 GiB (observability's 4096 + 4096 + 1024,
+            # two 1024s each for metal-boots, metal-install and containers,
+            # one each for secrets and fleet), over a runner's 16, but its
+            # measured peaks only to about 9.4 GiB (2026-10-12), observability
+            # 5.3 of that, before metal-install — unmeasured, and built like
+            # metal-boots, which peaked at 1.5. Kept parallel for that; if a
+            # runner ever runs out there, it gets this flag too.
             nix build --max-jobs 1 --print-build-logs ${checkArgs portableVmTests}
 
             if [ "$have_gpu" = no ]; then
@@ -1034,6 +1132,11 @@
       #
       # Install this flake onto a machine, over SSH, from here.
       #
+      # NOT how the ThinkPad gets installed: that is the installer USB
+      # (packages.installer-iso, hosts/installer), decided 2026-10-15 — this
+      # needs a second machine with Nix, and the laptop on a cable, since the
+      # kexec'd installer knows no Wi-Fi. Kept for a machine where both hold.
+      #
       # It kexecs the target into a NixOS installer (so the target can be
       # running any Linux — including the Ubuntu this repo is developed on),
       # runs disko against hosts/maxnix/disk-layout.nix to partition and
@@ -1059,18 +1162,17 @@
       #    formatting step:
       #
       #      nix run .#install -- \
-      #        --disk-encryption-keys /tmp/secret.key <(pass maxnix/luks) \
+      #        --disk-encryption-keys /tmp/secret.key \
+      #          <(op read --no-newline "op://<vault>/<item>/password") \
       #        root@<target>
       #
       #    and set maxnix.disk.passwordFile = "/tmp/secret.key" so disko
       #    knows where to look. The *installed* machine still prompts at every
       #    boot, because nothing lands in settings.keyFile — which is the
       #    behaviour checks.metal-boots demonstrates.
-      # 3. Worth knowing: --generate-hardware-config nixos-facter <path> runs
-      #    nixos-facter on the target and writes the report back here, which
-      #    is the same report hardware.facter.reportPath wants. It removes the
-      #    separate installer-USB trip described in
-      #    hosts/maxnix/configuration.nix.
+      # 3. The machine's sops key has to be on /persist before the first
+      #    boot: --extra-files with a directory holding persist/sops/age.key.
+      #    install-maxnix does this step, and checks the key, on the USB path.
       #
       # Everything after `--` is passed straight through, so any flag in
       # `nix run .#install -- --help` is available.
@@ -1297,6 +1399,7 @@
     in
     {
       nixosConfigurations.maxnix = maxnix;
+      nixosConfigurations.installer = installer;
 
       # nix fmt
       formatter.${system} = treefmtEval.config.build.wrapper;
@@ -1322,6 +1425,9 @@
       packages.${system} = {
         vm = maxnix.config.system.build.vm;
         default = maxnix.config.system.build.vm;
+
+        # The installer USB; see hosts/installer for writing it to a stick.
+        installer-iso = installer.config.system.build.isoImage;
 
         # Exposed so `nix build .#ci` checks the runner itself without
         # running it — writeShellApplication puts shellcheck in its build, so

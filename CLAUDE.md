@@ -16,6 +16,8 @@ nix build .#checks.x86_64-linux.lint           #   statix + deadnix + actionlint
 nix build .#checks.x86_64-linux.hyprland-config #  Hyprland --verify-config on the generated Lua config
 nix build .#checks.x86_64-linux.metal          #   the installable toplevel builds
 nix build .#checks.x86_64-linux.metal-auth     #   metal's sudoers and pam_faillock in its login stacks, read off the built files
+nix build .#checks.x86_64-linux.metal-install  #   install-maxnix (hosts/installer) partitions a virtual disk, places the sops key, the result boots and decrypts
+nix build .#installer-iso        # the installer USB image; README "Road to metal" is the install-day checklist
 nix build .#checks.x86_64-linux.niri           #   portable tier of a VM suite (also desktop, hyprland, metal-boots, fleet, containers, secrets)
 nix run .#test-niri              # full (GPU) suite for one of desktop|niri|hyprland; `-- --interactive` for a REPL
 nix build .#ci                   # shellchecks the ci runner itself without running it
