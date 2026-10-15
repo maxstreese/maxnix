@@ -103,6 +103,20 @@
   # keystrokes, the whole session; and in the VMs, whose sudo asks for no
   # password (../../modules/vm/qemu-guest.nix), a root shell too.
 
+  # Swap in RAM, compressed: pages that sit unused are packed with zstd
+  # instead of taking room, so a memory spike — a large build, a few VMs —
+  # is absorbed rather than ending in the OOM killer. nixpkgs' defaults as
+  # they are: zstd, up to half the RAM as the device's size.
+  #
+  # No swap on disk, and so no hibernation, for now (decided 2026-10-15).
+  # Whether resuming from hibernation works on this ThinkPad's AMD graphics,
+  # and whether Secure Boot through lanzaboote leaves the kernel willing to,
+  # shows only on the hardware. If it does, a swapfile in a btrfs subvolume of
+  # its own (out of the root's rollback) adds it without repartitioning, and
+  # systemd's suspend-then-hibernate gives a lid closed for days a full
+  # battery back. zram stays either way, ahead of the file.
+  zramSwap.enable = true;
+
   # The machine needs flakes so it can rebuild itself from a clone of this
   # repo. In the VM, `rebuild` (./vm.nix) activates the result without a
   # reboot; on metal it is plain nixos-rebuild.

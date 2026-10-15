@@ -160,6 +160,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | login passwords | metal: a yescrypt hash from sops (`login-password`) for `max` and root, users immutable; every VM: plaintext `maxnix` | decided 2026-09-17 as plaintext everywhere, changed 2026-10-13 for metal after measuring that the wiped root undid every `passwd` (Findings). Immutable users make the declared hash win at every activation, so `passwd` lasts only until the next one, and changing the password is a sops edit and a rebuild — the price of one a wipe cannot reset. Root shares the hash so the emergency shell still opens. The VMs hold no metal key and keep `maxnix`, which `vm-ssh` logs in with |
 | networking | NetworkManager; networks joined in the UI (DMS's widget, `nmcli`) and preserved, not declared from sops | decided 2026-10-14. A laptop meets new networks all the time, and a rebuild per café would make the declarative way unusable; the profiles survive the wiped root on `/persist`, which the backup covers. sops-declared profiles can join them later for fixed networks, better once metal's secrets are out of the VM key's reach. `max` is in `networkmanager`, so saving a network asks for no password |
+| swap | zram (compressed RAM), no swap on disk, so no hibernation for now | decided 2026-10-15. zram absorbs memory spikes for one line of config. Whether hibernation resumes reliably on this ThinkPad's AMD graphics, and whether lanzaboote's Secure Boot leaves the kernel willing to hibernate, shows only on the hardware; a swapfile in its own btrfs subvolume adds it later without repartitioning, with suspend-then-hibernate for a lid closed for days |
 | power profiles | power-profiles-daemon, not TLP or tuned | decided 2026-10-14. DMS's power widget reads `org.freedesktop.UPower.PowerProfiles`, the interface power-profiles-daemon provides; TLP conflicts with it and DMS does not talk to it. Which driver it uses on this Ryzen shows only on the hardware (`powerprofilesctl`) |
 | failed logins | pam_faillock: 10 failures in 15 minutes lock an account for 10 minutes, root included; in `login` (consoles and greeter), `sudo`, `su`, `polkit-1` and the lock screen's `dankshell`; the count on `/persist` | decided 2026-10-14. The disk unlocks itself through the TPM, so a stolen laptop stops at the greeter and the password is the barrier; NIST SP 800-63B-4 asks for at most 100 failures, this is lenient enough for typos in a long passphrase. Root too, or a root login at the console would be the way around it; the emergency shell is unaffected, since `sulogin` does not use PAM. The lock screen gets a NixOS-built `/etc/pam.d/dankshell`, which DMS prefers over the `login` it ships without a lockout |
 | backups | restic, to Google Drive over rclone; VM only until install day | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
@@ -572,7 +573,7 @@ The tiers come from one definition instantiated twice, differing only in a
 | --- | --- | --- |
 | `gpu` | `false` | `true` |
 | QEMU | `-device virtio-vga` | `-device virtio-vga-gl` + `egl-headless` + `-vnc` |
-| desktop | 9 subtests | 11 |
+| desktop | 10 subtests | 12 |
 | niri | 2 | 5 |
 | hyprland | 3 | 7 |
 | sandboxed | yes, and cached | no — needs `/sys`, see above |
@@ -1018,9 +1019,9 @@ undone or replaced when this becomes the host install:
   systemd-boot plus a LUKS2 + btrfs layout through disko, so the metal
   configuration now evaluates, *builds*, and — via `checks.metal-boots` —
   formats a disk and boots from it. The device is the ThinkPad's M.2 slot,
-  by PCI path (2026-10-14). Still missing: swap, which wants RAM-sized
-  hibernation space; a swapfile on btrfs is just a file, so it costs nothing
-  to defer, but the partition layout around it does not.
+  by PCI path (2026-10-14). Swap is zram only (2026-10-15); hibernation
+  waits for the hardware, and a swapfile in its own btrfs subvolume would add
+  it without repartitioning.
 - ~~No hardware report.~~ Done 2026-10-14: `hosts/maxnix/facter.json`, a
   nixos-facter report of the T14s Gen 2a, stripped of serial numbers before
   it entered this public repo (the metal toplevel is identical with and

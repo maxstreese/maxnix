@@ -312,6 +312,15 @@
               "journalctl -b -u rtkit-daemon | grep -q 'owned by .* RT at priority'", timeout=120)
           machine.fail("journalctl -b | grep -q 'RTKit error'")
 
+      with subtest("swap is compressed RAM, and nothing on disk"):
+          # ../hosts/maxnix/configuration.nix: zram with zstd, no swap
+          # partition or file — hibernation is left for the hardware.
+          swaps = machine.succeed("swapon --show=NAME,TYPE --noheadings").split("\n")
+          swaps = [s.split() for s in swaps if s.strip()]
+          assert swaps and all(n.startswith("/dev/zram") for n, _ in swaps), swaps
+          algo = machine.succeed("cat /sys/block/zram0/comp_algorithm")
+          assert "[zstd]" in algo, algo
+
       with subtest("ten wrong passwords lock the account, at the console and the lock screen"):
           # ../hosts/maxnix/login-limits.nix, through the stacks as built:
           # login (the consoles, and the greeter by substack) and dankshell
