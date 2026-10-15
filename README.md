@@ -841,8 +841,8 @@ a loop until one comes; time a stop by the journal's `Stopping`/`Stopped`
 lines, not by how long `systemctl stop` takes to return — the latter once
 read 9 s for a stop the journal put at 0.55 s.
 
-**Backups are wired and authorised, and run in the VM only; there is no
-backup of this machine on metal yet.** `hosts/maxnix/backup.nix` has the
+**Backups are wired, authorised and on for metal; they run there from its
+first boot with its key.** `hosts/maxnix/backup.nix` has the
 mechanism: restic, nightly, `/persist` and `/home`, caches and Steam excluded,
 7/5/12/3 retention, and `checks.metal-boots` runs a real backup into a local
 repository and inspects what landed in it. The destination is constrained:
@@ -867,25 +867,29 @@ path for the day this disk is gone along with its sops key. `nix run .#backup
 
 The VM backs up into a folder of its own, `maxnix-backup-vm`, so the whole path
 is exercised before install day without its snapshots sharing retention with
-metal's under the same hostname. Metal gets `maxnix.backup.enable = true` with
-its key on install day.
+metal's under the same hostname. Metal has `maxnix.backup.enable = true` since
+2026-10-15 (`hosts/maxnix/configuration.nix`); the first backup runs once its
+key is on `/persist`.
 
-Still open, and none of it code — three questions for the employer. restic
+Three questions for the employer went with it, treated as settled outside this
+repo (2026-10-14), so they are recorded here as the questions only. restic
 encrypts client-side, so IT cannot read these backups — that may be the
 requirement or may violate one. `/home` sweeps in 1Password's local state, the
 browser profile and SSH keys, encrypted but held on company infrastructure.
 And the Drive quota: the organisation pools 190 TiB with no per-user cap set,
 so ~1 TB fits, but whether it may be used is theirs to say.
 
-**The Fleet agent is wired but not enrolled.** The employer is adopting
+**The Fleet agent is on, for the VM and for metal.** The employer is adopting
 Fleet (learned 2026-09-29), and `hosts/maxnix/fleet.nix` has the agent side:
 nixpkgs' `services.orbit`, which is Orbit supervising its own osquery, behind
 `maxnix.fleet`. `/var/lib/orbit` is preserved so the enrollment survives the
 root wipe. `checks.fleet` boots it against a server that is not there and
 shows that it starts, reads its secret and retries in-process without
-crashing. Nothing here has ever enrolled, because enrolling needs IT's server.
+crashing. The VM is enrolled with IT's server since 2026-09-29; metal is on
+since 2026-10-15 (`hosts/maxnix/configuration.nix`) and enrolls on its first
+boot with its key, as a host of its own in IT's console.
 
-Two things gate it, neither of them code:
+What it took, neither of it code:
 
 - **A URL and an enroll secret from IT** — now in hand. Both go in through
   sops-nix, the URL too: the repo is public, and where the company's Fleet
@@ -904,7 +908,8 @@ Two things gate it, neither of them code:
   a minimum agent version? The module turns off Orbit's self-update, so the
   agent is whatever the pinned nixpkgs carries and moves with `flake.lock`.
 
-Until then this is two option values away from on, like backups.
+Those five were treated as settled with IT outside this repo (2026-10-14);
+Fleet Desktop is on, as it is in the VM.
 
 **The everyday terminal tools from the current host are here; the rest is
 not yet.** `docs/inventory.md` records what the Ubuntu host has installed and

@@ -80,6 +80,13 @@ compositor:
       # and emits a precedence warning. The file wins either way; drop ours so
       # the intent is explicit rather than accidental.
       users.users.root.initialPassword = lib.mkForce null;
+
+      # What uses the machine's sops secrets, off: a test node holds no key,
+      # and sops-nix would fail to decrypt them at activation. The wiring is
+      # tested where a key exists, in ./secrets.nix.
+      maxnix.fleet.enable = lib.mkForce false;
+      maxnix.harlequin.profiles.enable = lib.mkForce false;
+      maxnix.backup.enable = lib.mkForce false;
     };
 
   # Two tiers, and the split is measured rather than guessed.

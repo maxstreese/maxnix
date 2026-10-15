@@ -79,6 +79,13 @@
 
       # See the note in ./compositor.nix.
       users.users.root.initialPassword = lib.mkForce null;
+
+      # What uses the machine's sops secrets, off: a test node holds no key,
+      # and sops-nix would fail to decrypt them at activation. The wiring is
+      # tested where a key exists, in ./secrets.nix.
+      maxnix.fleet.enable = lib.mkForce false;
+      maxnix.harlequin.profiles.enable = lib.mkForce false;
+      maxnix.backup.enable = lib.mkForce false;
     };
 
   testScript =

@@ -103,6 +103,18 @@
   # keystrokes, the whole session; and in the VMs, whose sudo asks for no
   # password (../../modules/vm/qemu-guest.nix), a root shell too.
 
+  # What the machine's secrets are for, all from sops (./secrets.nix): Fleet,
+  # enrolled with the employer's server as agreed with IT (2026-09-29), with
+  # its tray app; Harlequin's connection profiles; and the nightly backup to
+  # Drive, into rclone:gdrive:maxnix-backup. Each needs the machine's key,
+  # which metal gets on install day and the VM already has (./vm.nix, which
+  # also gives the VM a backup folder of its own). The test nodes hold no key
+  # and turn all four off (tests/desktop.nix, tests/compositor.nix).
+  maxnix.fleet.enable = true;
+  maxnix.fleet.desktop = true;
+  maxnix.harlequin.profiles.enable = true;
+  maxnix.backup.enable = true;
+
   # Swap in RAM, compressed: pages that sit unused are packed with zstd
   # instead of taking room, so a memory spike — a large build, a few VMs —
   # is absorbed rather than ending in the OOM killer. nixpkgs' defaults as

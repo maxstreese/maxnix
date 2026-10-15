@@ -174,28 +174,17 @@
       # puts it back from 1Password. Root-only: install -m 600 as root.
       sops.age.keyFile = lib.mkForce "/home/.maxnix/sops-age.key";
 
-      # Enrolled with the employer's Fleet, as agreed with IT 2026-09-29. VM
-      # only for now: metal gets it with its key on install day, and the test
-      # nodes — no vm.nix, no key — never see it. URL and enroll secret both
-      # come from sops (./secrets.nix). Expect its disk-encryption check to
-      # fail in the console: this VM's disks are not encrypted.
-      maxnix.fleet.enable = true;
-      maxnix.fleet.desktop = true;
-
-      # Harlequin's connection profiles, from sops (./secrets.nix). VM only
-      # for the same reason as Fleet: it is the one machine holding a key.
-      maxnix.harlequin.profiles.enable = true;
-
-      # Backups to Drive, from sops (./secrets.nix), so the whole path is
-      # exercised before install day. Into a folder of its own: the VM has
-      # metal's hostname, so in the real repository its snapshots would share
-      # retention with metal's and could crowd them out. Its /home and
-      # /persist are small and disposable; see the folder with
+      # Fleet, Harlequin's profiles and the backup are the machine's
+      # (./configuration.nix); the VM holds a key of its own, so it runs them
+      # too. Expect Fleet's disk-encryption check to fail in the console:
+      # this VM's disks are not encrypted.
+      #
+      # The backup into a folder of its own: the VM has metal's hostname, so
+      # in the real repository its snapshots would share retention with
+      # metal's and could crowd them out. Its /home and /persist are small and
+      # disposable; see the folder with
       #   nix run .#backup -- rclone lsd gdrive:
-      maxnix.backup = {
-        enable = true;
-        repository = "rclone:gdrive:maxnix-backup-vm";
-      };
+      maxnix.backup.repository = "rclone:gdrive:maxnix-backup-vm";
 
       virtualisation = {
         # Default is "./${hostname}.qcow2", i.e. wherever you happened to cd.
