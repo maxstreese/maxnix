@@ -1066,9 +1066,10 @@ report, secrets, networking, the laptop services, DMS's features — and no
 
 Before the day:
 
-1. In 1Password: the **LUKS passphrase** (long and typeable, typed at every
-   boot; a new item, or the login password's own — nothing needs the two to
-   match or to differ), the **metal sops key** (kept there since it was made),
+1. In 1Password: the **LUKS passphrase** is the login password, from its
+   own item (decided 2026-10-15: one password at power-on, lock screen and
+   sudo; nothing technical needs the two to match or to differ), the
+   **metal sops key** (kept there since it was made),
    the **login password**, the **metal restic password**, and the
    account's email and Secret Key, for signing the CLI in on the stick. The
    login password and the restic password are in
@@ -1094,7 +1095,7 @@ On the day:
 6. Wi-Fi: `nmtui`.
 7. 1Password's CLI: `op account add`, then `eval $(op signin)`.
 8. `sudo -i`, then
-   `install-maxnix --luks op://<…LUKS…> --sops-key op://<…metal key…>`.
+   `install-maxnix --luks "op://Private/MaxNix Login Password/password" --sops-key op://<…metal key…>`.
    It checks UEFI and the disk, shows the disk's size and model, reads both
    secrets, refuses a sops key that is not `metal` in `.sops.yaml`, asks you
    to type `erase`, partitions, puts the key on `/persist` and runs
