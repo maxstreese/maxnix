@@ -204,6 +204,28 @@ compositor:
               "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user is-active dms'"
           )
 
+      with subtest("${compositor.name} gives DMS its calendar from DankCalendar"):
+          # ../home/max/dms.nix: DankCalendar's daemon starts with the
+          # session, and DMS — which prefers it over khal, deliberately not
+          # installed — connects to its socket. DMS looks for a calendar only
+          # once one is shown, not at start: in the VM the handshake came the
+          # moment the dashboard opened (2026-10-15): its calendar card, on
+          # the Overview tab, is the first thing to use DMS's CalendarService,
+          # which only then starts looking. So open that tab, as a click on
+          # the clock would, and wait for DMS's own line saying it connected.
+          # The tab is required: `dash open` without one exits 0 having
+          # opened nothing, so its answer is checked, not its status.
+          # Accounts are runtime state and none exist here. Each wait has a
+          # timeout of its own: the driver's default is 15 minutes, which is
+          # how long the first run with dcal broken took to say so.
+          user = "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 "
+          machine.wait_until_succeeds(user + "systemctl --user is-active dcal'", timeout=60)
+          machine.wait_until_succeeds(
+              user + "dms ipc call dash open overview' | grep -q DASH_OPEN_SUCCESS",
+              timeout=60)
+          machine.wait_until_succeeds(
+              "journalctl -b | grep -q 'connected to dankcal'", timeout=120)
+
       with subtest("${compositor.name} renders a client window"):
           # Launch a normal Wayland client against the compositor's socket,
           # rather than going through the compositor's own IPC.

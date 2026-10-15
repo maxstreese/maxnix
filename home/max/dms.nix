@@ -167,7 +167,9 @@ in
     img2pdf # PDF export
     tesseract # OCR
     zbar # QR scanning (zbarimg)
-  ]);
+  ])
+  # `dcal`, for the calendar's accounts; its daemon is the service below.
+  ++ [ pkgs.dankcalendar ];
 
   programs.dank-material-shell = {
     enable = true;
@@ -204,10 +206,45 @@ in
       quickCapture.src = "${inputs.dms-plugins-hthienloc}/quickCapture";
     };
 
-    # Off for now — each pulls a package for something the VM cannot
-    # exercise. All three become relevant on metal (ROAD TO METAL):
-    #   enableVPN             glib + networkmanager, no VPN here
-    #   enableAudioWavelength cava, and guest audio is not wired up
-    #   enableCalendarEvents  khal, no calendar
+    # The three features the module turns on by default, each stated. Until
+    # 2026-10-15 a comment here called them off for the VM, but nothing set
+    # them, so all three were on everywhere.
+    #
+    # No VPN widget: it manages NetworkManager's VPN connections, and none
+    # are in use. Twingate has its own client, which the widget would not
+    # show.
+    enableVPN = false;
+    # The audio visualiser, through cava. In the VMs it has no sound to show.
+    enableAudioWavelength = true;
+    # Not khal: the calendar comes from DankCalendar (below), which DMS
+    # prefers whenever it is running, and which syncs Google itself — khal
+    # would need a separate sync to have anything to read.
+    enableCalendarEvents = false;
+  };
+
+  # DankCalendar, the calendar DMS reads: Google accounts synced through
+  # Google's own API, events in DMS's calendar card, and new ones created
+  # from it. Its daemon runs with the graphical session, like the unit it
+  # ships — declared here rather than system-wide so it starts for max alone,
+  # not in the greeter's session too.
+  #
+  # Accounts are runtime state, not configuration: each is added once with
+  # `dcal account add google`, its tokens kept in the keyring (GNOME Keyring,
+  # unlocked at login; ../../modules/desktop/default.nix) and its data in
+  # ~/.local/share, both on /home. Each with its own OAuth client, kept in
+  # 1Password (README, "Decisions, and why").
+  systemd.user.services.dcal = {
+    Unit = {
+      Description = "Dank Calendar";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = "${pkgs.dankcalendar}/bin/dcal run --session --hidden";
+      Restart = "on-failure";
+      RestartSec = 2;
+      Slice = "app.slice";
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
   };
 }
