@@ -51,4 +51,5 @@ Watch the host's disk. VM suites, system rebuilds and VM images pile up in `/nix
 - Verify a new check by breaking the thing it guards and confirming it fails (break the renderer, not the input list it's generated from).
 - Inside the guest, rebuild and probe freely. Anything touching the Ubuntu host itself (`scripts/vm-keys`, dconf, the portal permission store) is the exception: be conservative and save-and-restore.
 - niri resolves binds against unshifted keysyms, so punctuation binds are not layout-portable (the keyboard layout is `de`). Stick to letters, digits, arrows, F-keys.
+- Don't follow CI after a push unless asked. The result reaches me through GitHub anyway, so watching it by default adds nothing. Watch a run only when its outcome decides what we do next: the push changes CI itself, or it is the only place something gets tested.
 - Workflow cron schedules run at night UTC on minute 17, never on a full or quarter hour (GitHub delays or drops runs at those times under load).
