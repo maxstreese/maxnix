@@ -506,6 +506,80 @@
         '';
       };
 
+      # nix run .#installer-vm [-- --headless] [-- --no-stick] [-- --fresh]
+      #
+      # Install day, rehearsed in QEMU: the installer image (packages.
+      # installer-iso, unchanged) plugged in as a USB stick, UEFI firmware
+      # without Secure Boot, and an empty NVMe disk where install-maxnix
+      # expects the ThinkPad's — behind a PCIe root port, so it is
+      # /dev/disk/by-path/pci-0000:01:00.0-nvme-1 here too. Then the README's
+      # checklist from step 5 on, by hand, `nixos-install` included: the one
+      # step checks.metal-install leaves out, and 1Password's sign-in on a
+      # device it has not seen, which nothing else here can try.
+      #
+      #   --headless  no window; VNC on 127.0.0.1:5909, as vm-headless
+      #   --no-stick  the stick pulled, as for step 9: boots the disk
+      #   --fresh     a new, empty disk and firmware settings
+      #
+      # The disk is a sparse 64 GiB image in .vm/, growing to about the
+      # machine's closure once installed. What lands on it is the real
+      # machine — LUKS, and metal's key on /persist if that is what was
+      # given — so the image is deleted with --fresh or by hand once done.
+      #
+      # No QEMU keymap (-k): the window passes the keyboard's scancodes
+      # through, so the installer's German layout applies as on the
+      # ThinkPad. Measured 2026-10-15 that `-k de` makes it worse for
+      # scripted typing: vncdotool sends keysyms without Shift, and `/`
+      # arrived as `7`. Scripted, type `loadkeys us` first, then anything.
+      installerVm = pkgs.writeShellApplication {
+        name = "installer-vm";
+        runtimeInputs = [
+          pkgs.qemu_kvm
+          pkgs.coreutils
+        ];
+        text = ''
+          dir=.vm
+          disk=$dir/installer-disk.qcow2
+          vars=$dir/installer-efivars.fd
+          display=(-display gtk)
+          stick=1
+          for arg in "$@"; do
+            case "$arg" in
+              --headless) display=(-display none -vnc 127.0.0.1:9) ;;
+              --no-stick) stick=0 ;;
+              --fresh) rm -f "$disk" "$vars" ;;
+              *) echo "usage: nix run .#installer-vm -- [--headless] [--no-stick] [--fresh]" >&2; exit 2 ;;
+            esac
+          done
+          [ -e flake.nix ] || { echo "run this from the repo root; the disk goes in ./$dir" >&2; exit 1; }
+          mkdir -p "$dir"
+          [ -e "$disk" ] || qemu-img create -q -f qcow2 "$disk" 64G
+          [ -e "$vars" ] || install -m 644 ${pkgs.OVMF.fd}/FV/OVMF_VARS.fd "$vars"
+
+          usb=()
+          if [ "$stick" = 1 ]; then
+            iso=$(echo ${installer.config.system.build.isoImage}/iso/*.iso)
+            usb=(
+              -device "qemu-xhci,id=xhci"
+              -drive "if=none,id=stick,format=raw,readonly=on,file=$iso"
+              -device "usb-storage,bus=xhci.0,drive=stick,bootindex=0"
+            )
+          fi
+
+          echo "installer-vm: disk $disk, stick $([ "$stick" = 1 ] && echo in || echo out)" >&2
+          exec qemu-system-x86_64 \
+            -machine q35,accel=kvm -cpu host -smp 4 -m 8192 \
+            -drive if=pflash,format=raw,readonly=on,file=${pkgs.OVMF.fd}/FV/OVMF_CODE.fd \
+            -drive "if=pflash,format=raw,file=$vars" \
+            -device pcie-root-port,id=rp1,bus=pcie.0,chassis=1,addr=0x1c \
+            -drive "if=none,id=nvme,format=qcow2,file=$disk" \
+            -device nvme,serial=maxnix-install,drive=nvme,bus=rp1,bootindex=1 \
+            "''${usb[@]}" \
+            -netdev user,id=net -device virtio-net-pci,netdev=net \
+            "''${display[@]}"
+        '';
+      };
+
       # nix run .#test-vm-starts
       #
       # Asserts that the command a human actually types starts.
@@ -686,8 +760,9 @@
 
       # nix run .#secret-set -- <name> <op-reference>
       #
-      # Put one value from 1Password into hosts/maxnix/secrets.yaml, from the
-      # repo root and your own terminal, where 1Password can prompt:
+      # Put one value from 1Password into hosts/maxnix/secrets.yaml, or
+      # secrets-metal.yaml for metal's own, from the repo root and your own
+      # terminal, where 1Password can prompt:
       #
       #   nix run .#secret-set -- restic-password "op://<vault>/<item>/password"
       #
@@ -712,8 +787,25 @@
       # ones. `op` is the host's, like vm-restore-key's.
       secretSet =
         let
-          secretsOf = cfg: builtins.attrNames cfg.sops.secrets;
-          declared = lib.unique (secretsOf maxnix.config ++ secretsOf maxnix.config.virtualisation.vmVariant);
+          # Name → the file it lives in, read off the secret's sopsFile, so a
+          # secret moved between hosts/maxnix/secrets.yaml and
+          # secrets-metal.yaml is written where the machine looks for it.
+          # Both machines' declarations: metal's names and the VM's are not
+          # the same set. A name the two read from different files has no
+          # one answer, and stops the build.
+          filesOf =
+            cfg: lib.mapAttrs (_: s: "hosts/maxnix/${baseNameOf (toString s.sopsFile)}") cfg.sops.secrets;
+          metalFiles = filesOf maxnix.config;
+          vmFiles = filesOf maxnix.config.virtualisation.vmVariant;
+          clashes = lib.filter (n: metalFiles ? ${n} && metalFiles.${n} != vmFiles.${n}) (
+            builtins.attrNames vmFiles
+          );
+          files =
+            assert lib.assertMsg (
+              clashes == [ ]
+            ) "secret-set: metal and the VM read ${toString clashes} from different files";
+            vmFiles // metalFiles;
+          declared = builtins.attrNames files;
           hashed = builtins.attrNames (lib.filterAttrs (_: s: s.neededForUsers) maxnix.config.sops.secrets);
         in
         pkgs.writeShellApplication {
@@ -725,7 +817,6 @@
           ];
           text = ''
             export SOPS_AGE_KEY_CMD=${lib.escapeShellArg sopsAgeKeyCmd}
-            file=hosts/maxnix/secrets.yaml
             declared=${lib.escapeShellArg (lib.concatStringsSep " " declared)}
             hashed=${lib.escapeShellArg (lib.concatStringsSep " " hashed)}
 
@@ -742,6 +833,9 @@
                 echo "$name is not a secret the machine declares; declare it in hosts/maxnix/secrets.nix first" >&2
                 exit 1
                 ;;
+            esac
+            case "$name" in
+              ${lib.concatStrings (lib.mapAttrsToList (n: f: "${n}) file=${f} ;;\n  ") files)}
             esac
             [ -f "$file" ] || { echo "no $file here; run this from the repo root" >&2; exit 1; }
 
@@ -819,7 +913,11 @@
       backup =
         let
           item = "op://uxobupcysqhat566ymgikx46fm/vzuc267xgjsigg4luhczyeml6q";
-          resticPassword = "op://uxobupcysqhat566ymgikx46fm/3mgylwhm4eziob5ka5v2vv4o24/password";
+          # One restic password per repository, as in hosts/maxnix/secrets.nix:
+          # the VM's key must not open metal's snapshots.
+          resticPasswordVm = "op://uxobupcysqhat566ymgikx46fm/3mgylwhm4eziob5ka5v2vv4o24/password";
+          resticPasswordMetal = "op://uxobupcysqhat566ymgikx46fm/remrafourzg634zb6a33fn2hoa/password";
+          vmRepository = maxnix.config.virtualisation.vmVariant.maxnix.backup.repository;
 
           # Runs inside `op run`, after the references are resolved.
           authorize = pkgs.writeShellScript "backup-authorize" ''
@@ -879,9 +977,14 @@
             export RCLONE_CONFIG_GDRIVE_TOKEN="${item}/token"
             # The machine's own setting, so the two cannot drift apart, unless
             # overridden: RESTIC_REPOSITORY=rclone:gdrive:maxnix-backup-vm for
-            # the VM's (hosts/maxnix/vm.nix).
+            # the VM's (hosts/maxnix/vm.nix), which also picks the VM's
+            # password.
             export RESTIC_REPOSITORY="''${RESTIC_REPOSITORY:-${maxnix.config.maxnix.backup.repository}}"
-            export RESTIC_PASSWORD="${resticPassword}"
+            if [ "$RESTIC_REPOSITORY" = ${lib.escapeShellArg vmRepository} ]; then
+              export RESTIC_PASSWORD="${resticPasswordVm}"
+            else
+              export RESTIC_PASSWORD="${resticPasswordMetal}"
+            fi
 
             op run --account my.1password.com -- ${checked} "$@"
           '';
@@ -1453,6 +1556,10 @@
         vm-headless = {
           type = "app";
           program = lib.getExe vmHeadless;
+        };
+        installer-vm = {
+          type = "app";
+          program = lib.getExe installerVm;
         };
         test-vm-starts = {
           type = "app";

@@ -106,6 +106,7 @@ hosts/maxnix/fleet.nix       the employer's Fleet agent, off until IT supplies a
 hosts/maxnix/containers.nix  rootless Docker, with DOCKER_HOST for the whole session
 hosts/maxnix/secrets.nix     sops-nix: three post-quantum keys, secrets declared per consumer
 hosts/maxnix/secrets.yaml    the encrypted secrets; .sops.yaml at the root says who can open it
+hosts/maxnix/secrets-metal.yaml  metal's own, which the VM's key cannot open
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
 docs/inventory.md            what the current host runs daily; the list to migrate from
@@ -949,20 +950,27 @@ one each for the VM and metal. All three private halves are kept in
 1Password, and the machine keys are *restored* onto disk rather than
 generated there — the VM's onto its `/home` disk, metal's onto `/persist` at
 install — so a wipe or reinstall never changes `.sops.yaml`. The commands are
-in `hosts/maxnix/secrets.nix`. `hosts/maxnix/secrets.yaml` holds the values for
-the consumers below, and `checks.secrets` shows sops-nix decrypting a
-post-quantum key at activation: the sops CLI handling one says nothing about sops-nix,
-which decrypts with its own, older build.
+in `hosts/maxnix/secrets.nix`. The values are in two files:
+`hosts/maxnix/secrets.yaml`, which all three keys open, for what both
+machines use, and `hosts/maxnix/secrets-metal.yaml`, which only admin and
+metal open, for what the VM must not read — the login password and metal's
+restic password (split 2026-10-15; until then the VM's key, in a disk image
+on the Ubuntu host, opened both). `checks.secrets` shows sops-nix decrypting a
+post-quantum key at activation, from both files: the sops CLI handling one
+says nothing about sops-nix, which decrypts with its own, older build.
 
 Four consumers use it. The **login password**, as a yescrypt hash for
 `max` and root on metal, decrypted ahead of the users (`neededForUsers`). The **Fleet enroll secret**, now in hand and
-gated on the questions for IT above. The **restic repository password**, which
+gated on the questions for IT above. The **restic repository password**, one
+per machine (`restic-password` for the VM, `restic-password-metal`), which
 must not live only on `/persist` since one disk failure would take the data
 and the only key to its backups together. And the **rclone OAuth client and token** for
-Google Drive, rendered into an `rclone.conf` template.
+Google Drive, rendered into an `rclone.conf` template — shared, since
+`drive.file` gives the one client every folder it made either way; what keeps
+metal's snapshots from the VM is the restic password that encrypts them.
 
 `nix run .#secret-set -- <name> <op-reference>` puts one value from 1Password
-into `secrets.yaml`: only names the machine declares, nothing written if
+into whichever of the two files the machine reads it from: only names the machine declares, nothing written if
 1Password returns nothing, login passwords hashed with yescrypt on the way,
 and read back to check.
 
@@ -1055,12 +1063,19 @@ Before the day:
 
 1. In 1Password: a new item for the **LUKS passphrase** (long, and not the
    login password), the **metal sops key** (kept there since it was made),
-   the **login password** (in sops already), and the account's email and
-   Secret Key, for signing the CLI in on the stick. Note each item's secret
+   the **login password**, the **metal restic password**, and the
+   account's email and Secret Key, for signing the CLI in on the stick. The
+   login password and the restic password are in
+   `hosts/maxnix/secrets-metal.yaml`. The login password kept its value
+   through the split (decided 2026-10-15): its earlier hash stays in git
+   history, readable with the VM's key, but a yescrypt hash of a long
+   random password is not worth attacking offline. Note each item's secret
    reference (`op://…`; the item's menu has "Copy Secret Reference").
 2. Back up whatever on Ubuntu is in no other place: the install erases the
    whole disk.
-3. Build and write the stick:
+3. Rehearse steps 5–9 in `nix run .#installer-vm` (window; `--no-stick`
+   for step 9, `--fresh` for a new disk), then build and write the stick
+   from the same commit:
    `nix build .#installer-iso`, then
    `sudo dd if=result/iso/*.iso of=/dev/<stick> bs=4M status=progress oflag=sync`.
 4. In the firmware (F1 at power-on): turn **Secure Boot off** — expected to
@@ -1097,10 +1112,6 @@ After:
 
 Still open before the day (as of 2026-10-15):
 
-- **Metal's secrets in a file of their own**, out of the VM key's reach.
-  Today `secrets.yaml` is encrypted to all three keys, so the VM's key —
-  on a disk image on the Ubuntu host — decrypts metal's login password too.
-  Needs the admin key to re-encrypt.
 - **Can 1Password's CLI sign in on the stick at all?** The account asks for
   a YubiKey on new devices, and step 7 is a new device without the desktop
   app. 1Password's CLI documentation names address, email, Secret Key and
@@ -1114,11 +1125,18 @@ Still open before the day (as of 2026-10-15):
   passphrase-encrypted bundle (`age -p`) made on Ubuntu, where the app and
   the YubiKey work, would carry them without leaving them readable on the
   stick.
-- **The two steps no check reaches.** `checks.metal-install` stops before
-  `nixos-install --flake …#maxnix` (a sandbox cannot build the machine
-  offline) and never signs `op` in. Both run first on the day; a dry run
-  from the stick in the VM (`install-maxnix` against a scratch disk) would
-  cover them sooner.
+- **The dry run, end to end.** `nix run .#installer-vm` boots the real
+  installer image as a USB stick under UEFI, with an empty NVMe disk at the
+  ThinkPad's by-path. Measured there 2026-10-15, with throwaway secrets from
+  files: the disk is found under the configured path, `install-maxnix`
+  partitions, encrypts and mounts it and places the key, and the stick's
+  copy of this repo evaluates the machine, inputs fetched over the network,
+  to the same store path as on the host. Still to do there, by hand:
+  `op account add` and `install-maxnix --luks op://… --sops-key op://…`
+  without `--no-install`, so `nixos-install` runs, then `--no-stick` to
+  boot it — possible once `secrets-metal.yaml` holds its values, as the
+  machine does not build without them. That run is also the 1Password
+  question above, asked on a device 1Password has not seen.
 - **The TPM and Secure Boot decisions** of step 10: TPM with or without a
   PIN, and Microsoft's keys kept beside the machine's or not.
 

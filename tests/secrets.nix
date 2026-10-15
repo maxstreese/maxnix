@@ -14,7 +14,9 @@
 # rclone.conf where the restic unit is told to look. Nothing is uploaded; the
 # timer does not fire on a first boot, and there is no network to reach. And
 # the login password: a hash in sops becoming max's and root's in
-# /etc/shadow, and winning over a `passwd` at the next activation.
+# /etc/shadow, and winning over a `passwd` at the next activation. The node
+# is metal, so the login password and the restic password come from a second
+# file, as metal's own do, and are absent from the shared one.
 #
 # The key and the encrypted file are made at build time, so no real key is
 # involved and the fixture cannot rot. The node takes ../hosts/maxnix/
@@ -46,13 +48,19 @@ let
         probe: decrypted
         fleet-enroll-secret: not-a-real-secret
         fleet-url: https://127.0.0.1:1
-        restic-password: not-a-real-password
+        restic-password: the-vms-password
         rclone-drive-client-id: test-client-id
         rclone-drive-client-secret: test-client-secret
         rclone-drive-token: '{"token_type":"Bearer","refresh_token":"not-a-real-token"}'
+        EOF
+            # Metal's own, in a file of their own as on the machine: read
+            # from the shared one by mistake, they would not be there.
+            cat > metal.yaml <<EOF
+        restic-password-metal: not-a-real-password
         login-password: '$(cat $out/login-hash)'
         EOF
             sops encrypt --age "$(age-keygen -y $out/key.txt)" plain.yaml > $out/secrets.yaml
+            sops encrypt --age "$(age-keygen -y $out/key.txt)" metal.yaml > $out/secrets-metal.yaml
       '';
 in
 {
@@ -76,6 +84,7 @@ in
     maxnix.backup.enable = true;
     # As on the machine (../hosts/maxnix/configuration.nix).
     maxnix.loginPassword.fromSops = true;
+    maxnix.secrets.metal.enable = true;
     users.mutableUsers = false;
     users.users.max.isNormalUser = true;
     # The test framework gives root a hashedPasswordFile of its own for the
@@ -83,6 +92,7 @@ in
     users.users.root.hashedPasswordFile = lib.mkForce "/run/secrets-for-users/login-password";
 
     sops.defaultSopsFile = lib.mkForce "${fixture}/secrets.yaml";
+    maxnix.secrets.metal.sopsFile = "${fixture}/secrets-metal.yaml";
     # A key file on disk, as a restored machine key would be. It cannot be
     # the store path itself — sops-nix rejects a key inside the store — so
     # it is copied into place just before sops-nix's own activation step.
@@ -121,8 +131,10 @@ in
         machine.fail("journalctl -u orbit.service | grep -q 'fleet.invalid'")
 
     with subtest("the backup gets its password and an rclone.conf from sops"):
-        pw = machine.succeed("cat /run/secrets/restic-password")
+        # Metal's own password, from metal's file, and the unit pointed at it.
+        pw = machine.succeed("cat /run/secrets/restic-password-metal")
         assert pw == "not-a-real-password", repr(pw)
+        machine.fail("test -e /run/secrets/restic-password")
         conf = machine.succeed("cat /run/secrets/rendered/rclone.conf")
         for line in ["[gdrive]", "type = drive", "scope = drive.file",
                      "client_id = test-client-id",
@@ -136,6 +148,8 @@ in
         assert "RCLONE_CONFIG=/run/secrets/rendered/rclone.conf" in env, env
         assert "RESTIC_REPOSITORY=rclone:gdrive:maxnix-backup" in env, env
         assert "RCLONE_DRIVE_STOP_ON_UPLOAD_LIMIT=true" in env, env
+        unit = machine.succeed("systemctl cat restic-backups-maxnix.service")
+        assert "/run/secrets/restic-password-metal" in unit, unit
 
     with subtest("the login password is the hash from sops, and outlasts a passwd"):
         want = "${fixture}/login-hash"

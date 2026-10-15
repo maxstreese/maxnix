@@ -94,6 +94,9 @@
   # ../../modules/vm/qemu-guest.nix.
   users.mutableUsers = false;
   maxnix.loginPassword.fromSops = true;
+  # And with it the rest of what only metal may read, from a sops file the
+  # VM's key cannot open (./secrets.nix).
+  maxnix.secrets.metal.enable = true;
 
   # No console autologin, deliberately (decided 2026-09-17). The text
   # consoles on Ctrl+Alt+F2…F6 keep their password prompt, and that is the

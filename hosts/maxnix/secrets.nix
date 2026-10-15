@@ -1,6 +1,6 @@
 # Secrets, as encrypted files in this repository.
 #
-# Values live encrypted in ./secrets.yaml. At activation the machine decrypts
+# Values live encrypted in two files. At activation the machine decrypts
 # them into /run/secrets, a tmpfs, with the owner and mode declared per
 # secret. Configuration then references the *path*, never the value — a
 # value written into a Nix option would be copied into the world-readable
@@ -8,8 +8,30 @@
 #
 #   maxnix.backup.passwordFile = config.sops.secrets.restic-password.path;
 #
-# The file is public along with the rest of the repo. That is sound only
-# because it is encrypted, and why the keys below are post-quantum.
+# The files are public along with the rest of the repo. That is sound only
+# because they are encrypted, and why the keys below are post-quantum.
+#
+# ── Two files: shared, and metal's own ───────────────────────────────────
+#
+#   ./secrets.yaml        admin, vm, metal: what both machines use — Fleet,
+#                         Harlequin, the Drive client and token, the VM's
+#                         restic password
+#   ./secrets-metal.yaml  admin, metal: what the VM must not read — the
+#                         login password and metal's restic password
+#
+# The VM's key lives in a disk image on the Ubuntu host; until 2026-10-15
+# one file held everything, so that key also opened metal's login password
+# and the password to metal's backups. Which file a secret is in is set per
+# secret below (sopsFile), and `nix run .#secret-set` reads it from there.
+# The Drive token stays shared: both repositories are reached through one
+# OAuth client, and drive.file grants that client every file it made, so a
+# second token would see the same folders. What keeps metal's snapshots out
+# of the VM's reach is the restic password, which encrypts them.
+#
+# Moving a secret between files does not take it out of git history, where
+# the old file stays decryptable by every key it named. A moved secret
+# whose old value matters gets a new one as it moves; the login password
+# kept its own (2026-10-15), being a yescrypt hash of a long random password.
 #
 # ── Keys: three, each kept in 1Password ──────────────────────────────────
 #
@@ -57,10 +79,12 @@
 #
 #   nix run .#secret-set -- login-password "op://<vault>/<item>/password"
 #
-# Fleet's two are `fleet-url` and `fleet-enroll-secret`. The backup's four
-# come from two 1Password items, the same ones `nix run .#backup` reads:
+# Fleet's two are `fleet-url` and `fleet-enroll-secret`. The backup's come
+# from 1Password items `nix run .#backup` reads too, one restic password per
+# machine:
 #
-#   restic-password             MaxNix Backup Restic Repository Password  password
+#   restic-password             MaxNix Backup Restic Repository Password VM     password
+#   restic-password-metal       MaxNix Backup Restic Repository Password Metal  password
 #   rclone-drive-client-id      MaxNix Backup Google OAuth Client  client_id
 #   rclone-drive-client-secret  MaxNix Backup Google OAuth Client  client_secret
 #   rclone-drive-token          MaxNix Backup Google OAuth Client  token
@@ -80,13 +104,38 @@ let
   # checks.metal-boots, needs the password alone.
   backupDrive =
     backup.enable && backup.repository != null && lib.hasPrefix "rclone:" backup.repository;
+
+  metal = config.maxnix.secrets.metal;
+  fromMetal = {
+    inherit (metal) sopsFile;
+  };
+  # Each machine's restic password under a name of its own, so the name
+  # alone says which file it is in, for secret-set and for a reader.
+  resticPassword = if metal.enable then "restic-password-metal" else "restic-password";
 in
 {
   options.maxnix.loginPassword.fromSops = lib.mkEnableOption ''
-    max's and root's password from the `login-password` hash in sops. On
-    for the machine (./configuration.nix); off on every VM, which has no
-    machine key (../../modules/vm/qemu-guest.nix)
+    max's and root's password from the `login-password` hash in metal's
+    sops file. On for the machine (./configuration.nix); off on every VM,
+    which has no metal key (../../modules/vm/qemu-guest.nix)
   '';
+
+  options.maxnix.secrets.metal = {
+    enable = lib.mkEnableOption ''
+      the secrets only metal may read, from its own sops file: its restic
+      password instead of the VM's. On for the machine
+      (./configuration.nix); off on every VM (../../modules/vm/qemu-guest.nix)
+    '';
+    sopsFile = lib.mkOption {
+      type = lib.types.path;
+      default = ./secrets-metal.yaml;
+      description = ''
+        The file metal's own secrets are in: login-password and
+        restic-password-metal. Encrypted to admin and metal only
+        (../../.sops.yaml). A test points it at a fixture.
+      '';
+    };
+  };
 
   options.maxnix.harlequin.profiles.enable = lib.mkEnableOption ''
     Harlequin's connection profiles, rendered from sops into
@@ -127,12 +176,14 @@ in
         trino-user = { };
       })
       (lib.mkIf backup.enable {
-        restic-password = { };
+        ${resticPassword} = if metal.enable then fromMetal else { };
       })
       # Decrypted before the users are set up, into /run/secrets-for-users,
       # which is what neededForUsers is for: /run/secrets comes later.
       (lib.mkIf config.maxnix.loginPassword.fromSops {
-        login-password.neededForUsers = true;
+        login-password = fromMetal // {
+          neededForUsers = true;
+        };
       })
       (lib.mkIf backupDrive {
         rclone-drive-client-id = { };
@@ -173,7 +224,7 @@ in
         token = ${config.sops.placeholder.rclone-drive-token}
       '';
     };
-    maxnix.backup.passwordFile = lib.mkIf backup.enable config.sops.secrets.restic-password.path;
+    maxnix.backup.passwordFile = lib.mkIf backup.enable config.sops.secrets.${resticPassword}.path;
 
     # The login password, for max and root alike. Root keeps one so the
     # emergency shell still opens when a boot goes wrong; a locked root would

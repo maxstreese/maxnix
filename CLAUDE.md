@@ -18,6 +18,7 @@ nix build .#checks.x86_64-linux.metal          #   the installable toplevel buil
 nix build .#checks.x86_64-linux.metal-auth     #   metal's sudoers and pam_faillock in its login stacks, read off the built files
 nix build .#checks.x86_64-linux.metal-install  #   install-maxnix (hosts/installer) partitions a virtual disk, places the sops key, the result boots and decrypts
 nix build .#installer-iso        # the installer USB image; README "Road to metal" is the install-day checklist
+nix run .#installer-vm           # that image booted as a USB stick in QEMU, scratch NVMe at the ThinkPad's by-path (.vm/installer-disk.qcow2)
 nix build .#checks.x86_64-linux.niri           #   portable tier of a VM suite (also desktop, hyprland, metal-boots, fleet, containers, secrets)
 nix run .#test-niri              # full (GPU) suite for one of desktop|niri|hyprland; `-- --interactive` for a REPL
 nix build .#ci                   # shellchecks the ci runner itself without running it

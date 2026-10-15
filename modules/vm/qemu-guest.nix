@@ -134,6 +134,9 @@ in
   # with exactly this value (../../flake.nix). mkForce over the machine's
   # `true` in ../../hosts/maxnix/configuration.nix.
   config.maxnix.loginPassword.fromSops = lib.mkForce false;
+  # Likewise every other secret only metal's key opens: a VM backs up with
+  # the VM's restic password from the shared file.
+  config.maxnix.secrets.metal.enable = lib.mkForce false;
 
   # The machine's hardware report describes the ThinkPad, not QEMU: its
   # microcode, firmware and initrd modules have no business in a VM, and
