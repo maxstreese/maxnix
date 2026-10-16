@@ -538,6 +538,10 @@
       #
       #   --headless  no window; VNC on 127.0.0.1:5909, as vm-headless
       #   --no-stick  the stick pulled, as for step 9: boots the disk
+      #   --offline   no network card. For booting what was installed with
+      #               metal's real key: online it is metal to the world —
+      #               it would enroll in Fleet as metal and back up into
+      #               metal's Drive repository
       #   --fresh     a new, empty disk and firmware settings
       #
       # The disk is a sparse 64 GiB image in .vm/, growing to about the
@@ -562,12 +566,14 @@
           vars=$dir/installer-efivars.fd
           display=(-display gtk)
           stick=1
+          net=(-netdev "user,id=net" -device "virtio-net-pci,netdev=net")
           for arg in "$@"; do
             case "$arg" in
               --headless) display=(-display none -vnc 127.0.0.1:9) ;;
               --no-stick) stick=0 ;;
+              --offline) net=(-nic none) ;;
               --fresh) rm -f "$disk" "$vars" ;;
-              *) echo "usage: nix run .#installer-vm -- [--headless] [--no-stick] [--fresh]" >&2; exit 2 ;;
+              *) echo "usage: nix run .#installer-vm -- [--headless] [--no-stick] [--offline] [--fresh]" >&2; exit 2 ;;
             esac
           done
           [ -e flake.nix ] || { echo "run this from the repo root; the disk goes in ./$dir" >&2; exit 1; }
@@ -585,7 +591,7 @@
             )
           fi
 
-          echo "installer-vm: disk $disk, stick $([ "$stick" = 1 ] && echo in || echo out)" >&2
+          echo "installer-vm: disk $disk, stick $([ "$stick" = 1 ] && echo in || echo out), network ''${net[0]}" >&2
           exec qemu-system-x86_64 \
             -machine q35,accel=kvm -cpu host -smp 4 -m 8192 \
             -drive if=pflash,format=raw,readonly=on,file=${pkgs.OVMF.fd}/FV/OVMF_CODE.fd \
@@ -594,7 +600,7 @@
             -drive "if=none,id=nvme,format=qcow2,file=$disk" \
             -device nvme,serial=maxnix-install,drive=nvme,bus=rp1,bootindex=1 \
             "''${usb[@]}" \
-            -netdev user,id=net -device virtio-net-pci,netdev=net \
+            "''${net[@]}" \
             "''${display[@]}"
         '';
       };

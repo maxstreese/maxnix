@@ -1080,9 +1080,11 @@ Before the day:
    reference (`op://…`; the item's menu has "Copy Secret Reference").
 2. Back up whatever on Ubuntu is in no other place: the install erases the
    whole disk.
-3. Rehearse steps 5–9 in `nix run .#installer-vm` (window; `--no-stick`
-   for step 9, `--fresh` for a new disk), then build and write the stick
-   from the same commit:
+3. Rehearse steps 5–9 in `nix run .#installer-vm` (window; `--no-stick
+   --offline` for step 9 — online, a system installed with metal's key is
+   metal to Fleet and to the backup; `--fresh` for a new disk), and delete
+   `.vm/installer-disk.qcow2` afterwards, as it holds metal's key. Then
+   build and write the stick from the same commit:
    `nix build .#installer-iso`, then
    `sudo dd if=result/iso/*.iso of=/dev/<stick> bs=4M status=progress oflag=sync`.
 4. In the firmware (F1 at power-on): turn **Secure Boot off** — expected to
@@ -1093,9 +1095,11 @@ On the day:
 
 5. Boot the stick (F12 at power-on for the boot menu).
 6. Wi-Fi: `nmtui`.
-7. 1Password's CLI: `op account add`, then `eval $(op signin)`.
-8. `sudo -i`, then
-   `install-maxnix --luks "op://Private/MaxNix Login Password/password" --sops-key op://<…metal key…>`.
+7. `sudo -i` first, then 1Password's CLI: `op account add`, then
+   `eval $(op signin)`. In that order because install-maxnix runs as root
+   and `op` keeps its sign-in per user and shell: signed in as `nixos`,
+   root's `op` would not see it.
+8. `install-maxnix --luks "op://Private/MaxNix Login Password/password" --sops-key op://<…metal key…>`.
    It checks UEFI and the disk, shows the disk's size and model, reads both
    secrets, refuses a sops key that is not `metal` in `.sops.yaml`, asks you
    to type `erase`, partitions, puts the key on `/persist` and runs
