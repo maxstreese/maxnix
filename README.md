@@ -1126,35 +1126,24 @@ After:
     does not work), suspend, `powerprofilesctl`, `fwupdmgr get-updates`,
     and whether hibernation is worth adding (see the swap decision).
 
-Still open before the day (as of 2026-10-15):
+**The install path has run end to end, in the VM (2026-10-16).**
+`nix run .#installer-vm` boots the real installer image as a USB stick under
+UEFI, with an empty NVMe disk at the ThinkPad's by-path. Steps 5–9 ran there
+by hand with the real secrets: `op account add` on the stick — a device
+1Password had not seen — asked, after Secret Key and password, for a
+six-digit code from the authenticator app rather than the YubiKey (the CLI
+does not do security keys), and signed in; `install-maxnix` read the LUKS
+passphrase and metal's key from 1Password, partitioned, and `nixos-install`
+built the machine; booted with `--no-stick --offline`, the passphrase led
+straight into niri with DMS, and lock screen, sudo and the empty-password
+keyring behaved as intended. Before that, with throwaway secrets, the stick's
+copy of this repo evaluated the machine to the same store path as the host.
+What a VM cannot show is left to the hardware (steps 4, 12). Two things the
+run taught: `sudo -i` has to come before `op` signs in (step 7), and the
+VM needs a GL GPU, as niri draws nothing without one.
 
-- **Can 1Password's CLI sign in on the stick at all?** The account asks for
-  a YubiKey on new devices, and step 7 is a new device without the desktop
-  app. 1Password's CLI documentation names address, email, Secret Key and
-  password and says nothing about a second factor; forum posts from
-  2020–2023 have the CLI asking for a six-digit code and security keys
-  working only in "supported apps and browsers". Settle it before the day by
-  signing in as a new device from Ubuntu:
-  `OP_CONFIG_DIR=$(mktemp -d) nix run nixpkgs#_1password-cli -- account add`.
-  If that fails, the stick needs the secrets another way: `install-maxnix`
-  already reads them from files (`--luks-file`, `--sops-key-file`), and a
-  passphrase-encrypted bundle (`age -p`) made on Ubuntu, where the app and
-  the YubiKey work, would carry them without leaving them readable on the
-  stick.
-- **The dry run, end to end.** `nix run .#installer-vm` boots the real
-  installer image as a USB stick under UEFI, with an empty NVMe disk at the
-  ThinkPad's by-path. Measured there 2026-10-15, with throwaway secrets from
-  files: the disk is found under the configured path, `install-maxnix`
-  partitions, encrypts and mounts it and places the key, and the stick's
-  copy of this repo evaluates the machine, inputs fetched over the network,
-  to the same store path as on the host. Still to do there, by hand:
-  `op account add` and `install-maxnix --luks op://… --sops-key op://…`
-  without `--no-install`, so `nixos-install` runs, then `--no-stick` to
-  boot it — possible once `secrets-metal.yaml` holds its values, as the
-  machine does not build without them. That run is also the 1Password
-  question above, asked on a device 1Password has not seen.
-- **The Secure Boot decision** of step 10: Microsoft's keys kept beside the
-  machine's or not.
+Still open before the day: **the Secure Boot decision** of step 10,
+Microsoft's keys kept beside the machine's or not.
 
 **Media and brightness keys** are GNOME keybindings like any other, so they
 should follow the grab now. Not yet verified with a keypress.
