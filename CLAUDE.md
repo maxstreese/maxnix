@@ -23,6 +23,7 @@ nix build .#checks.x86_64-linux.niri           #   portable tier of a VM suite (
 nix run .#test-niri              # full (GPU) suite for one of desktop|niri|hyprland; `-- --interactive` for a REPL
 nix build .#ci                   # shellchecks the ci runner itself without running it
 nix run .#blocked                # which workarounds in docs/blocked.toml upstream has unblocked
+nix run .#closure-diff -- <rev>  # nvd diff of metal at <rev> and the working tree (what CI comments on Renovate's lock PR)
 nix run .#secret-set -- <name> <op-ref>  # one value from 1Password into hosts/maxnix/secrets.yaml (user's own terminal: 1Password prompts)
 ```
 

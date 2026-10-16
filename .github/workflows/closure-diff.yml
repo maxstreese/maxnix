@@ -1,0 +1,74 @@
+# What a lock refresh changes on the machine, as a comment on the PR.
+#
+# Renovate's lock file maintenance PR says only "All locks refreshed": the
+# flake's inputs follow branches, so there is no version for it to report,
+# and no setting changes that (see `closure-diff` in flake.nix). This builds
+# metal at the PR's base and at its head and posts the `nvd diff` of the two
+# — the packages that change version, appear or go, and the closure size.
+#
+# Only on that PR. The other Renovate PR lists its versions itself, and
+# every other PR changes the configuration, where the diff is better read
+# in the code. A job of its own beside `checks`: it informs, it does not
+# gate, and nothing waits for its two builds.
+#
+# As in checks.yml, the knowledge is in the flake; this file gets a machine
+# ready, runs `nix run .#closure-diff`, and posts what it prints.
+name: closure-diff
+
+on:
+  pull_request:
+
+# A newer push to the PR replaces the comment anyway.
+concurrency:
+  group: closure-diff-${{ github.ref }}
+  cancel-in-progress: true
+
+# Reads the repo; writes one comment.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  nvd:
+    if: github.head_ref == 'renovate/lock-file-maintenance'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      # Two metal closures, one per side of the refresh; see checks.yml for
+      # what this clears and why.
+      - uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+
+      # The whole history, so the base commit can be built.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # The same Nix as checks.yml. No KVM: nothing here boots.
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.34.8/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build both sides and diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: nix run .#closure-diff -- "$BASE" > diff.txt
+
+      # One comment, edited in place on every later run.
+      - name: Comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          {
+            echo "### Package changes on metal"
+            echo
+            echo "\`nvd diff\` of metal at ${BASE:0:7} (base) and this PR, from \`nix run .#closure-diff\`."
+            echo
+            echo '```'
+            cat diff.txt
+            echo '```'
+          } > comment.md
+          gh pr comment "$PR" --body-file comment.md --edit-last --create-if-none

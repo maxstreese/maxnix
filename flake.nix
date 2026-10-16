@@ -1344,6 +1344,57 @@
         '';
       };
 
+      # nix run .#closure-diff -- <base-rev>
+      #
+      # Which packages change on metal between <base-rev> and the working
+      # tree: both toplevels built, then `nvd diff`, the same report the
+      # rebuild paths print before activating. Run from the repo root; a
+      # branch name, tag or commit works as <base-rev>.
+      #
+      # What .github/workflows/closure-diff.yml posts on Renovate's lock file
+      # maintenance PR, whose own description says only "All locks
+      # refreshed": Renovate cannot say more, since inputs that follow a
+      # branch have no version to report (researched 2026-10-16; the nix
+      # manager leaves them to lock file maintenance, which is never grouped
+      # and has no setting for its PR body). A list of changed inputs would
+      # only trade hashes for commit dates; what a lock refresh means is
+      # which packages change, and only a build of both sides shows that.
+      #
+      # Tried 2026-10-16 on a copy with `nix flake update` run, a week of
+      # nixpkgs: 47 version changes (kernel, Firefox, Nix, …), 2 removals,
+      # 173 s and about 7 GB with the base already built. A runner builds
+      # both sides from nothing, so expect two metal closures' worth.
+      #
+      # Metal rather than the VM, as the real machine; Home Manager is a
+      # NixOS module here, so the user's packages are in its closure too.
+      # nvd is the flake's own, like everything the app runs except nix.
+      closureDiff = pkgs.writeShellApplication {
+        name = "closure-diff";
+        runtimeInputs = [
+          pkgs.nvd
+          pkgs.git
+        ];
+        text = ''
+          if [ $# -ne 1 ]; then
+            echo "usage: nix run .#closure-diff -- <base-rev>" >&2
+            exit 2
+          fi
+          [ -e flake.nix ] || { echo "run this from the repo root" >&2; exit 1; }
+          rev=$(git rev-parse --verify "$1^{commit}")
+          attr=nixosConfigurations.maxnix.config.system.build.toplevel
+          out=$(mktemp -d)
+          trap 'rm -rf "$out"' EXIT
+
+          echo "building metal at $rev..." >&2
+          nix build --out-link "$out/base" "git+file://$PWD?rev=$rev#$attr"
+          echo "building metal from the working tree..." >&2
+          nix build --out-link "$out/head" ".#$attr"
+          # From inside, so nvd's header names the sides, not a temp dir.
+          cd "$out"
+          nvd diff base head
+        '';
+      };
+
       # nix run .#blocked — which workarounds in docs/blocked.toml are still
       # waiting on a third party. The checker is ./tools/blocked.py; the list
       # format is described at the top of the TOML.
@@ -1628,6 +1679,10 @@
         blocked = {
           type = "app";
           program = lib.getExe blocked;
+        };
+        closure-diff = {
+          type = "app";
+          program = lib.getExe closureDiff;
         };
         blocked-report = {
           type = "app";

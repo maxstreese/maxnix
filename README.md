@@ -100,6 +100,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 
 ```
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
+.github/workflows/closure-diff.yml  on the lock refresh PR: which packages change on metal
 renovate.jsonc               flake.lock and action-SHA updates, as PRs
 hosts/maxnix/backup.nix      restic: what to back up, and what to skip
 hosts/maxnix/fleet.nix       the employer's Fleet agent, off until IT supplies a URL
@@ -694,6 +695,17 @@ remembered. Nothing automerges: a green `checks / portable` says the machine
 builds, boots and has its software, and says nothing about what is on screen,
 so an update that breaks the greeter would pass. Renovate is a GitHub App and
 has to be installed on the repo by hand; until it is, that file does nothing.
+
+Its updates come as two PRs, and always will: lock file maintenance is never
+grouped with other updates (Renovate's documentation, 2026-10-16), and the
+config keeps it apart on purpose anyway. The version-bump PR lists its
+versions; the lock PR says only "All locks refreshed", because inputs that
+follow a branch have no version, and no setting changes that. So
+`.github/workflows/closure-diff.yml` comments on that PR with what it means
+for the machine: `nix run .#closure-diff -- <base>` builds metal at the base
+and at the PR and posts their `nvd diff`. Other Nix repos with Renovate do
+the same, or list the moved inputs instead, which trades hashes for commit
+dates without saying which packages change.
 
 The `lint` check validates it with `renovate-config-validator`, for the same
 reason it runs `actionlint`: a mistake in either surfaces as a bot or a runner
