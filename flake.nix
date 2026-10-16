@@ -549,6 +549,12 @@
       # machine — LUKS, and metal's key on /persist if that is what was
       # given — so the image is deleted with --fresh or by hand once done.
       #
+      # A GL-capable GPU, as the dev VM has (modules/vm/qemu-guest.nix, whose
+      # Mesa-wrapped QEMU this reuses): niri has no software renderer, so on
+      # QEMU's plain VGA the installed system came up, logged in by itself,
+      # and then showed nothing but niri-session's last console line
+      # (2026-10-16). The installer's console needs none of it.
+      #
       # No QEMU keymap (-k): the window passes the keyboard's scancodes
       # through, so the installer's German layout applies as on the
       # ThinkPad. Measured 2026-10-15 that `-k de` makes it worse for
@@ -564,12 +570,12 @@
           dir=.vm
           disk=$dir/installer-disk.qcow2
           vars=$dir/installer-efivars.fd
-          display=(-display gtk)
+          display=(-display "gtk,gl=on")
           stick=1
           net=(-netdev "user,id=net" -device "virtio-net-pci,netdev=net")
           for arg in "$@"; do
             case "$arg" in
-              --headless) display=(-display none -vnc 127.0.0.1:9) ;;
+              --headless) display=(-display egl-headless -vnc 127.0.0.1:9) ;;
               --no-stick) stick=0 ;;
               --offline) net=(-nic none) ;;
               --fresh) rm -f "$disk" "$vars" ;;
@@ -592,8 +598,9 @@
           fi
 
           echo "installer-vm: disk $disk, stick $([ "$stick" = 1 ] && echo in || echo out), network ''${net[0]}" >&2
-          exec qemu-system-x86_64 \
+          exec ${maxnix.config.virtualisation.vmVariant.virtualisation.qemu.package}/bin/qemu-system-x86_64 \
             -machine q35,accel=kvm -cpu host -smp 4 -m 8192 \
+            -device virtio-vga-gl,xres=1920,yres=1080 \
             -drive if=pflash,format=raw,readonly=on,file=${pkgs.OVMF.fd}/FV/OVMF_CODE.fd \
             -drive "if=pflash,format=raw,file=$vars" \
             -device pcie-root-port,id=rp1,bus=pcie.0,chassis=1,addr=0x1c \
