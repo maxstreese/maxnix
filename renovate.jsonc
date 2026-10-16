@@ -58,9 +58,18 @@
   // "at any time" because the workflow's daily cron is the one place that
   // decides when Renovate runs. lockFileMaintenance otherwise falls back to
   // its own default of Monday mornings, even with no schedule set here.
+  //
+  // "behind-base-branch" because otherwise an open lock PR never moves: the
+  // default rebuilds a branch only when it conflicts, and PR #14 sat at its
+  // first refresh for a week of nightly runs (2026-10-09 to 10-16). Rebuilt,
+  // lock file maintenance runs `nix flake update` afresh, so the PR follows
+  // nixpkgs and its closure-diff comment shows what merging would bring
+  // today — at most once per Renovate run, not once per push. As in
+  // ttmzero/rtp-backend, where it is set for every PR.
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["at any time"]
+    "schedule": ["at any time"],
+    "rebaseWhen": "behind-base-branch"
   },
 
   // No Dependency Dashboard. Runs are started by the workflow — nightly, or
