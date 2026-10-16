@@ -50,7 +50,7 @@ jobs:
       # checks should evaluate here exactly as they do locally. No KVM and no
       # disk clearing — this evaluates the flake and builds two small
       # scripts, nothing else.
-      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
         with:
           install_url: https://releases.nixos.org/nix/nix-2.34.8/install
           extra_nix_config: |

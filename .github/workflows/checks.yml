@@ -58,7 +58,7 @@ jobs:
       # enable_kvm defaults to true and is named anyway: the VM suites are
       # three real QEMU boots, and losing acceleration silently would turn a
       # twenty-minute job into a timeout.
-      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
         with:
           install_url: https://releases.nixos.org/nix/nix-2.34.8/install
           enable_kvm: true
