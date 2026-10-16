@@ -80,7 +80,11 @@
       1. install with this off, so systemd-boot writes a working ESP
       2. boot, then `sudo sbctl create-keys` (or lanzaboote's
          boot.lanzaboote.generateKeys.enable) to make /var/lib/sbctl
-      3. put the firmware into Setup Mode and enrol — `sbctl enroll-keys`
+      3. put the firmware into Setup Mode and enrol —
+         `sbctl enroll-keys --microsoft`, keeping Microsoft's keys beside
+         the machine's (decided 2026-10-16): option ROMs in docks and
+         adapters keep working and signed rescue sticks still boot; the
+         price is that any Microsoft-signed system boots too
       4. set this true, rebuild, reboot
       5. turn Secure Boot on in the firmware and check `bootctl status`
 

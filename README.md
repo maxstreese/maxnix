@@ -1110,10 +1110,9 @@ On the day:
 
 After:
 
-10. Secure Boot with the machine's own keys, in the order
-    `hosts/maxnix/disk.nix` gives — once it is decided whether Microsoft's
-    keys stay beside the machine's. No TPM unlock (decided 2026-10-15; see
-    "Decisions, and why").
+10. Secure Boot with the machine's own keys and Microsoft's beside them
+    (`sbctl enroll-keys --microsoft`), in the order `hosts/maxnix/disk.nix`
+    gives. No TPM unlock (decided 2026-10-15; see "Decisions, and why").
 11. The first app that asks for a keyring ("Choose password for new
     keyring"): leave both fields **empty**, then "Store passwords
     unencrypted?" → Continue. Autologin cannot unlock a keyring that has a
@@ -1142,8 +1141,12 @@ What a VM cannot show is left to the hardware (steps 4, 12). Two things the
 run taught: `sudo -i` has to come before `op` signs in (step 7), and the
 VM needs a GL GPU, as niri draws nothing without one.
 
-Still open before the day: **the Secure Boot decision** of step 10,
-Microsoft's keys kept beside the machine's or not.
+No decision is left open before the day. The last, Secure Boot's keys, was
+made 2026-10-16: Microsoft's stay beside the machine's. Removing them would
+stop a Microsoft-signed system, such as one faking the LUKS prompt, from
+booting in someone else's hands — but at the risk of hardware whose option
+ROMs Microsoft signed, and of rescue sticks that boot only with Secure Boot
+off; the attack needs physical access twice and was judged not worth that.
 
 **Media and brightness keys** are GNOME keybindings like any other, so they
 should follow the grab now. Not yet verified with a keypress.
