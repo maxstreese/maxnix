@@ -159,8 +159,11 @@
     pwgen
 
     # Not from the inventory: asked for directly. Counts lines of code,
-    # split into code, comments and blanks per language.
-    cloc
+    # split into code, comments and blanks per language. Chosen over tokei
+    # (same counts, fewer columns) and cloc (regex counting, slow) for its
+    # per-file complexity column. cloc's one unique trick, diffing two
+    # revisions (`, cloc --git --diff A B`), is occasional enough for `,`.
+    scc
 
     # Terminal multiplexer.
     tmux
