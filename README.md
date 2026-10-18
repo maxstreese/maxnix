@@ -111,6 +111,7 @@ hosts/maxnix/secrets-metal.yaml  metal's own, which the VM's key cannot open
 flake.nix                    inputs, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
 docs/inventory.md            what the current host runs daily; the list to migrate from
+docs/desktop-pc.md           the second machine: maxnix under WSL, on its metal, for games
 docs/blocked.toml            workarounds waiting on a third party, each with its check
 tools/blocked.py             the checker behind `nix run .#blocked`
 tools/blocked-report.py      its results as issues, one per entry that has become doable
@@ -1172,3 +1173,10 @@ transfers by construction. What still diverges is everything *else* — niri's
 files differ in animation, layout and gap settings that nothing compares.
 That divergence is legitimate rather than accidental, but nothing would tell
 you if it stopped being.
+
+**A second machine: the Windows desktop.** A Z690 board with an i9-12900KF
+(no iGPU) and an RTX 3080 Ti, today on Windows with WSL2. Open since
+2026-10-18: whether maxnix runs there as NixOS-WSL and on the metal, the
+split into roles both would need (one flat `hostModules` today), and whether
+NixOS on that metal is the right goal for game development and games at all.
+Evidence and options in `docs/desktop-pc.md`.
