@@ -93,7 +93,7 @@
 #
 # The LUKS passphrase. The machine key sits on the disk that passphrase
 # unlocks, so the secret would be needed before the thing holding it exists.
-# That is why ./disk.nix takes a typed passphrase rather than a keyfile.
+# That is why ../../modules/metal/disk.nix takes a typed passphrase rather than a keyfile.
 { config, lib, ... }:
 let
   harlequin = config.maxnix.harlequin.profiles;
@@ -146,7 +146,7 @@ in
       defaultSopsFile = ./secrets.yaml;
 
       # Metal's path; ./vm.nix points the VM at its /home disk instead. On
-      # /persist because the root is wiped every boot (./persistence.nix).
+      # /persist because the root is wiped every boot (../../modules/metal/persistence.nix).
       age.keyFile = "/persist/sops/age.key";
 
       # Only the key above. sops-nix otherwise adds the machine's SSH host keys

@@ -63,5 +63,11 @@ let
   '';
 in
 {
-  environment.systemPackages = [ gpu-check ];
+  environment.systemPackages = [
+    gpu-check
+
+    # Backing tools for gpu-check: it runs eglinfo and lspci.
+    pkgs.mesa-demos # eglinfo, es2_info, es2gears
+    pkgs.pciutils # lspci
+  ];
 }

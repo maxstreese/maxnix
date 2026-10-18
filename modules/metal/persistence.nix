@@ -31,10 +31,10 @@
 #
 # ── What is NOT here, and why ────────────────────────────────────────────
 #
-#   /var/log        already its own btrfs subvolume (../../hosts/maxnix/
-#                   disk-layout.nix), so it survives a root rollback without
-#                   any help. Listing it as well would mean two mechanisms
-#                   managing one path.
+#   /var/log        already its own btrfs subvolume (./disk-layout.nix),
+#                   so it survives a root rollback without any help.
+#                   Listing it as well would mean two mechanisms managing
+#                   one path.
 #   /home           same.
 #   /etc/ssh/…      host keys would belong here, but services.openssh.enable
 #                   is false on metal — only the VM runs sshd. Add them with
@@ -98,14 +98,14 @@
 
         # systemd's record of when each timer last ran. Persistent=true
         # catches up a missed run from it after boot — the backup's and the
-        # GC's, ./backup.nix and ./configuration.nix. Without it every boot
+        # GC's, ./backup.nix and ../base/default.nix. Without it every boot
         # starts with no record, systemd treats the timer as never run and
         # waits for the next scheduled time, so a laptop that was off at
         # midnight never backs up, and nothing says so.
         "/var/lib/systemd/timers"
 
         # NetworkManager's connections, Wi-Fi passwords included, as joined in
-        # DMS's widget or with nmcli (./configuration.nix). Root-only, as
+        # DMS's widget or with nmcli (../../hosts/maxnix/configuration.nix). Root-only, as
         # NetworkManager keeps them.
         {
           directory = "/etc/NetworkManager/system-connections";
@@ -119,7 +119,7 @@
           mode = "0700";
         }
 
-        # The laptop services' state (./laptop.nix, and Bluetooth from the
+        # The laptop services' state (../../hosts/maxnix/laptop.nix, and Bluetooth from the
         # hardware report). Paired devices and their keys, root-only: without
         # it every headset is a stranger after a reboot.
         {
@@ -135,14 +135,14 @@
         # Battery charge history, which UPower's history graphs are made of.
         "/var/lib/upower"
 
-        # Failed logins, counted by pam_faillock (./login-limits.nix). On the
+        # Failed logins, counted by pam_faillock (../base/login-limits.nix). On the
         # wiped root, a reboot would reset the count and with it the lockout.
         {
           directory = "/var/lib/faillock";
           mode = "0700";
         }
 
-        # The observability stack's history (./observability.nix): months of
+        # The observability stack's history (../base/observability): months of
         # metrics and logs that cannot be rebuilt. Excluded from the backup
         # (./backup.nix).
         #

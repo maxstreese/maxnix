@@ -100,7 +100,7 @@ in
   };
 
   # Collect garbage during a build when the disk gets tight, rather than only
-  # on the weekly timer in ../../hosts/maxnix/configuration.nix.
+  # on the weekly timer in ../base/default.nix.
   #
   # This is here and not there because it is a fact about *being a VM*: the
   # root image above is capped at 16 GiB and one system closure is 12.5 GiB,

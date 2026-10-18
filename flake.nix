@@ -50,7 +50,7 @@
     };
 
     # Declarative state: bind-mounts what must survive a wiped root.
-    # See hosts/maxnix/persistence.nix.
+    # See modules/metal/persistence.nix.
     #
     # No `inputs.nixpkgs.follows` here, unlike every other input: preservation
     # declares no inputs at all — it is a module and nothing else — so the
@@ -59,7 +59,7 @@
     preservation.url = "github:nix-community/preservation";
 
     # Secure Boot: signs a Unified Kernel Image and replaces systemd-boot.
-    # Off unless maxnix.boot.secureBoot is set; see hosts/maxnix/disk.nix.
+    # Off unless maxnix.boot.secureBoot is set; see modules/metal/disk.nix.
     lanzaboote = {
       url = "github:nix-community/lanzaboote";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -75,7 +75,7 @@
     };
 
     # Declarative disk partitioning. The one install step that was still
-    # manual; see hosts/maxnix/disk.nix.
+    # manual; see modules/metal/disk.nix.
     disko = {
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -95,7 +95,33 @@
       pkgs = nixpkgs.legacyPackages.${system};
       inherit (nixpkgs) lib;
 
-      # One machine, one source of truth.
+      # The roles a host is composed from (modules/*), each with the external
+      # modules it builds on. A role imports modules that define options;
+      # which of them are switched on is mostly the host's business.
+      roles = {
+        base = [
+          ./modules/base
+          inputs.sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+
+          # The user layer needs flake inputs of its own (home/max/dms.nix
+          # imports one), and Home Manager modules do not see them by default.
+          { home-manager.extraSpecialArgs = { inherit inputs; }; }
+        ];
+        desktop = [
+          ./modules/desktop
+          inputs.dank-greeter.nixosModules.default
+        ];
+        metal = [
+          ./modules/metal
+          inputs.disko.nixosModules.disko
+          inputs.preservation.nixosModules.preservation
+          inputs.lanzaboote.nixosModules.lanzaboote
+        ];
+      };
+
+      # One machine, one source of truth: the ThinkPad, as its roles and
+      # hosts/maxnix.
       #
       # Evaluated normally this describes the system that is meant to end up
       # installed on metal.
@@ -103,37 +129,13 @@
       # top — which every NixOS config can do, via `virtualisation.vmVariant` —
       # it also yields run-maxnix-vm, a script that runs on *this* Ubuntu host.
       # Being a VM is a variant of the machine, not a second description of it.
-      # Everything that defines the machine, independent of how it is run.
       #
-      # Shared verbatim by the build-vm configuration below and by every test
-      # node, so a test can never drift from the real machine. It also has to
-      # be shared: hosts/maxnix/configuration.nix *sets* home-manager options,
-      # which only exist once home-manager's NixOS module is imported — so a
-      # test node importing the former without the latter fails to evaluate.
-      hostModules = [
-        ./hosts/maxnix/configuration.nix
-        ./hosts/maxnix/disk.nix
-        ./hosts/maxnix/persistence.nix
-        ./hosts/maxnix/backup.nix
-        ./hosts/maxnix/containers.nix
-        ./hosts/maxnix/fleet.nix
-        ./hosts/maxnix/secrets.nix
-        ./hosts/maxnix/dev.nix
-        ./hosts/maxnix/login-limits.nix
-        ./hosts/maxnix/laptop.nix
-        ./hosts/maxnix/observability.nix
-        inputs.sops-nix.nixosModules.sops
-        inputs.disko.nixosModules.disko
-        inputs.preservation.nixosModules.preservation
-        inputs.lanzaboote.nixosModules.lanzaboote
-        ./modules/desktop
-        home-manager.nixosModules.home-manager
-        inputs.dank-greeter.nixosModules.default
-
-        # The user layer needs flake inputs of its own (home/max/dms.nix
-        # imports one), and Home Manager modules do not see them by default.
-        { home-manager.extraSpecialArgs = { inherit inputs; }; }
-      ];
+      # Shared verbatim by the build-vm configuration below and by the desktop
+      # suites' nodes, so those tests can never drift from the real machine.
+      # It also has to be shared whole: the base role *sets* home-manager
+      # options, which only exist once home-manager's NixOS module is imported
+      # — so a node importing the one without the other fails to evaluate.
+      hostModules = roles.base ++ roles.desktop ++ roles.metal ++ [ ./hosts/maxnix ];
 
       maxnix = lib.nixosSystem {
         inherit system;
@@ -193,7 +195,7 @@
             inherit system;
             modules = [
               inputs.disko.nixosModules.disko
-              (import ./hosts/maxnix/disk-layout.nix {
+              (import ./modules/metal/disk-layout.nix {
                 device = disk;
                 passwordFile = "${workDir}/luks.key";
               })
@@ -212,7 +214,7 @@
         };
       installMaxnix =
         mkInstallMaxnix
-          (import ./hosts/maxnix/disk-layout.nix { }).disko.devices.disk.main.device;
+          (import ./modules/metal/disk-layout.nix { }).disko.devices.disk.main.device;
       installer = lib.nixosSystem {
         inherit system;
         modules = [ ./hosts/installer ];
@@ -267,7 +269,7 @@
       # The machine as it would be installed, built.
       #
       # This is the configuration hosts/maxnix/configuration.nix claims to
-      # describe, and until hosts/maxnix/disk.nix existed it could not even be
+      # describe, and until modules/metal/disk.nix existed it could not even be
       # evaluated — it failed on having no root filesystem and no bootloader.
       # Nothing built it, so nothing checked it: `packages.vm` builds the
       # vmVariant's toplevel and the suites build a third variant again, all
@@ -290,7 +292,7 @@
         # this for metal: every VM keeps passwordless sudo
         # (modules/vm/qemu-guest.nix). tests/desktop.nix has the lockout's
         # behaviour; this has metal's sudoers, and the lockout's place in each
-        # of its stacks (hosts/maxnix/login-limits.nix):
+        # of its stacks (modules/base/login-limits.nix):
         #
         #   preauth   before the first line that can say yes (fingerprint or
         #             password, `sufficient`), so a locked account stays locked
@@ -345,7 +347,7 @@
               deny=$(n '^auth +required +[^ ]*pam_deny\.so')
               acct=$(n '^account +required +[^ ]*pam_faillock\.so')
               # Each with the config file: without conf=, pam_faillock reads
-              # its defaults from the store (hosts/maxnix/login-limits.nix).
+              # its defaults from the store (modules/base/login-limits.nix).
               [ "$(grep -c 'pam_faillock\.so .*conf=/etc/security/faillock\.conf' "$f")" = 3 ] \
                 || { echo "$s: a pam_faillock line without conf=" >&2; exit 1; }
               for v in pre fail yes unix deny acct; do
@@ -1021,7 +1023,7 @@
             #
             # `nix flake check` does now pass — it validates
             # `nixosConfigurations` too, and that only started working when
-            # hosts/maxnix/disk.nix gave the metal configuration a root
+            # modules/metal/disk.nix gave the metal configuration a root
             # filesystem and a bootloader. So this is no longer a workaround
             # for a broken flake, and `nix flake check --max-jobs 1` would be
             # a correct one-line replacement.
@@ -1140,7 +1142,7 @@
           pkgs.mkpasswd
 
           # `rclone authorize "drive" <id> <secret>` for the backup's Google
-          # Drive token (hosts/maxnix/backup.nix). From the flake's nixpkgs so
+          # Drive token (modules/metal/backup.nix). From the flake's nixpkgs so
           # it matches the rclone the backup unit runs; mismatched versions
           # produce token format errors.
           pkgs.rclone
@@ -1170,7 +1172,7 @@
       #
       # It kexecs the target into a NixOS installer (so the target can be
       # running any Linux — including the Ubuntu this repo is developed on),
-      # runs disko against hosts/maxnix/disk-layout.nix to partition and
+      # runs disko against modules/metal/disk-layout.nix to partition and
       # format, then installs and reboots. That is the same sequence
       # checks.metal-boots exercises against a virtual disk; this is the one
       # that writes to a real one.
@@ -1185,7 +1187,7 @@
       #
       # THIS DESTROYS THE TARGET'S DISK. Everything on it.
       #
-      # 1. hosts/maxnix/disk-layout.nix names the ThinkPad's M.2 slot
+      # 1. modules/metal/disk-layout.nix names the ThinkPad's M.2 slot
       #    (/dev/disk/by-path/…). Check it against `ls -l /dev/disk/by-path`
       #    on the target before running this; on another machine it is wrong.
       # 2. The layout is encrypted and takes no passphrase from the config

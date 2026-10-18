@@ -284,7 +284,7 @@
           # DMS's widget and nmcli save a network without a prompt.
           machine.succeed("runuser -u max -- nmcli connection add type dummy"
                           " ifname probe0 con-name probe")
-          # Saved where ../hosts/maxnix/persistence.nix keeps it, root-only.
+          # Saved where ../modules/metal/persistence.nix keeps it, root-only.
           path = "/etc/NetworkManager/system-connections/probe.nmconnection"
           mode = machine.succeed(f"stat -c '%a %U' {path}").strip()
           assert mode == "600 root", f"{path} is {mode}"
@@ -322,7 +322,7 @@
           assert "[zstd]" in algo, algo
 
       with subtest("ten wrong passwords lock the account, at the console and the lock screen"):
-          # ../hosts/maxnix/login-limits.nix, through the stacks as built:
+          # ../modules/base/login-limits.nix, through the stacks as built:
           # login (the consoles, and the greeter by substack) and dankshell
           # (DMS's lock screen). The VM's password is the plaintext one from
           # ../modules/vm/qemu-guest.nix.
@@ -337,7 +337,7 @@
           # Locked: the right password no longer gets through either way in.
           for service in ["login", "dankshell"]:
               assert tries(service, "maxnix") != 0, f"{service}: still open after ten failures"
-          # Counted where ../hosts/maxnix/persistence.nix keeps it, not in
+          # Counted where ../modules/metal/persistence.nix keeps it, not in
           # faillock's tmpfs default.
           tally = machine.succeed("faillock --user max")
           failures = machine.succeed("faillock --user max | grep -c ' V$'").strip()

@@ -20,9 +20,9 @@ let
   observability = osConfig.maxnix.observability;
 
   # Claude Code's OpenTelemetry export, to the local Alloy in
-  # ../../hosts/maxnix/observability.nix. A wrapper rather than session
+  # ../../modules/base/observability. A wrapper rather than session
   # variables, for two reasons: home.sessionVariables never reaches a
-  # terminal here (see hosts/maxnix/configuration.nix), and system-wide
+  # terminal here (see modules/base/default.nix), and system-wide
   # OTEL_* would redirect every program with an OpenTelemetry SDK, not just
   # this one. --set-default, so a single run can still override any of them.
   #
@@ -62,13 +62,13 @@ let
   # mcp-grafana against the local Grafana, read-only. A separate server from
   # any other Grafana MCP already configured (a work one, say), named
   # grafana-local. Its token is issued by the machine and readable only by
-  # this user; see grafana-mcp-token in hosts/maxnix/observability.nix.
+  # this user; see grafana-mcp-token in modules/base/observability.
   grafanaLocalMcp = pkgs.writeShellApplication {
     name = "grafana-local-mcp";
     runtimeInputs = [ pkgs.mcp-grafana ];
     text = ''
       # localhost, not 127.0.0.1: Grafana enforces its domain (see
-      # hosts/maxnix/observability.nix).
+      # modules/base/observability).
       export GRAFANA_URL=http://localhost:3000
       export GRAFANA_SERVICE_ACCOUNT_TOKEN_FILE=${observability.mcpTokenFile}
       exec mcp-grafana --disable-write "$@"

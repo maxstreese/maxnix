@@ -1,7 +1,7 @@
-# Does the observability stack in ../hosts/maxnix/observability.nix collect,
+# Does the observability stack in ../modules/base/observability collect,
 # store and serve — and is none of it reachable from where it should not be?
 #
-# Small nodes that import only that module (and ../hosts/maxnix/dev.nix for
+# Small nodes that import only that module (and ../modules/base/dev.nix for
 # its options), like ./fleet.nix: the desktop suites boot the whole machine
 # already, and nothing here needs a desktop.
 #
@@ -29,8 +29,8 @@ let
     { pkgs, ... }:
     {
       imports = [
-        ../hosts/maxnix/observability.nix
-        ../hosts/maxnix/dev.nix
+        ../modules/base/observability
+        ../modules/base/dev.nix
       ];
       maxnix.observability.enable = true;
 
@@ -61,7 +61,7 @@ in
     };
     # A clone without a dashboards directory, as a guest clone from before
     # they existed is.
-    systemd.tmpfiles.rules = [ "d /var/lib/test-clone/hosts/maxnix 0755 root root -" ];
+    systemd.tmpfiles.rules = [ "d /var/lib/test-clone/modules/base/observability 0755 root root -" ];
   };
 
   nodes.outside = { pkgs, ... }: { environment.systemPackages = [ pkgs.netcat ]; };
@@ -307,10 +307,10 @@ in
         # go through sudo, which this node does not give max.
         machine.succeed("mkdir -p /tmp/clone && touch /tmp/clone/flake.nix")
         print(machine.succeed("MAXNIX_FLAKE=/tmp/clone grafana-capture 2>&1"))
-        captured = json.loads(machine.succeed("cat /tmp/clone/hosts/maxnix/dashboards/ui-made.json"))
+        captured = json.loads(machine.succeed("cat /tmp/clone/modules/base/observability/dashboards/ui-made.json"))
         assert captured["uid"] == "ui-made" and "id" not in captured and "version" not in captured, captured
         # The provisioned ones are the repo's already, so they are left out.
-        files = machine.succeed("ls /tmp/clone/hosts/maxnix/dashboards").split()
+        files = machine.succeed("ls /tmp/clone/modules/base/observability/dashboards").split()
         assert files == ["ui-made.json"], files
 
     with subtest("data survives a restart of the stores"):
@@ -344,14 +344,14 @@ in
              "the deployed dashboards, with no directory in the clone", devbox)
 
     with subtest("live dashboards: the clone's, as soon as it has them, with no rebuild"):
-        clone = "/var/lib/test-clone/hosts/maxnix/dashboards"
+        clone = "/var/lib/test-clone/modules/base/observability/dashboards"
         probe = {"uid": "live-probe", "title": "Live Probe", "tags": ["maxnix"], "panels": []}
         devbox.succeed(f"mkdir {clone} && cat > {clone}/live-probe.json <<'EOF'\n"
                        + json.dumps(probe) + "\nEOF")
         # The clone wins outright: its one file, not the deployed three.
         wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e '[.[].uid] == [\"live-probe\"]'",
              "the clone's directory to replace the deployed dashboards", devbox)
-        devbox.succeed(f"cp ${../hosts/maxnix/dashboards}/host.json {clone}/")
+        devbox.succeed(f"cp ${../modules/base/observability/dashboards}/host.json {clone}/")
         wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 2'",
              "a new file in the clone to appear in Grafana", devbox)
         devbox.succeed(f"rm {clone}/live-probe.json")

@@ -48,7 +48,7 @@
 {
   programs.git = {
     # This installs git into the user profile as well. It is the same store
-    # path as the system-wide one in hosts/maxnix/configuration.nix, which
+    # path as the system-wide one in modules/base/default.nix, which
     # stays: the guest needs git to clone this repo before a user profile
     # exists at all.
     enable = true;

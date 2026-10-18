@@ -76,9 +76,9 @@ in
       ../hosts/maxnix/secrets.nix
       # On, so the wiring in secrets.nix runs exactly as on the machine:
       # both Fleet values from sops, the URL through the rendered env file.
-      ../hosts/maxnix/fleet.nix
+      ../modules/metal/fleet.nix
       # Likewise, with the default rclone: repository.
-      ../hosts/maxnix/backup.nix
+      ../modules/metal/backup.nix
     ];
     maxnix.fleet.enable = true;
     maxnix.backup.enable = true;

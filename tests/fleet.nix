@@ -1,4 +1,4 @@
-# Does the Fleet agent in ../hosts/maxnix/fleet.nix start, with no server?
+# Does the Fleet agent in ../modules/metal/fleet.nix start, with no server?
 #
 # There is no Fleet server to enroll with: that is IT's, and running one here
 # would mean MySQL, Redis and a server module nixpkgs does not have. So this
@@ -7,7 +7,7 @@
 # it waits to retry instead of spinning. Enrollment is first seen on the day
 # IT hands over a URL and a secret.
 #
-# A small node that imports only ../hosts/maxnix/fleet.nix, not hostModules.
+# A small node that imports only ../modules/metal/fleet.nix, not hostModules.
 # The desktop suites already boot the whole machine with the agent off; what
 # is new here is the agent turned on, and it needs nothing from the desktop
 # to do that. It keeps this check to one short boot.
@@ -17,12 +17,12 @@
 {
   name = "maxnix-fleet";
 
-  # ../hosts/maxnix/fleet.nix adds to nixpkgs.config.allowUnfreePackages, which
+  # ../modules/metal/fleet.nix adds to nixpkgs.config.allowUnfreePackages, which
   # a read-only pkgs refuses. Same reason as in ./desktop.nix.
   node.pkgsReadOnly = false;
 
   nodes.machine = {
-    imports = [ ../hosts/maxnix/fleet.nix ];
+    imports = [ ../modules/metal/fleet.nix ];
 
     maxnix.fleet = {
       enable = true;

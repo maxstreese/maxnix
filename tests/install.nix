@@ -5,7 +5,7 @@
 #
 #   postDisko          after the harness has formatted the virtual disk,
 #                      install-maxnix runs on it: first the refusals, then for
-#                      real — partitioning it again from ../hosts/maxnix/
+#                      real — partitioning it again from ../modules/metal/
 #                      disk-layout.nix and putting the sops key on /persist
 #   extraSystemConfig  the system the harness then installs onto that disk
 #                      and boots carries the machine's secrets wiring, so the
@@ -56,7 +56,7 @@ disko.lib.testLib.makeDiskoTest {
   inherit pkgs;
   name = "maxnix-install";
 
-  disko-config = import ../hosts/maxnix/disk-layout.nix {
+  disko-config = import ../modules/metal/disk-layout.nix {
     passwordFile = "/tmp/secret.key";
   };
 
@@ -74,10 +74,10 @@ disko.lib.testLib.makeDiskoTest {
         sops-nix.nixosModules.sops
         ../hosts/maxnix/secrets.nix
         # secrets.nix reads their switches; both stay off.
-        ../hosts/maxnix/fleet.nix
-        ../hosts/maxnix/backup.nix
+        ../modules/metal/fleet.nix
+        ../modules/metal/backup.nix
         preservation.nixosModules.preservation
-        ../hosts/maxnix/persistence.nix
+        ../modules/metal/persistence.nix
       ];
       # The machine's key path, /persist/sops/age.key, as secrets.nix sets
       # it — only the file to decrypt is the test's.

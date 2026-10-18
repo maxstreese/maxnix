@@ -101,7 +101,7 @@ check = { github-pr-merged = "renovatebot/renovate#45258" }
 id = "fleetd-1-63"
 title = "Run fleetd 1.63.0, the first release with NixOS support"
 upstream = "https://github.com/fleetdm/fleet/issues/52320"
-workaround = "hosts/maxnix/fleet.nix: nixpkgs' fleet-orbit 1.55.0"
+workaround = "modules/metal/fleet.nix: nixpkgs' fleet-orbit 1.55.0"
 then = "Override fleet-orbit and fleet-desktop to orbit-v1.63.0 with patches = [] and buildGo127Module, via services.orbit.orbitPackage and desktop.package; run tests/fleet.nix; update the NixOS-support note in fleet.nix"
 check = { all = [
   { github-tag = "fleetdm/fleet orbit-v1.63.0" },
@@ -128,7 +128,7 @@ check = { github-issue-closed = "fleetdm/fleet#54422" }
 id = "alloy-journal-zstd"
 title = "Use nixpkgs' grafana-alloy as is, without re-pointing its libsystemd"
 upstream = "nixpkgs pkgs/by-name/gr/grafana-alloy: postFixup adds systemd-minimal-libs (no zstd) to Alloy's RUNPATH"
-workaround = "hosts/maxnix/observability.nix: `alloy`, a copy of the package with the full systemd's lib/ first in its RUNPATH"
+workaround = "modules/base/observability: `alloy`, a copy of the package with the full systemd's lib/ first in its RUNPATH"
 then = "Drop the `alloy` derivation and services.alloy.package from observability.nix; tests/observability.nix proves the journal still arrives"
 check = { nix = '''
   pkgs: let minimal = pkgs.lib.hasInfix "systemd-minimal" pkgs.grafana-alloy.postFixup; in {

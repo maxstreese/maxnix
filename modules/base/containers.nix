@@ -25,8 +25,8 @@
 #   ../../tests/containers.nix measures that from a second machine.
 #
 # And one about this repo: the rootful daemon's state is /var/lib/docker, on
-# the root that ./persistence.nix wipes every boot. The rootless daemon's is
-# ~/.local/share/docker, on /home, which survives — and which ./backup.nix
+# the root that ../metal/persistence.nix wipes every boot. The rootless daemon's is
+# ~/.local/share/docker, on /home, which survives — and which ../metal/backup.nix
 # therefore has to exclude.
 #
 # ── What is deliberately absent ──────────────────────────────────────────

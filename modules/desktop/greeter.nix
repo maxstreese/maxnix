@@ -14,7 +14,7 @@
 # On the real host that trade is sharper than in the VM: a GPU driver
 # regression after an update means no login screen. The rescue path is
 # deliberate and does not depend on GL: the text consoles on Ctrl+Alt+F2…F6
-# keep a password login (no autologin — hosts/maxnix/configuration.nix
+# keep a password login (no autologin — modules/base/default.nix
 # explains). Log in there, `rebuild` or roll back, done.
 #
 # The trade is deliberate: the GPU path has been stable and tested for a while
@@ -40,7 +40,7 @@
 # And never with a disk that unlocks itself: TPM or FIDO2 unlock plus
 # autologin would open the session for anyone who presses the power button.
 # The assertion below stops such a build; the TPM layer this machine once
-# planned was dropped for this (hosts/maxnix/disk.nix).
+# planned was dropped for this (modules/metal/disk.nix).
 #
 # The keyring does not open through this. greetd starts an initial_session
 # without pam_authenticate (greetd's context.rs: authenticate = false), and

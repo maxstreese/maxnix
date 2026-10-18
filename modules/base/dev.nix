@@ -15,7 +15,7 @@
         Absolute path to the working clone inside this machine.
 
         The guest keeps its own clone rather than sharing the host's (see
-        ./vm.nix), and two things need to agree on where it is: `rebuild`,
+        ../../hosts/maxnix/vm.nix), and two things need to agree on where it is: `rebuild`,
         which builds from it, and liveConfig below, which points generated
         config at it. Declared once here so they cannot disagree.
 
@@ -40,7 +40,7 @@
         Off by default, and deliberately so: it makes the running system
         depend on a mutable path that may not exist. On a fresh install,
         before the clone is made, the symlink would simply dangle. It is
-        turned on for the VM in ./vm.nix, which is where development happens
+        turned on for the VM in ../../hosts/maxnix/vm.nix, which is where development happens
         and where the clone is guaranteed by the workflow.
 
         What it costs: nothing can check the live content. The suites build

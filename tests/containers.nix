@@ -1,4 +1,4 @@
-# Does rootless Docker in ../hosts/maxnix/containers.nix work, and is a
+# Does rootless Docker in ../modules/base/containers.nix work, and is a
 # published port really behind the firewall?
 #
 # HOW TO RUN:
@@ -33,7 +33,7 @@ in
   name = "maxnix-containers";
 
   nodes.machine = {
-    imports = [ ../hosts/maxnix/containers.nix ];
+    imports = [ ../modules/base/containers.nix ];
 
     users.users.max = {
       isNormalUser = true;

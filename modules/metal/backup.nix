@@ -30,7 +30,7 @@
 # ── Off until enabled on a machine holding the secrets ───────────────────
 #
 # The Drive credentials and the repository password come from sops
-# (./secrets.nix), which declares them only once this is enabled. So this is
+# (../../hosts/maxnix/secrets.nix), which declares them only once this is enabled. So this is
 # disabled by default, switched on per machine, and asserts rather than
 # silently doing nothing when half-configured.
 #
@@ -59,7 +59,7 @@ in
 
     repository = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
-      # The `gdrive` remote is the one ./secrets.nix renders into
+      # The `gdrive` remote is the one ../../hosts/maxnix/secrets.nix renders into
       # rclone.conf, and `nix run .#backup` reads this same value, so the
       # machine and the restore path cannot point at different folders.
       default = "rclone:gdrive:maxnix-backup";
@@ -80,7 +80,7 @@ in
         long-lived credential and belongs with the repository password rather
         than on disk beside it.
 
-        ./secrets.nix renders it from three sops values and sets this; the
+        ../../hosts/maxnix/secrets.nix renders it from three sops values and sets this; the
         values come from the 1Password item `nix run .#backup` reads:
 
           1. An OAuth client of our own, in the company Workspace's Google
@@ -90,7 +90,7 @@ in
              being retired during 2026.
           2. A token for it, from `nix run .#backup -- authorize` on a machine
              with a browser, saved as the item's `token` field.
-          3. The client id, secret and token piped into sops (./secrets.nix).
+          3. The client id, secret and token piped into sops (../../hosts/maxnix/secrets.nix).
 
         Note what this does NOT replace: restic still encrypts everything
         client-side with maxnix.backup.passwordFile before anything is
@@ -212,7 +212,7 @@ in
         # here without it.
         "/home/*/.local/share/Steam"
 
-        # The observability stack's stores (./observability.nix). Months of
+        # The observability stack's stores (../base/observability). Months of
         # metrics and logs: losing them costs history, not configuration, and
         # they would dominate the backup.
         "/persist/var/lib/prometheus2"
@@ -221,7 +221,7 @@ in
         "/persist/var/lib/private/alloy"
         "/persist/var/lib/private/tempo"
 
-        # Rootless Docker's images, layers and volumes (./containers.nix).
+        # Rootless Docker's images, layers and volumes (../base/containers.nix).
         # Gigabytes, and every image is a pull away. A named volume holding
         # something irreplaceable is the one thing this loses — keep such data
         # in a bind mount under a backed-up path instead.
@@ -238,7 +238,7 @@ in
         OnCalendar = "daily";
         # Without this a laptop that was asleep at the scheduled time simply
         # skips the backup — the same trap as the GC timer in
-        # ./configuration.nix, and the same fix.
+        # ../base/default.nix, and the same fix.
         Persistent = true;
         RandomizedDelaySec = "30min";
       };

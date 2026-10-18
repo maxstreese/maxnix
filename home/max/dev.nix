@@ -49,7 +49,7 @@
   # without it, collection would happily delete the dependencies of every
   # project not touched that month, and the next cd would rebuild them.
   #
-  # .direnv is excluded from backups in ../../hosts/maxnix/backup.nix for the
+  # .direnv is excluded from backups in ../../modules/metal/backup.nix for the
   # same reason it is gitignored: it is a cache with a GC root in it, entirely
   # rebuildable from the flake beside it.
   programs.direnv = {
@@ -269,6 +269,6 @@
   #
   # The variable that silences it is NOT here, and not a home.sessionVariables
   # entry either, because that option only reaches login shells. It is set at
-  # the system level in ../../hosts/maxnix/configuration.nix, which is the
+  # the system level in ../../modules/base/default.nix, which is the
   # one route that reaches a terminal inside the compositor.
 }

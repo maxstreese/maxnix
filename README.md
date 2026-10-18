@@ -94,19 +94,16 @@ credentials from there. No credential is in this repo, and none ever should be.
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
 | credentials | 1Password app + `op` CLI; state on the guest disk, never in the repo |
-| observability | Alloy → Prometheus (metrics, 2 y), Loki (logs, 1 y) and Tempo (traces, 30 d, with span metrics into Prometheus), Grafana on top; Alloy's built-in Beyla (eBPF) adds request rates, errors and latency for every process listening on a port, their CPU, memory and I/O, and byte counts of network flows (anonymous read-only; admin password generated in `/var/lib/grafana/admin-password`), all on loopback; Claude Code's OTel export and `grafana-local` (mcp-grafana) for agents. Dashboards are JSON in `hosts/maxnix/dashboards`: build in the UI and `grafana-capture`, or edit the files — live in the VM |
+| observability | Alloy → Prometheus (metrics, 2 y), Loki (logs, 1 y) and Tempo (traces, 30 d, with span metrics into Prometheus), Grafana on top; Alloy's built-in Beyla (eBPF) adds request rates, errors and latency for every process listening on a port, their CPU, memory and I/O, and byte counts of network flows (anonymous read-only; admin password generated in `/var/lib/grafana/admin-password`), all on loopback; Claude Code's OTel export and `grafana-local` (mcp-grafana) for agents. Dashboards are JSON in `modules/base/observability/dashboards`: build in the UI and `grafana-capture`, or edit the files — live in the VM |
 
 ```
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
 .github/workflows/closure-diff.yml  on the lock refresh PR: which packages change on metal
 renovate.jsonc               flake.lock and action-SHA updates, as PRs
-hosts/maxnix/backup.nix      restic: what to back up, and what to skip
-hosts/maxnix/fleet.nix       the employer's Fleet agent, off until IT supplies a URL
-hosts/maxnix/containers.nix  rootless Docker, with DOCKER_HOST for the whole session
 hosts/maxnix/secrets.nix     sops-nix: three post-quantum keys, secrets declared per consumer
 hosts/maxnix/secrets.yaml    the encrypted secrets; .sops.yaml at the root says who can open it
 hosts/maxnix/secrets-metal.yaml  metal's own, which the VM's key cannot open
-flake.nix                    inputs, hostModules, packages + apps + checks + devShell
+flake.nix                    inputs, roles, hostModules, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
 docs/inventory.md            what the current host runs daily; the list to migrate from
 docs/desktop-pc.md           the second machine: maxnix under WSL, on its metal, for games
@@ -116,13 +113,22 @@ tools/blocked-report.py      its results as issues, one per entry that has becom
 .github/workflows/blocked.yml  runs that weekly and whenever flake.lock or the list changes
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
 statix.toml                  the two statix lints this repo switches off, with reasons
-hosts/maxnix/
-  configuration.nix          the machine: user, locale, keyboard, home-manager
-  disk.nix                   bootloader, and the layout wired into NixOS
-  disk-layout.nix            the LUKS2/btrfs layout as data, shared with its test
+hosts/maxnix/                the ThinkPad: base + desktop + metal, and what is only its own
+  configuration.nix          hostname, network, Twingate, wooting, zram, which features are on
+  laptop.nix                 the laptop services its hardware report asks for
   vm.nix                     build-vm specifics: window, disk images, sshd, `rebuild`
-modules/
-  desktop/{default,niri,greeter,onepassword,gpu-check,steam}.nix  system layer
+modules/                     roles a host is composed from (`roles` in flake.nix)
+  base/default.nix           every machine: user, locale, keyboard, Nix settings, Home Manager
+  base/containers.nix        rootless Docker, with DOCKER_HOST for the whole session
+  base/dev.nix               where the clone lives, and the live-config switch
+  base/login-limits.nix      pam_faillock in every stack that takes the login password
+  base/observability/        metrics, logs, traces, Grafana; its dashboards/ as JSON
+  desktop/{default,niri,greeter,onepassword,gpu-check,steam}.nix  niri and what it needs
+  metal/disk.nix             bootloader, and the layout wired into NixOS
+  metal/disk-layout.nix      the LUKS2/btrfs layout as data, shared with its test
+  metal/persistence.nix      the wiped root, and what survives it on /persist
+  metal/backup.nix           restic: what to back up, and what to skip
+  metal/fleet.nix            the employer's Fleet agent, off until IT supplies a URL
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
 home/max/*.nix               user layer, one file per program: default (the
                              layer itself), niri, dms, ghostty,
@@ -151,6 +157,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | channel | `nixpkgs-unstable`, also on the future host | these three packages move fast; stable would evaluate old versions. Decided 2026-09-17 to keep it |
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
 | compositor | niri only | decided 2026-10-18, reversing "both, for good". Two compositors were two configs that diverged wherever they were not generated from one list (niri's own window-management binds, layout, gaps, animation), a second desktop suite, a static check and a Lua port to follow upstream's churn. niri was already the greeter's compositor and the autologin session, and is validated at build time. Hyprland's config, suite and findings are in git history before this decision. Open for the desktop PC: Hyprland was further along on HDR and VRR (`docs/desktop-pc.md`), so niri's support is to check against that monitor |
+| repo structure | hosts composed from roles: `modules/base`, `modules/desktop`, `modules/metal`, plus `hosts/<name>` | decided 2026-10-18, so a second machine (`docs/desktop-pc.md`) can take part of the machine rather than all of it. Roles import modules that define options; the host switches them on. Secrets stay with the host: which sops files and key a machine uses is its own. The user layer is still one `home/max`, imported by the host, until a machine without a desktop needs only part of it. Done as a refactor checked by store path: every one stayed the same except where expected — the order of the system's package list (its `sw` tree came out identical), comments inside test scripts, and the dashboards' path in the clone, which moved with observability into `modules/base` |
 | VM disks | root is disposable, `/home` is its own image, host `/nix/store` shared over virtiofs | root can be deleted to reset the machine without losing a single login; the VM is a variant of the machine, not the artifact |
 | repo in the guest | its own clone, no host share | the share was the fast loop and a hole in the boundary at once, and virtiofs broke it twice over (see findings); git syncs two machines, and the host deploys over ssh — the same model metal will use |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
@@ -199,14 +206,14 @@ VNC, never both. Hence `vm-headless` as a separate app.
 libsystemd from `systemd-minimal-libs`, built without zstd, and NixOS compresses
 its journal with zstd. The reader skips every file, reports itself healthy and
 reads zero lines (`loki_source_journal_target_lines_total 0`).
-`hosts/maxnix/observability.nix` re-points the binary's RUNPATH at the full
+`modules/base/observability` re-points the binary's RUNPATH at the full
 systemd; tracked in `docs/blocked.toml`.
 
 **preservation creates a preserved directory `root:root 0755`.** A service
 with a systemd `StateDirectory` gets it chowned back at start; one without does
 not. Loki failed its first boot in the VM on `mkdir /var/lib/loki/rules:
 permission denied`, so persisted service directories state their owner in
-`hosts/maxnix/persistence.nix`, and the desktop suite checks they are up.
+`modules/metal/persistence.nix`, and the desktop suite checks they are up.
 
 **Grafana 13 ships without its core datasources.** Prometheus, Loki and Tempo
 are plugins now; without them Grafana logs `plugin prometheus not found` and tries
@@ -218,7 +225,7 @@ installer off.
 components (live store, block builder, backend scheduler) default to paths
 under `/var/tempo`, which the module's sandbox does not allow. Each failed at
 start with `mkdir /var/tempo: read-only file system` and took the OTLP receiver
-and every query down with it (2026-10-09). `hosts/maxnix/observability.nix`
+and every query down with it (2026-10-09). `modules/base/observability`
 points all of them into `/var/lib/tempo`, a list taken from the 3.0.3 source.
 
 **Tempo's backend worker held up every stop.** Even idle, it waited out a 30 s
@@ -245,7 +252,7 @@ and was found once a window was given (2026-10-12).
 addresses and ports, never a PID or a hostname, and by default a flow carries
 only its direction. Which process talked comes from the request metrics, and
 only for processes it instruments; a CLI's traffic, Claude Code's included,
-is bytes to an address. `hosts/maxnix/observability.nix` adds addresses and
+is bytes to an address. `modules/base/observability` adds addresses and
 the server's port and leaves out the client's, which would make every
 connection its own series. Probed in the VM, 2026-10-12.
 
@@ -264,7 +271,7 @@ built with its own etc in the store, and pam_faillock reads its defaults from
 there: with the file in `/etc`, the desktop suite's account locked after the
 built-in three failures, counted in the tmpfs `/var/run/faillock`, not the
 configured ten in `/var/lib/faillock` (2026-10-14). Every pam_faillock line
-in `hosts/maxnix/login-limits.nix` names the file with `conf=`, and the
+in `modules/base/login-limits.nix` names the file with `conf=`, and the
 `faillock` command, which has no option for a config file, is wrapped with
 `--dir`. A test asserting only "locked or not" would have passed; this one
 counts.
@@ -476,7 +483,7 @@ nothing without the control that opening the firewall makes it reachable.
 **Orbit ignores SIGTERM until it has enrolled.** While it retries against a
 server it cannot reach, `systemctl stop orbit` sits out systemd's full 90 s
 default before the SIGKILL — and so does every shutdown, which is where it
-was noticed. `hosts/maxnix/fleet.nix` cuts `TimeoutStopSec` to 5 s, and
+was noticed. `modules/metal/fleet.nix` cuts `TimeoutStopSec` to 5 s, and
 `checks.fleet` now asserts a prompt stop.
 
 **Orbit launches Fleet Desktop through a `sudo` it cannot find.** It starts
@@ -484,7 +491,7 @@ the tray app in the user's session with `sudo -n -i -u <user>`, and sudo is
 a setuid wrapper in `/run/wrappers/bin`, which a systemd unit's PATH does
 not include. The launch failed every 30 s with no error in the log — only
 "running command". Session detection itself works under niri (`loginctl`
-reports it as Wayland). `hosts/maxnix/fleet.nix` adds the wrappers to the
+reports it as Wayland). `modules/metal/fleet.nix` adds the wrappers to the
 unit's path when `maxnix.fleet.desktop` is on.
 
 **Only public keys can be declared, which is exactly enough for signing.**
@@ -607,7 +614,7 @@ still succeeds. It catches a build, not a boot; whether the layout in
 `disk.nix` would actually partition and come up is `metal-boots`.
 
 `metal-boots` is disko's `makeDiskoTest`: it formats a blank virtual disk from
-`hosts/maxnix/disk-layout.nix`, installs NixOS onto it and reboots into the
+`modules/metal/disk-layout.nix`, installs NixOS onto it and reboots into the
 result. It reads the *same* layout file the real machine does — that is why
 the layout is plain data in its own file, since `makeDiskoTest` calls its
 config with `lib` alone and cannot be handed a NixOS module. It also exercises
@@ -755,7 +762,7 @@ files never change — so the work is not building a loop but not preventing one
 `qs-dev` passes `--path` at the clone directly, so it is live regardless of how
 the declared config was wired.
 
-`maxnix.dev.liveConfig` (`hosts/maxnix/dev.nix`) does the same for the
+`maxnix.dev.liveConfig` (`modules/base/dev.nix`) does the same for the
 *declared* config: on, `programs.quickshell.configs.maxnix` becomes an
 out-of-store symlink to the clone, so `~/.config/quickshell/maxnix` is the
 working tree and any launcher — including a future systemd service — is live.
@@ -830,7 +837,7 @@ lines, not by how long `systemctl stop` takes to return — the latter once
 read 9 s for a stop the journal put at 0.55 s.
 
 **Backups are wired, authorised and on for metal; they run there from its
-first boot with its key.** `hosts/maxnix/backup.nix` has the
+first boot with its key.** `modules/metal/backup.nix` has the
 mechanism: restic, nightly, `/persist` and `/home`, caches and Steam excluded,
 7/5/12/3 retention, and `checks.metal-boots` runs a real backup into a local
 repository and inspects what landed in it. The destination is constrained:
@@ -868,7 +875,7 @@ And the Drive quota: the organisation pools 190 TiB with no per-user cap set,
 so ~1 TB fits, but whether it may be used is theirs to say.
 
 **The Fleet agent is on, for the VM and for metal.** The employer is adopting
-Fleet (learned 2026-09-29), and `hosts/maxnix/fleet.nix` has the agent side:
+Fleet (learned 2026-09-29), and `modules/metal/fleet.nix` has the agent side:
 nixpkgs' `services.orbit`, which is Orbit supervising its own osquery, behind
 `maxnix.fleet`. `/var/lib/orbit` is preserved so the enrollment survives the
 root wipe. `checks.fleet` boots it against a server that is not there and
@@ -1014,7 +1021,7 @@ carrying appearance; DMS has not written one here yet.
 
 `nix run .#install -- root@<target>` is the other way in, kept for a
 reinstall from a second machine: nixos-anywhere kexecs the target into an
-installer over SSH, runs disko against `hosts/maxnix/disk-layout.nix`,
+installer over SSH, runs disko against `modules/metal/disk-layout.nix`,
 installs and reboots — the same sequence `checks.metal-boots` rehearses
 against a virtual disk. It is not the ThinkPad's path (there is no second
 machine, below), and what it needs first — the LUKS passphrase for the
@@ -1080,7 +1087,7 @@ On the day:
 After:
 
 10. Secure Boot with the machine's own keys and Microsoft's beside them
-    (`sbctl enroll-keys --microsoft`), in the order `hosts/maxnix/disk.nix`
+    (`sbctl enroll-keys --microsoft`), in the order `modules/metal/disk.nix`
     gives. No TPM unlock (decided 2026-10-15; see "Decisions, and why").
 11. The first app that asks for a keyring ("Choose password for new
     keyring"): leave both fields **empty**, then "Store passwords
@@ -1123,6 +1130,7 @@ should follow the grab now. Not yet verified with a keypress.
 **A second machine: the Windows desktop.** A Z690 board with an i9-12900KF
 (no iGPU) and an RTX 3080 Ti, today on Windows with WSL2. Open since
 2026-10-18: whether maxnix runs there as NixOS-WSL and on the metal, the
-split into roles both would need (one flat `hostModules` today), and whether
+split into roles both would need (done for the system side, see "Decisions,
+and why"), and whether
 NixOS on that metal is the right goal for game development and games at all.
 Evidence and options in `docs/desktop-pc.md`.

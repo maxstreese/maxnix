@@ -42,6 +42,12 @@
     ];
   };
 
+  # Mesa, and the userspace bits a Wayland compositor expects to find.
+  hardware.graphics.enable = true;
+
+  # DRM access, needed by every compositor.
+  users.users.max.extraGroups = [ "video" ];
+
   # Compositors need polkit for anything privileged (mounting, suspend).
   security.polkit.enable = true;
 

@@ -68,7 +68,7 @@ one definition of "the machine" and nothing finer to choose from.
 
 - `hostModules` in `flake.nix` is a flat list — disko, lanzaboote,
   preservation, `laptop.nix`, `modules/desktop`, the greeter — taken whole.
-- `hosts/maxnix/configuration.nix` mixes what is true of the user everywhere
+- `hosts/maxnix/configuration.nix` mixed (until the split, 2026-10-18) what is true of the user everywhere
   (user `max`, timezone, keymap, Nix settings, gc and optimise), what is true
   of the ThinkPad (the facter report, `hardware.graphics`, zram, wooting) and
   what is policy for that machine (NetworkManager, Twingate, Fleet, backups).
@@ -203,4 +203,7 @@ boot.
 - [ ] Settle the engine.
 - [ ] Take the facter report from a stick (section 4).
 - [ ] Find out Secure Boot, BitLocker and which disk Windows is on.
-- [ ] Split the roles (section 3); then `hosts/wsl`, then a desktop host.
+- [x] Split the roles (section 3), system side: done 2026-10-18 (README,
+  "Decisions, and why"). `home/max` splits into core and desktop with
+  `hosts/wsl`, its first user that needs only part of it.
+- [ ] `hosts/wsl`, then a desktop host.

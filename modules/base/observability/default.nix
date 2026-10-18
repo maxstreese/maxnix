@@ -11,7 +11,7 @@
 #   (* built into Alloy)  UI   :12345      Grafana :3000 ────┘ ◄── mcp-grafana
 #
 # Everything listens on loopback only. That is the security model, not the
-# firewall: ../../tests/observability.nix turns the firewall off and checks
+# firewall: ../../../tests/observability.nix turns the firewall off and checks
 # that nothing is reachable from another machine anyway.
 #
 # ── Why these pieces (decided 2026-10-08) ────────────────────────────────
@@ -44,7 +44,7 @@
 #
 # ── Claude Code ──────────────────────────────────────────────────────────
 #
-# Its exporter settings are in ../../home/max/apps.nix, as a wrapper around
+# Its exporter settings are in ../../../home/max/apps.nix, as a wrapper around
 # the `claude` binary rather than session variables: OTEL_* in the session
 # would redirect every program with an OpenTelemetry SDK, not just this one.
 # Its counters are set to cumulative there. Prometheus rejects OTLP deltas
@@ -95,9 +95,9 @@
 #
 # /var/lib/{prometheus2,loki,grafana}, Alloy's /var/lib/private/alloy (its
 # journal read position and remote-write WAL) and Tempo's /var/lib/private/tempo
-# are on /persist
-# (./persistence.nix) and excluded from backups (./backup.nix): rebuildable
-# in the sense that losing them costs history, not configuration.
+# are on /persist (../../metal/persistence.nix) and excluded from backups
+# (../../metal/backup.nix): rebuildable in the sense that losing them costs
+# history, not configuration.
 {
   config,
   lib,
@@ -190,7 +190,7 @@ let
       // not when CAP_PERFMON was removed (2026-10-12): Beyla started and
       // only logged "operation not permitted" loading its process watcher.
       // Kept for whatever it does check; what guards the capabilities is
-      // ../../tests/observability.nix, which fails on the missing metrics.
+      // ../../../tests/observability.nix, which fails on the missing metrics.
       enforce_sys_caps = true
 
       discovery {
@@ -454,7 +454,7 @@ let
   # See "Dashboards" above. The live copy is Grafana's own: the clone is
   # under /home/max, which the grafana user cannot read.
   dev = config.maxnix.dev;
-  cloneDashboards = "${dev.clonePath}/hosts/maxnix/dashboards";
+  cloneDashboards = "${dev.clonePath}/modules/base/observability/dashboards";
   liveDashboards = "${grafanaDir}/dashboards-live";
   dashboardDir = if dev.liveConfig then liveDashboards else ./dashboards;
 
@@ -486,7 +486,7 @@ let
     ];
     text = ''
       clone="''${MAXNIX_FLAKE:-${dev.clonePath}}"
-      dest="$clone/hosts/maxnix/dashboards"
+      dest="$clone/modules/base/observability/dashboards"
       if [ ! -e "$clone/flake.nix" ]; then
         echo "grafana-capture: no flake.nix at $clone" >&2
         echo "set MAXNIX_FLAKE to where the clone is" >&2
@@ -525,8 +525,8 @@ let
 
       if [ -d "$clone/.git" ]; then
         echo
-        git -C "$clone" status --short -- hosts/maxnix/dashboards
-        echo "review, then commit hosts/maxnix/dashboards as usual" >&2
+        git -C "$clone" status --short -- modules/base/observability/dashboards
+        echo "review, then commit modules/base/observability/dashboards as usual" >&2
       fi
     '';
   };
@@ -535,14 +535,14 @@ let
   # is built without zstd — and NixOS compresses its journal with zstd. The
   # reader then opens the journal, skips every file it cannot decompress, and
   # reports itself healthy with zero lines read. Found 2026-10-08 by
-  # ../../tests/observability.nix: loki_source_journal_target_lines_total
+  # ../../../tests/observability.nix: loki_source_journal_target_lines_total
   # stayed 0 with the probe line plainly in /var/log/journal, and
   # `strings libsystemd.so.0` in that library says "zstd support is not
   # compiled in".
   #
   # Alloy dlopen()s libsystemd through its RUNPATH, so pointing that at the
   # full systemd's libraries is the whole fix — a copy and a patchelf, not a
-  # rebuild of Alloy. Listed in ../../docs/blocked.toml.
+  # rebuild of Alloy. Listed in ../../../docs/blocked.toml.
   alloy =
     pkgs.runCommand "grafana-alloy-${pkgs.grafana-alloy.version}-journal-zstd"
       {

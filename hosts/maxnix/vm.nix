@@ -125,7 +125,7 @@
 
       # Generated Quickshell config points at the clone rather than the store,
       # so editing QML is a save rather than a 30 s rebuild. Scoped to the VM
-      # on purpose — see ./dev.nix for what it costs and why metal does not get
+      # on purpose — see ../../modules/base/dev.nix for what it costs and why metal does not get
       # it. This is the second evaluation, so the base machine is unaffected
       # and so are the suites, which build hostModules and never this variant.
       maxnix.dev.liveConfig = true;
@@ -163,7 +163,7 @@
       # unprivileged, so it holds an fd per inode the guest has looked up, and
       # with the runner's --cache=always the guest rarely lets go of them: the
       # walk exhausts its ~524k fds and every later lookup on the store fails.
-      # Persistent timer stamps (./persistence.nix) made this bite, since a
+      # Persistent timer stamps (../../modules/metal/persistence.nix) made this bite, since a
       # missed Monday run now catches up at the next boot. There is nothing
       # to gain here anyway — the store is mostly the host's, and hardlinking
       # it would only copy files up into the guest's disk.

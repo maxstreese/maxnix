@@ -163,7 +163,7 @@ or IDEs rather than typed, which history cannot see.
 |---|---|
 | PostgreSQL 17 server | S (`services.postgresql`) or a container; a local alias targets it, with a local password that belongs in an env file, not here |
 | libvirt, VirtualBox | X inside the VM; revisit on metal |
-| Docker | ✓ rootless, `hosts/maxnix/containers.nix` |
+| Docker | ✓ rootless, `modules/base/containers.nix` |
 
 ## Shell configuration to port
 

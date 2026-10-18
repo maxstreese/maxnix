@@ -4,7 +4,7 @@
 # asleep: the disk is open then, and what stands between a thief and the
 # session is the lock screen. (Written 2026-10-14 for a disk the TPM would
 # unlock; since 2026-10-15 a cold boot asks for the LUKS passphrase and logs
-# in by itself, ./disk.nix.) Without a limit, the lock screen, the greeter
+# in by itself, ../metal/disk.nix.) Without a limit, the lock screen, the greeter
 # after a logout, and sudo take guesses for as long as anyone cares to type.
 # NIST SP 800-63B-4 asks for at most 100 consecutive failures; this is well
 # below that, and lenient enough that typos in a long passphrase do not lock
@@ -22,13 +22,13 @@
 # Positions are relative to nixpkgs' own rules, as its pam.nix asks: fixed
 # numbers could silently reorder on an update and leave the stack open.
 #
-# Root too (even_deny_root). Root has the same password (./secrets.nix), and
+# Root too (even_deny_root). Root has the same password (../../hosts/maxnix/secrets.nix), and
 # a root login at the text console would otherwise be the way around the
 # limit. The emergency shell is unaffected: sulogin does not link PAM at all —
 # it reads /etc/shadow itself (getspnam, crypt; checked 2026-10-14) — so a
 # failed boot still offers a root shell to whoever knows the password.
 #
-# The count lives in /var/lib/faillock, preserved (./persistence.nix), not in
+# The count lives in /var/lib/faillock, preserved (../metal/persistence.nix), not in
 # faillock's default /var/run/faillock: a tmpfs, so a reboot would reset it.
 #
 # `faillock --user max` shows the count; `sudo faillock --user max --reset`

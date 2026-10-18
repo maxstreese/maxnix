@@ -1,4 +1,4 @@
-# Does the layout in ../hosts/maxnix/disk-layout.nix actually work?
+# Does the layout in ../modules/metal/disk-layout.nix actually work?
 #
 # `checks.metal` proves the metal system *builds*. That is a different claim
 # from "this disk layout partitions, formats and boots", and nothing in this
@@ -28,14 +28,14 @@ disko.lib.testLib.makeDiskoTest {
   # encrypted volume without a passphrase from somewhere, and there is no
   # human here to type one. /tmp/secret.key holding "secretsecret" is the
   # harness's own convention — it writes that file into the installer and
-  # into the initrd. See the passwordFile option in ../hosts/maxnix/disk.nix.
-  disko-config = import ../hosts/maxnix/disk-layout.nix {
+  # into the initrd. See the passwordFile option in ../modules/metal/disk.nix.
+  disko-config = import ../modules/metal/disk-layout.nix {
     passwordFile = "/tmp/secret.key";
   };
 
   # What the real machine adds to the layout, passed explicitly:
   # makeDiskoTest builds its installed system from disko-config plus its own
-  # defaults and never imports ../hosts/maxnix/disk.nix, so anything set
+  # defaults and never imports ../modules/metal/disk.nix, so anything set
   # there is invisible to this test. That is not a guess — adding an option
   # to disk.nix alone once left this test's derivation hash byte-identical.
   extraSystemConfig = {
@@ -45,7 +45,7 @@ disko.lib.testLib.makeDiskoTest {
       # modules, so both have to be handed over explicitly or the test would
       # judge a machine that has no persistence at all.
       preservation.nixosModules.preservation
-      ../hosts/maxnix/persistence.nix
+      ../modules/metal/persistence.nix
 
       # Backups, pointed at a repository inside the guest.
       #
@@ -54,7 +54,7 @@ disko.lib.testLib.makeDiskoTest {
       # and honours the excludes, and none of that is visible from the
       # configuration. The destination is local because the point is the
       # backup, not the transport.
-      ../hosts/maxnix/backup.nix
+      ../modules/metal/backup.nix
       {
         maxnix.backup = {
           enable = true;
@@ -133,7 +133,7 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("echo marker > /var/lib/sbctl/preserved-marker")
     machine.succeed("test -f /persist/var/lib/sbctl/preserved-marker")
     # Timer stamps, the same way: without them Persistent=true has nothing to
-    # catch up from after a boot (../hosts/maxnix/persistence.nix).
+    # catch up from after a boot (../modules/metal/persistence.nix).
     machine.succeed("echo marker > /var/lib/systemd/timers/preserved-marker")
     machine.succeed("test -f /persist/var/lib/systemd/timers/preserved-marker")
     # NetworkManager's saved networks and its state (../hosts/maxnix/
@@ -147,7 +147,7 @@ disko.lib.testLib.makeDiskoTest {
         machine.succeed(f"echo marker > {d}/preserved-marker")
         machine.succeed(f"test -f /persist{d}/preserved-marker")
     # And the failed-login count, so a reboot does not lift a lockout
-    # (../hosts/maxnix/login-limits.nix).
+    # (../modules/base/login-limits.nix).
     machine.succeed("echo marker > /var/lib/faillock/preserved-marker")
     machine.succeed("test -f /persist/var/lib/faillock/preserved-marker")
     first_machine_id = machine.succeed("cat /etc/machine-id").strip()
@@ -223,7 +223,7 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("echo backed-up > /persist/backup-marker")
     machine.succeed("mkdir -p /home/max/.cache")
     machine.succeed("echo nope > /home/max/.cache/excluded-marker")
-    # Rootless Docker's storage, excluded for size (../hosts/maxnix/containers.nix).
+    # Rootless Docker's storage, excluded for size (../modules/base/containers.nix).
     machine.succeed("mkdir -p /home/max/.local/share/docker")
     machine.succeed("echo nope > /home/max/.local/share/docker/docker-marker")
     # Anchors the exclude assertion below. Without a file from /home that IS

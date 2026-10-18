@@ -134,7 +134,7 @@ in
           # so checking the variable would have passed on a US keyboard.
           #
           # "German" is xkb's description for layout "de", set once in
-          # hosts/maxnix/configuration.nix. If you change that layout, this
+          # modules/base/default.nix. If you change that layout, this
           # string changes with it.
           layout = machine.succeed("${niriSocket} niri msg keyboard-layouts")
           machine.log(layout)

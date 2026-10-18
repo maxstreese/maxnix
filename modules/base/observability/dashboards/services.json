@@ -4,7 +4,7 @@
   "tags": [
     "maxnix"
   ],
-  "description": "What the servers on this machine do, seen by Beyla (eBPF) without touching them. hosts/maxnix/observability.nix says what is and is not instrumented.",
+  "description": "What the servers on this machine do, seen by Beyla (eBPF) without touching them. modules/base/observability says what is and is not instrumented.",
   "editable": true,
   "schemaVersion": 39,
   "refresh": "1m",

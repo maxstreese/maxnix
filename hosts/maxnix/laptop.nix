@@ -31,7 +31,7 @@
   # which of this machine's is there shows on the hardware, with
   # `fwupdmgr refresh` and `fwupdmgr get-updates`. A UEFI update is staged, applied at the next
   # boot, and recorded in /var/lib/fwupd, which is why that is preserved
-  # (./persistence.nix) — on the wiped root, fwupd would forget it had one
+  # (../../modules/metal/persistence.nix) — on the wiped root, fwupd would forget it had one
   # pending across exactly the reboot that applies it.
   services.fwupd.enable = true;
 }
