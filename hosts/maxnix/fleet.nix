@@ -84,8 +84,8 @@ in
 
     desktop = lib.mkEnableOption ''
       Fleet Desktop, the tray app that shows this device's status and failing
-      policies. Off until IT says it is wanted, and untested under niri and
-      Hyprland: it needs a StatusNotifier tray, which DMS provides'';
+      policies. Off until IT says it is wanted, and untested under niri: it
+      needs a StatusNotifier tray, which DMS provides'';
   };
 
   config = lib.mkIf cfg.enable {

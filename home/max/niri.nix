@@ -11,8 +11,8 @@
 #   here   wayland.windowManager.niri.settings generates
 #                                              ~/.config/niri/config.kdl.
 #
-# The Home Manager option sits under wayland.windowManager, matching Hyprland —
-# so despite both being "niri config", the two never collide.
+# The Home Manager option sits under wayland.windowManager, so despite both
+# being "niri config", the two never collide.
 {
   lib,
   osConfig,
@@ -20,12 +20,9 @@
   ...
 }:
 let
-  # The bindings shared with ./hyprland.nix, rendered into niri's shape.
-  # ./binds.nix explains why they live in one place.
-  #
+  # The command bindings from ./binds.nix, rendered into niri's shape.
   # niri spells modifiers Mod/Shift/Alt/Ctrl and joins them to the key with
-  # "+", where Hyprland writes them as a separate comma-separated field. Both
-  # spellings stay in their own renderer so neither leaks into the list.
+  # "+".
   niriMods = {
     mod = "Mod";
     shift = "Shift";
@@ -40,15 +37,15 @@ let
           lib.optionalAttrs (b ? title) { hotkey-overlay-title = b.title; }
           // lib.optionalAttrs (b.locked or false) { allow-when-locked = true; }
           # Written out even when it matches niri's default, which is `true`.
-          # The default is exactly what made this diverge from Hyprland
-          # unnoticed for as long as the shared list has existed, so the
-          # generated config.kdl says what it means rather than inheriting it.
+          # That default once made the list diverge unnoticed from Hyprland,
+          # which defaulted the other way, so the generated config.kdl says
+          # what it means rather than inheriting it.
           // {
             inherit (b) repeat;
           };
         # Kept as a list: niri's spawn is argv, so an empty string here is a
-        # real argument rather than whitespace. ./hyprland.nix has to drop
-        # those because a shell string cannot express one.
+        # real argument rather than whitespace (the brightness binds pass
+        # one).
         inherit (b) spawn;
       };
     }) (import ./binds.nix)
@@ -159,12 +156,12 @@ in
         # while the screen is locked.
         #
         # Print used to be niri's own `screenshot` here. It is Quick Capture
-        # in ./binds.nix now, shared with Hyprland.
+        # in ./binds.nix now.
         "Mod+Shift+7".show-hotkey-overlay = { };
         "Mod+Shift+E".quit = { };
       }
       # Everything that runs a command comes from ./binds.nix, rendered
-      # above, so these are identical to Hyprland's by construction.
+      # above.
       // sharedBinds;
 
       # Stated explicitly, even though niri would pick this up from
@@ -172,10 +169,10 @@ in
       # libxkbcommon falls back to the environment.
       #
       # Relying on that absence is fragile: it would break silently the day
-      # niri adopts a default (exactly as Hyprland has, with kb_layout = "us"),
-      # or the day this Home Manager module starts emitting one. Both
-      # compositors now state the layout, and both read it from the same place,
-      # so neither depends on an upstream default staying absent.
+      # niri adopts a default (exactly as Hyprland had, with kb_layout = "us"),
+      # or the day this Home Manager module starts emitting one. Read from the
+      # one place the layout is defined, so it does not depend on an upstream
+      # default staying absent.
       input.keyboard.xkb.layout = osConfig.environment.sessionVariables.XKB_DEFAULT_LAYOUT;
 
       # Client-side decorations off: niri draws its own focus ring, and CSD

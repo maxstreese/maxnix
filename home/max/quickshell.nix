@@ -61,7 +61,7 @@ in
   ];
 
   # Not asserted anywhere, so worth saying: nothing validates the QML. There is
-  # no equivalent of `niri validate` or Hyprland's --verify-config — quickshell
+  # no equivalent of `niri validate` — quickshell
   # needs a Wayland session to load a config at all, so a syntax error surfaces
   # when you run it and not before. The store copy is at least built, which
   # catches a missing file; it does not catch a broken one.

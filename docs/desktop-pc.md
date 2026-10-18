@@ -72,8 +72,8 @@ one definition of "the machine" and nothing finer to choose from.
   (user `max`, timezone, keymap, Nix settings, gc and optimise), what is true
   of the ThinkPad (the facter report, `hardware.graphics`, zram, wooting) and
   what is policy for that machine (NetworkManager, Twingate, Fleet, backups).
-- `home/max/default.nix` imports DMS, Quickshell, niri, Hyprland, Ghostty and
-  Firefox next to shell, git, ssh, dev and harlequin.
+- `home/max/default.nix` imports DMS, Quickshell, niri, Ghostty and Firefox
+  next to shell, git, ssh, dev and harlequin.
 
 The proposal is roles that hosts compose:
 
@@ -81,7 +81,7 @@ The proposal is roles that hosts compose:
 modules/
   base/       user, locale and keymap, Nix settings, sops, shell and dev,
               containers, observability
-  desktop/    as today: compositors, greeter, 1Password, Steam
+  desktop/    as today: niri, greeter, 1Password, Steam
   metal/      disko + LUKS/btrfs, lanzaboote, preservation, facter, backup, Fleet
 hosts/
   maxnix/     base + desktop + metal + laptop.nix + facter.json (the ThinkPad, unchanged)
@@ -89,7 +89,7 @@ hosts/
   <desktop>/  base + desktop + metal + an NVIDIA/gaming role (section 5)
 home/max/
   core/       shell, git, ssh, dev, harlequin
-  desktop/    DMS, Quickshell, niri, Hyprland, Ghostty, Firefox, apps, binds
+  desktop/    DMS, Quickshell, niri, Ghostty, Firefox, apps, binds
 ```
 
 In the flake: a small `mkHost`, `nixosConfigurations.wsl`, its
@@ -160,8 +160,9 @@ nothing to do with maxnix.
 usable since explicit sync landed. The hard stop is kernel-level anti-cheat,
 which some competitive multiplayer games require and Linux does not get.
 Check the actual library against areweanticheatyet.com and ProtonDB before
-deciding anything. HDR and VRR are further along in Hyprland than in niri;
-check both against the monitor in question.
+deciding anything. HDR and VRR were further along in Hyprland than in niri,
+and niri is the only compositor since 2026-10-18 (README, "Decisions, and
+why"), so check niri's support against the monitor in question.
 
 **Developing.** It depends on the engine:
 

@@ -1,7 +1,7 @@
 # DankMaterialShell — a Quickshell-based desktop shell.
 #
-# This fills the gap both compositors leave: niri and Hyprland draw windows and
-# nothing else, so out of the box there is no bar, no launcher, no notification
+# This fills the gap the compositor leaves: niri draws windows and nothing
+# else, so out of the box there is no bar, no launcher, no notification
 # centre and no power menu. DMS provides all of it, built on Quickshell — which
 # means running it is also a way to evaluate Quickshell as a platform before
 # writing any QML ourselves.
@@ -19,11 +19,9 @@
 #      and Mod+V with toggle-window-floating.
 #
 # Nothing in it is hard to reproduce: every binding is `dms ipc <thing>
-# <action>`. So the binds live in ./niri.nix and ./hyprland.nix, which also
-# gets them into Hyprland — something the DMS module cannot do, since it only
-# supports niri.
+# <action>`. So the binds live in ./binds.nix, rendered by ./niri.nix.
 #
-# The main module below is compositor-agnostic: it mentions neither compositor.
+# The main module below is compositor-agnostic: it does not mention niri.
 {
   inputs,
   osConfig,

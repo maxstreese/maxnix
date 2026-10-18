@@ -53,19 +53,18 @@
   #
   # services.xserver.xkb.layout deliberately does NOT appear here. It is the
   # conventional NixOS spelling and it would do nothing: XKB_DEFAULT_LAYOUT
-  # appears nowhere in the NixOS module tree, and neither programs.niri nor
-  # programs.hyprland reads services.xserver.xkb. Setting it alone evaluates
+  # appears nowhere in the NixOS module tree, and programs.niri does not read
+  # services.xserver.xkb. Setting it alone evaluates
   # fine and leaves you on "us".
   #
   # This reaches the compositor because sessionVariables are written to
   # /etc/pam/environment, which pam_env applies in greetd's PAM session.
   #
   # It is a *default*, and only compositors that leave the layout unset will
-  # consult it. niri does, and reports "German". Hyprland does NOT: its own
-  # input:kb_layout defaults to "us", so it always passes a non-empty value and
-  # libxkbcommon never falls back to the environment. home/max/hyprland.nix
-  # therefore sets kb_layout explicitly — reading it back from this option, so
-  # the layout is still defined in exactly one place.
+  # consult it. niri does, and reports "German"; Hyprland, while it ran here,
+  # did not (its kb_layout defaults to "us"). home/max/niri.nix states the
+  # layout anyway, reading it back from this option, so the layout is still
+  # defined in exactly one place.
   #
   # Add XKB_DEFAULT_VARIANT / _OPTIONS here too if you ever want e.g.
   # nodeadkeys — your host currently sets neither.
@@ -341,9 +340,9 @@
     # ~/.nix-profile, which keeps them inside the generation.
     useUserPackages = true;
 
-    # niri and Hyprland have already written real files to
-    # ~/.config/niri/config.kdl and ~/.config/hypr/hyprland.lua inside this
-    # VM's disk image. Home Manager refuses to clobber existing regular files,
+    # niri had already written a real ~/.config/niri/config.kdl (and
+    # Hyprland its own config, back when it ran here) inside this VM's disk
+    # image. Home Manager refuses to clobber existing regular files,
     # so without this the very first activation fails with a confusing error.
     # With it, they are renamed aside — which is also a neat demonstration of
     # the imperative state this whole layer exists to replace.

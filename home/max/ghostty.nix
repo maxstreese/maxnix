@@ -6,8 +6,8 @@
 # bus asks systemd to start the service; if one is, it opens a window in
 # ~20 ms instead of the ~300 ms a fresh process needs. Every window then
 # lives in ghostty's own unit, app-com.mitchellh.ghostty.service — outside
-# the compositor's cgroup on both compositors, which is the separation
-# `uwsm app --` (Hyprland) and niri's per-spawn scopes exist for.
+# the compositor's cgroup, which is the separation niri's per-spawn scopes
+# exist for.
 #
 # Do not set `class` in ghostty's config: the docs warn it breaks the D-Bus
 # activation the service relies on. Nothing else is configured yet; the

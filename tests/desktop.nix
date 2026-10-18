@@ -1,5 +1,5 @@
-# Compositor-agnostic checks: the machine boots, the greeter is up, both
-# compositors are installed and offered as sessions, and the guest GPU works.
+# Compositor-agnostic checks: the machine boots, the greeter is up, niri is
+# installed and the only session offered, and the guest GPU works.
 #
 # Deliberately has NO autologin, so this exercises the configuration exactly as
 # committed. Per-compositor behaviour lives in ./compositor.nix.
@@ -98,23 +98,16 @@
           machine.wait_for_unit("multi-user.target")
           machine.wait_for_unit("greetd.service")
 
-      with subtest("both compositors are installed"):
+      with subtest("niri is installed"):
           machine.succeed("niri --version")
-          # NOT `Hyprland --version`: it aborts with "XDG_RUNTIME_DIR is not
-          # set" and dumps core. The driver's backdoor is a bare root shell
-          # with no user session, and Hyprland demands a runtime dir even to
-          # print its version. Presence on PATH is what this asks.
-          machine.succeed("command -v Hyprland")
 
-      with subtest("both register a session for the greeter to offer"):
+      with subtest("niri is the one session the greeter offers"):
+          # Exactly one: Hyprland's two entries went with it on 2026-10-18,
+          # and a session that reappears here (a module enabling a compositor
+          # as a side effect) would be offered at login unconfigured.
           desktops = "${nodes.machine.services.displayManager.sessionData.desktops}/share/wayland-sessions"
-          sessions = machine.succeed(f"ls {desktops}")
-          assert "niri.desktop" in sessions, sessions
-          # The package ships two Hyprland entries; the UWSM-managed one is
-          # the session meant to be used, so it is the one asserted on.
-          assert "hyprland-uwsm.desktop" in sessions, sessions
-          entry = machine.succeed(f"cat {desktops}/hyprland-uwsm.desktop")
-          assert "uwsm start" in entry, entry
+          sessions = machine.succeed(f"ls {desktops}").split()
+          assert sessions == ["niri.desktop"], sessions
 
       with subtest("the store is kept from growing without bound"):
           # Timers rather than the options that create them: an option set to

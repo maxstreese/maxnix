@@ -1,5 +1,5 @@
 {
-  description = "maxnix — a NixOS machine running niri and Hyprland with Quickshell; staged as a VM until it becomes the host";
+  description = "maxnix — a NixOS machine running niri with Quickshell; staged as a VM until it becomes the host";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -223,10 +223,10 @@
         };
       };
 
-      # Integration tests over that same machine definition. The two compositor
-      # tests differ only in how you ask a compositor what it is doing, so the
-      # test body is shared — see tests/compositor.nix. `session` is the
-      # desktop entry the greeter would offer; the test runs its real Exec.
+      # Integration tests over that same machine definition. The compositor
+      # test is parameterised by how you ask a compositor what it is doing —
+      # see tests/compositor.nix. `session` is the desktop entry the greeter
+      # would offer; the test runs its real Exec.
       #
       # Each is built twice, from one definition, differing only in `gpu`:
       #
@@ -260,90 +260,9 @@
             # subcommand. It needs none, and that is measured rather than
             # assumed: the home-manager module runs `niri validate` while
             # building config.kdl, so an unusable key fails the *build* with
-            # "error loading config". Hyprland accepts the same config
-            # happily and simply does not fire the bind, which is why it gets
-            # a runtime assertion and niri does not.
-            #
-            # Injecting a bogus keysym into home/max/binds.nix was checked
-            # both ways: the niri config derivation fails, and the Hyprland
-            # subtest fails. Between them the shared list is covered at both
-            # ends.
-            binds = null;
-            expectBinds = null;
-            declaredBinds = null;
-            # The bar-placement subtest reads geometry niri's IPC does not
-            # report; see tests/compositor.nix.
-            hyprctl = null;
-          }
-        );
-
-        hyprland = pkgs.testers.runNixOSTest (
-          import ./tests/compositor.nix {
-            inherit hostModules gpu;
-            name = "hyprland";
-            # The UWSM-managed entry, not the plain one: that is the session
-            # meant to be used, see modules/desktop/hyprland.nix.
-            session = "hyprland-uwsm";
-            # Launch the way the binds do, and expect the window in ghostty's
-            # own unit rather than inside the compositor's.
-            launch = "uwsm app -- ghostty +new-window";
-            appUnit = "app-com.mitchellh.ghostty.service";
-            # Wait for the *command* socket, not just the instance directory.
-            # The directory and .socket2.sock (events) appear well before
-            # .socket.sock, so watching the directory races and hyprctl then
-            # fails with "Couldn't connect ... (4)".
-            ipcReady = "ls /run/user/1000/hypr/*/.socket.sock";
-            # XDG_RUNTIME_DIR is required even with the instance signature:
-            # hyprctl resolves its socket relative to it, and the driver's
-            # backdoor is a bare root shell that has none.
-            outputs = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl monitors";
-            layout = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl devices";
-            binds = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl binds";
-
-            # What the shared list in home/max/binds.nix should come out as on
-            # the other side, as (kind, modmask, key) triples.
-            #
-            # Built from that list rather than written out, so it is the list
-            # itself being asserted and a binding added there is covered here
-            # for free. The two halves are Hyprland's own spellings and belong
-            # here rather than in the neutral list:
-            #
-            #   kind     hyprctl renders the flags as suffixes in a fixed
-            #            order (HyprCtl.cpp: l, m, r, e, n, a, d, x), so a
-            #            locked+repeating bind reports as "bindle" and a
-            #            repeating one as "binde". Asserting the kind
-            #            therefore asserts both shared flags, which is what
-            #            makes `repeat` in binds.nix a tested claim rather
-            #            than a documented intention.
-            #   modmask  the mod bitmask Hyprland reports, not a spelling.
-            expectBinds = builtins.toJSON (
-              map (b: [
-                ("bind" + lib.optionalString (b.locked or false) "l" + lib.optionalString b.repeat "e")
-                (lib.foldl' (
-                  acc: m:
-                  acc
-                  + {
-                    shift = 1;
-                    ctrl = 4;
-                    alt = 8;
-                    mod = 64;
-                  }
-                  .${m}
-                ) 0 b.mods)
-                b.key
-              ]) (import ./home/max/binds.nix)
-            );
-
-            # How many bindings the config declares, counted from the config
-            # the machine actually booted with. A hardcoded number would have
-            # to be maintained; this cannot go stale, and it is what turns the
-            # check from "the shared ones are there" into "and nothing else
-            # was lost".
-            declaredBinds = "grep -c '^hl\.bind(' /home/max/.config/hypr/hyprland.lua";
-
-            # hyprctl with the environment the backdoor shell lacks, for the
-            # subtests that ask Hyprland for JSON.
-            hyprctl = "XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1) hyprctl";
+            # "error loading config" (checked by injecting a bogus keysym into
+            # home/max/binds.nix). Hyprland, while it ran here, accepted such
+            # a config and needed a runtime assertion on `hyprctl binds`.
           }
         );
       };
@@ -365,7 +284,6 @@
       staticChecks = {
         formatting = treefmtEval.config.build.check inputs.self;
         lint = lintCheck;
-        hyprland-config = hyprlandConfigCheck;
       };
 
       # The machine as it would be installed, built.
@@ -696,13 +614,12 @@
       #
       # An ssh login is not part of the graphical session, so on its own it has
       # none of the variables that point at it: no WAYLAND_DISPLAY, no
-      # NIRI_SOCKET, no HYPRLAND_INSTANCE_SIGNATURE. `niri msg` then fails,
-      # `hyprctl` and anything Wayland cannot find the compositor, and the
-      # screenshot example above used to be `grim -`, which had both problems
-      # (grim is not even installed) and so printed nothing (found 2026-10-08).
-      # Both compositors already export exactly these into the systemd user
-      # manager — niri itself, Hyprland through UWSM — so the session's own
-      # values are imported from there rather than guessed from socket names.
+      # NIRI_SOCKET. `niri msg` then fails, anything Wayland cannot find the
+      # compositor, and the screenshot example above used to be `grim -`,
+      # which had both problems (grim is not even installed) and so printed
+      # nothing (found 2026-10-08). niri already exports exactly these into
+      # the systemd user manager, so the session's own values are imported
+      # from there rather than guessed from socket names.
       # With no session (greeter only) the grep finds nothing and the command
       # runs as before.
       #
@@ -715,7 +632,7 @@
         runtimeInputs = [ vmSshShim ];
         text = ''
           # shellcheck disable=SC2016  # expanded in the guest, not here
-          session='set -a; eval "$(systemctl --user show-environment 2>/dev/null | grep -E "^(WAYLAND_DISPLAY|DISPLAY|NIRI_SOCKET|HYPRLAND_INSTANCE_SIGNATURE)=")"; set +a'
+          session='set -a; eval "$(systemctl --user show-environment 2>/dev/null | grep -E "^(WAYLAND_DISPLAY|DISPLAY|NIRI_SOCKET)=")"; set +a'
           if [ $# -eq 0 ]; then
             # A command suppresses ssh's automatic tty, so ask for one back.
             exec ssh -t max@127.0.0.1 "$session; exec \"\$SHELL\" -l"
@@ -1082,11 +999,11 @@
       #
       # Two tiers, both declared in this flake:
       #
-      #   always   `nix flake check` — formatting, lint, and the three VM
-      #            suites without their screen assertions. Sandboxed, so
+      #   always   `nix flake check` — formatting, lint, the metal stage, and
+      #            the two desktop suites without their screen assertions. Sandboxed, so
       #            results are cached: a second run of an unchanged tree is
       #            nearly free.
-      #   with a   the same three suites with every subtest, through the
+      #   with a   the same two suites with every subtest, through the
       #   GPU      interactive driver. Not sandboxed, because the Nix sandbox
       #            does not mount /sys and Mesa cannot identify a render node
       #            without it — eglInitialize fails even with the device
@@ -1148,13 +1065,14 @@
             echo >&2
             echo "-- vm suites, portable tier --" >&2
             # --max-jobs 1 because these guests are the whole desktop machine,
-            # 8192 MiB each: in parallel they may grow to 24 GiB, and a GitHub
-            # runner has 16 (install-nix-action sets max-jobs = auto there).
+            # 8192 MiB each: in parallel they may grow to 16 GiB, all a GitHub
+            # runner has (install-nix-action sets max-jobs = auto there).
             # A guest keeps every page it touches, page cache included, so
             # the ceiling is what bounds it, not a typical run. Measured on
-            # the host, 2026-10-12, peaks were desktop 2.8 GiB, niri 3.0,
-            # hyprland 3.6. Stated here rather than left to whatever
-            # nix.conf says — the divergence this runner exists to prevent.
+            # the host, 2026-10-12, peaks were desktop 2.8 GiB, niri 3.0
+            # (and 3.6 for hyprland, a suite since removed). Stated here
+            # rather than left to whatever nix.conf says — the divergence
+            # this runner exists to prevent.
             #
             # The metal stage above runs in parallel, on less margin: its
             # ceilings add up to 17 GiB (observability's 4096 + 4096 + 1024,
@@ -1171,10 +1089,10 @@
               echo "SKIPPED, no render node — these need a GPU:" >&2
               echo "  desktop:  the guest has a GPU with working virgl" >&2
               echo "  desktop:  the greeter renders" >&2
-              echo "  niri/hyprland: drives the virtual display" >&2
-              echo "  niri/hyprland: starts the DankMaterialShell service" >&2
-              echo "  niri/hyprland: renders a client window" >&2
-              echo "  niri/hyprland: the session renders a rich screen" >&2
+              echo "  niri:     drives the virtual display" >&2
+              echo "  niri:     starts the DankMaterialShell service" >&2
+              echo "  niri:     renders a client window" >&2
+              echo "  niri:     the session renders a rich screen" >&2
               echo >&2
               echo "ok (portable tier only)" >&2
               exit 0
@@ -1518,67 +1436,6 @@
             touch "$out"
           '';
 
-      # Hyprland parses its own config and says whether it would load.
-      #
-      # `Hyprland --verify-config` reads the config and exits before bringing
-      # up a backend, so it needs no GPU, no seat and no Wayland socket. That
-      # puts it in the static tier next to statix rather than behind a booted
-      # VM, and it closes an asymmetry: niri has been validated at build time
-      # since the beginning (the home-manager module runs `niri validate`
-      # while building config.kdl), Hyprland never was.
-      #
-      # ── What it catches, measured rather than assumed ────────────────────
-      #
-      # Calibrated by injecting faults into the real generated config and
-      # running this exact command against them:
-      #
-      #   hl.dsp.window.cloze()             exit 1, "attempt to call a nil value"
-      #   "SUPER + QQQ"                     exit 1, "Unknown keysym"
-      #   hl.dsp.focus({ wrkspace = 1 })    exit 1, "unrecognized arguments"
-      #   hl.dsp.focus({ direction = "l" }) exit 0, NOT caught
-      #
-      # It checks names and not values: dispatchers, keysyms and option fields
-      # all have to exist, but a direction Hyprland does not understand parses,
-      # registers, and then does nothing when the key is pressed. Nothing here
-      # catches that — not this check and not the runtime one, which sees a
-      # perfectly ordinary registered bind. It needs a human pressing the key.
-      #
-      # This got substantially stronger with the move to Lua. The same config
-      # under hyprlang returned "config ok" for an unresolvable keysym, which
-      # is where the repo's dead binds came from; Lua validates keysyms at
-      # parse time. tests/compositor.nix keeps its `hyprctl binds` assertion
-      # anyway, for what a parse cannot show: that the compositor really
-      # starts with this config, registers every bind, and preserves the flags
-      # (locked, repeating) that never appear in --verify-config output.
-      #
-      # The filename is derived from configType, so this survived that move
-      # untouched — the gate was in place before the port rather than landing
-      # with it.
-      hyprlandConfigCheck =
-        let
-          hm = maxnix.config.home-manager.users.max;
-          isLua = hm.wayland.windowManager.hyprland.configType == "lua";
-          configFile = hm.xdg.configFile."hypr/hyprland.${if isLua then "lua" else "conf"}".source;
-        in
-        pkgs.runCommand "maxnix-hyprland-config" { } ''
-          # Required, not hygiene. Hyprland aborts before it reads the config
-          # if XDG_RUNTIME_DIR is unset — "Critical error thrown:
-          # XDG_RUNTIME_DIR is not set!", std::terminate, core dumped — which
-          # an interactive shell has and a sandboxed build does not. Verified
-          # by removing this line: the check failed with that abort rather
-          # than with a config error, which would have made it look like a
-          # broken config forever after.
-          #
-          # It does not silence the "logs will be written to /hyprland.log"
-          # line or the failed write behind it; that path comes from an
-          # instance signature never assigned in verify mode, and neither this
-          # nor HOME moves it. Harmless, and it does not touch the exit status.
-          export XDG_RUNTIME_DIR="$PWD"
-          ${maxnix.config.programs.hyprland.package}/bin/Hyprland \
-            --verify-config -c ${configFile}
-          touch "$out"
-        '';
-
       # statix looks for statix.toml in the directory it is run from, which is
       # why this cds into the source instead of passing paths. That file lists
       # the two lints this repo switches off, and why.
@@ -1621,20 +1478,20 @@
         ci = ciRunner;
       };
 
-      # Everything that runs on any machine: the two static checks and the
-      # three VM suites minus their screen assertions. `nix flake check` is
+      # Everything that runs on any machine: the static checks, the metal
+      # stage and the VM suites minus their screen assertions. `nix flake check` is
       # therefore meaningful here and on a GPU-less runner alike.
       #
       # The GPU suites are deliberately absent. They are not hidden — they are
-      # `nix run .#test-desktop|test-niri|test-hyprland`, and `nix run .#ci`
+      # `nix run .#test-desktop|test-niri`, and `nix run .#ci`
       # runs them automatically wherever a render node exists. Keeping them
       # out of `checks` is what lets `nix flake check` be a command that
       # passes everywhere rather than one you have to qualify.
       checks.${system} = portableChecks;
 
-      # nix run .#test-desktop | .#test-niri | .#test-hyprland
+      # nix run .#test-desktop | .#test-niri
       #
-      # All three bind the same VNC port, so run them one at a time.
+      # Both bind the same VNC port, so run them one at a time.
       apps.${system} = {
         vm-headless = {
           type = "app";

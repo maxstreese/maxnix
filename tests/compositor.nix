@@ -1,14 +1,13 @@
 # Integration test for one compositor: log straight into it, then check that it
 # claims the GPU, drives the virtual display, and actually draws something.
 #
-# Parameterised because niri and Hyprland differ only in how you ask them what
-# they are doing. Instantiated once per compositor in flake.nix.
+# Parameterised from when niri and Hyprland both ran here and differed only in
+# how you ask them what they are doing; instantiated for niri in flake.nix.
 #
 # HOW TO RUN:
 #   nix run .#test-niri                    every subtest, needs a GPU
 #   nix build .#checks.x86_64-linux.niri   the portable subtests, sandboxed
-# and the same two for hyprland. See tests/desktop.nix for why the GPU tier
-# cannot be a sandboxed build.
+# See tests/desktop.nix for why the GPU tier cannot be a sandboxed build.
 compositor:
 { hostPkgs, lib, ... }:
 {
@@ -33,8 +32,8 @@ compositor:
     let
       # The greeter would read Exec= out of this very file and hand it to
       # greetd. Do the same, at runtime, so the test launches exactly what a
-      # login does — including uwsm for Hyprland — and cannot drift from the
-      # session file if its Exec changes.
+      # login does and cannot drift from the session file if its Exec
+      # changes.
       desktops = config.services.displayManager.sessionData.desktops;
       runSession = pkgs.writeShellScript "run-${compositor.session}-session" ''
         entry="${desktops}/share/wayland-sessions/${compositor.session}.desktop"
@@ -111,79 +110,19 @@ compositor:
       machine.wait_for_unit("multi-user.target")
 
       with subtest("${compositor.name} comes up and exposes its IPC"):
-          # Waiting on the IPC socket rather than pgrep on purpose: Hyprland's
-          # process name is the wrapper (.Hyprland-wrapped, truncated to 15
-          # chars in comm), so `pgrep -x Hyprland` finds nothing. The IPC
-          # appearing is also the more meaningful signal.
+          # Waiting on the IPC socket rather than pgrep on purpose: the IPC
+          # appearing is the more meaningful signal, and a Nix-wrapped
+          # program's process name is its wrapper's (see ghostty below).
           machine.wait_until_succeeds("${compositor.ipcReady}")
 
-    ''
-    + lib.optionalString (compositor.binds != null) ''
-
-      with subtest("${compositor.name} registered the shared bindings"):
-          # Asks the compositor what it actually bound, rather than trusting
-          # that a config it accepted means what it says.
-          #
-          # This is the failure mode worth guarding: a key name the compositor
-          # cannot resolve is not fatal. It logs, if anything, and carries on
-          # with one bind silently missing — the compositor still starts, the
-          # IPC still answers, and every other assertion here still passes.
-          # The repo has a whole class of dead binds from exactly that —
-          # though under a Lua config `checks.hyprland-config` now rejects an
-          # unknown keysym at build time, so this is no longer the only guard
-          # against it (the calibration is in flake.nix). What a parse still
-          # cannot show is what this subtest is for: that the compositor
-          # really starts with this config, registers every bind, and keeps
-          # the flags, none of which --verify-config reports.
-          #
-          # Matched on modifiers and key rather than on the command, because
-          # under a Lua config the command is not in the IPC output at all:
-          # every bind reports `dispatcher: __lua` and an opaque `arg: N`.
-          # The old assertion looked for "spotlight" in this output and would
-          # now be checking a string that can never appear.
-          import json, re
-
-          registered = machine.succeed("${compositor.binds}")
-          machine.log(registered)
-
-          actual, kind, modmask = set(), None, None
-          for line in registered.splitlines():
-              entry = line.strip()
-              if re.fullmatch(r"bind[a-z]*", entry):
-                  kind, modmask = entry, None
-              elif entry.startswith("modmask:"):
-                  modmask = int(entry.split(":", 1)[1])
-              elif entry.startswith("key:") and kind is not None:
-                  actual.add((kind, modmask, entry.split(":", 1)[1].strip()))
-
-          # Derived from home/max/binds.nix in flake.nix, so it cannot drift
-          # from the shared list: add a binding there and it is asserted here
-          # without touching this file. The kind carries the flags, so
-          # `bindle` also asserts that locked and repeating survived.
-          expected = {tuple(row) for row in json.loads(r"""${compositor.expectBinds}""")}
-          missing = expected - actual
-          assert not missing, (
-              f"declared in binds.nix but not registered: {sorted(missing)}\n\n"
-              + registered
-          )
-
-          # And that nothing was dropped outside the shared list either: the
-          # window-management binds are Hyprland's own and not in binds.nix.
-          # Counted from the generated config rather than hardcoded, so this
-          # stays honest as bindings are added or removed.
-          declared = int(machine.succeed("${compositor.declaredBinds}").strip())
-          assert len(actual) == declared, (
-              f"config declares {declared} bindings, compositor registered "
-              f"{len(actual)}\n\n" + registered
-          )
     ''
     + ''
 
       with subtest("${compositor.name} uses the configured keyboard layout"):
           # Asserts the *observable* layout rather than that the input was set.
-          # XKB_DEFAULT_LAYOUT=de reaches both compositors' environments, but
-          # Hyprland ignores it (its kb_layout defaults to "us"), so checking
-          # the variable would have passed while the keyboard was still US.
+          # XKB_DEFAULT_LAYOUT=de reached Hyprland's environment too, while it
+          # ran here, and Hyprland ignored it (its kb_layout defaults to "us"),
+          # so checking the variable would have passed on a US keyboard.
           #
           # "German" is xkb's description for layout "de", set once in
           # hosts/maxnix/configuration.nix. If you change that layout, this
@@ -235,17 +174,10 @@ compositor:
 
       with subtest("${compositor.name} renders a client window"):
           # Launch a normal Wayland client against the compositor's socket,
-          # rather than going through the compositor's own IPC.
-          #
-          # `hyprctl dispatch exec` would have been the obvious route, but
-          # Hyprland 0.56 moved dispatchers to a Lua API and the old form now
-          # fails with:
-          #   error: [string "return hl.dispatch(exec kitty)"]:1: ')' expected
-          #   → Note: dispatch in lua is a shorthand for hl.dispatch(...)
-          # and hl.dsp.exec is nil, so the replacement spelling is a moving
-          # target. Starting the client ourselves is compositor-agnostic,
-          # immune to that churn, and a better test anyway: it exercises a real
-          # client connecting to a real Wayland socket.
+          # rather than going through the compositor's own IPC. Started by
+          # hand since Hyprland 0.56 broke `hyprctl dispatch exec`, and the
+          # better test anyway: it exercises a real client connecting to a
+          # real Wayland socket.
           machine.succeed(
               """su max -c 'export XDG_RUNTIME_DIR=/run/user/1000; """
               """export WAYLAND_DISPLAY=$(cd "$XDG_RUNTIME_DIR" && ls -1 wayland-[0-9] | head -1); """
@@ -254,7 +186,7 @@ compositor:
           # Bounded wait, and on failure show what the client and its service
           # said — a terminal that never appears otherwise fails as a silent
           # fifteen-minute timeout. Match on the command line, not the process
-          # name: like Hyprland, ghostty runs through a Nix wrapper whose comm
+          # name: ghostty runs through a Nix wrapper whose comm
           # is truncated to `.ghostty-wrappe`, so `pgrep -x ghostty` finds
           # nothing even while the window is on screen.
           try:
@@ -271,7 +203,7 @@ compositor:
 
       # The terminal must be running as a systemd unit of its own, not as
       # a child inside the compositor's — that is the point of ghostty's
-      # D-Bus service and, on Hyprland, of `uwsm app --` in the binds.
+      # D-Bus service.
       units = machine.wait_until_succeeds(
           "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user list-units --plain --no-legend \"${compositor.appUnit}\"' | grep -E 'active +running'"
       )
@@ -284,52 +216,5 @@ compositor:
       # and wallpaper (~6500). So this asserts the whole stack is on screen,
       # not merely that the compositor is not black.
       wait_for_rich_screen(machine, "${compositor.name}-session", minimum=3000)
-    ''
-    + lib.optionalString (compositor.gpu && compositor.hyprctl != null) ''
-
-      with subtest("${compositor.name} places the bar flush and tiles below it"):
-          # Guards against reserving space for the bar in the compositor
-          # config. That was done once, on the belief that the bar claimed no
-          # exclusive zone here; it does, and Hyprland applies reserved area
-          # to layer surfaces too, so the bar was pushed down under an empty
-          # strip. See home/max/hyprland.nix.
-          #
-          # Polled rather than read once: the bar's exclusive zone arrives
-          # when DMS lays it out, which can trail the screen looking rich.
-          import json, time
-
-          def geometry():
-              monitors = json.loads(machine.succeed("${compositor.hyprctl} monitors -j"))
-              layers = json.loads(machine.succeed("${compositor.hyprctl} layers -j"))
-              clients = json.loads(machine.succeed("${compositor.hyprctl} clients -j"))
-              bars = [
-                  s
-                  for output in layers.values()
-                  for level in output.get("levels", {}).values()
-                  for s in level
-                  if s.get("namespace") == "dms:bar"
-              ]
-              tiled = [c for c in clients if not c.get("floating")]
-              return monitors[0]["reserved"][1], bars, tiled
-
-          deadline = time.monotonic() + 60
-          while True:
-              reserved_top, bars, tiled = geometry()
-              if (bars and tiled and reserved_top > 0) or time.monotonic() > deadline:
-                  break
-              time.sleep(2)
-          machine.log(f"reserved top={reserved_top} bars={bars} tiled={tiled}")
-
-          assert bars, "no dms:bar layer surface"
-          assert tiled, "no tiled client to measure"
-          # Flush: nothing above the bar pushed it down.
-          assert bars[0]["y"] == 0, f"bar starts at y={bars[0]['y']}, not 0"
-          # Self-claimed: the bar reserves its own space, so no config has to.
-          assert reserved_top > 0, "bar claims no exclusive zone"
-          # Cleared: the tiled window starts below what the bar claims.
-          top = tiled[0]["at"][1]
-          assert top >= reserved_top, (
-              f"tiled window at y={top} overlaps the bar's {reserved_top}px"
-          )
     '';
 }

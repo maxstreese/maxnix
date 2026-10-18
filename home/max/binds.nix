@@ -1,54 +1,38 @@
-# The bindings both compositors share, written once.
+# The bindings that run a command, as data.
 #
-# niri and Hyprland are both permanent here, and switching between them is a
-# logout and a session pick — which only works if muscle memory transfers. So
-# the command bindings were identical in both files by hand: seventeen of
-# them, same keys, same commands, in two syntaxes. A bind added to one had to
-# be added to the other by eye, and nothing caught it when that failed.
-#
-# This is the list. ./niri.nix and ./hyprland.nix each render it into their own
-# shape, so the two cannot drift.
+# Written when niri and Hyprland both ran here and each rendered this
+# one list, so the seventeen command bindings could not drift between them.
+# Hyprland went on 2026-10-18 (README, "Decisions, and why"); ./niri.nix is
+# now the only renderer. Whether the list should stay separate from niri's
+# own binds is an open point there.
 #
 # ── What is NOT here ─────────────────────────────────────────────────────
 #
 # Window management. `focus-column-left`, `maximize-column`,
-# `consume-or-expel-window-left` and the rest are niri's scrolling-layout
-# model and have no Hyprland equivalent worth pretending to. Those stay in
-# ./niri.nix, where they belong to one compositor honestly rather than being
-# forced into a shared shape.
-#
-# The split is exactly "does this run a command": everything here spawns
-# something, which is why it is portable at all.
+# `consume-or-expel-window-left` and the rest are niri actions rather than
+# commands, and live in ./niri.nix. The split is exactly "does this run a
+# command": everything here spawns something.
 #
 # ── Why the fields are shaped like this ──────────────────────────────────
 #
-#   mods    neutral names, mapped per compositor. niri writes Mod+Shift+…,
-#           Hyprland writes `$mod SHIFT, …` — same meaning, different spelling,
-#           and keeping the neutral form means neither spelling leaks here.
-#   key     an XKB keysym, which both accept, so it needs no translation.
-#   locked  works while the session is locked. niri expresses this as
-#           _props.allow-when-locked; Hyprland as an option on the bind.
-#           One flag, two renderings.
-#   repeat  fires again while the key is held. Required, not optional, and
-#           that is the point: the two compositors default it the opposite
-#           way — niri true (niri-config/src/binds.rs, `let mut repeat =
-#           true`), Hyprland false (LuaBindingsToplevel.cpp, absent means
-#           false) — so leaving it unsaid meant every shared binding behaved
-#           differently depending on which session you had logged into, for
-#           as long as this list has existed. Naming it here is the only way
-#           the list can honestly claim the two cannot drift.
+#   mods    neutral names (mod, shift, alt, ctrl), spelled by ./niri.nix.
+#   key     an XKB keysym at the unshifted level of the `de` layout: niri
+#           resolves binds against that level, see ./niri.nix.
+#   locked  works while the session is locked; niri's allow-when-locked.
+#   repeat  fires again while the key is held. Required, not optional:
+#           niri defaults it to true (niri-config/src/binds.rs, `let mut
+#           repeat = true`), so leaving it unsaid makes every spawn repeat.
+#           The field exists because Hyprland, while it was here, defaulted
+#           the other way, and the shared list behaved differently per
+#           session until it was named.
 #
 #           The rule is: repeat a step, never a spawn or a toggle. Volume and
 #           brightness are increments and want it; holding Mod+T should not
 #           open a terminal eleven times (niri repeats at 25/s after 600ms),
-#           and holding mute should not flap it on and off. Upstream
-#           Hyprland's own example sets repeating on mute, and niri's default
-#           does the same; both are wrong about it, so both are overridden.
-#   title   shown in niri's hotkey overlay. Hyprland has no equivalent and
-#           drops it, which is why it is optional rather than required.
-#   uwsm    Hyprland launches long-lived apps through `uwsm app --` so they
-#           land in their own systemd scope rather than inside the
-#           compositor's; niri does not need it. See ./hyprland.nix.
+#           and holding mute should not flap it on and off. niri's default
+#           repeats on mute, so it is overridden.
+#   title   shown in niri's hotkey overlay. Optional: the media keys have
+#           none and stay out of the overlay.
 [
   {
     mods = [ "mod" ];
@@ -59,7 +43,6 @@
       "ghostty"
       "+new-window"
     ];
-    uwsm = true;
   }
   {
     mods = [ "mod" ];
@@ -67,11 +50,10 @@
     repeat = false;
     title = "Run an Application";
     spawn = [ "fuzzel" ];
-    uwsm = true;
   }
 
   # DankMaterialShell. Every one of these is a short-lived `dms ipc` call that
-  # talks to the already-running shell, so none of them wants uwsm.
+  # talks to the already-running shell.
   {
     mods = [ "mod" ];
     key = "Space";
@@ -228,9 +210,8 @@
   }
 
   # Screen capture, through the Quick Capture plugin (./dms.nix). This
-  # replaces niri's built-in Print screenshot, which Hyprland had no
-  # counterpart for, so Hyprland had no screenshot key at all. Print is a
-  # named keysym on no layer of any layout, so it holds on `de` as everywhere.
+  # replaces niri's built-in Print screenshot. Print is a named keysym on no
+  # layer of any layout, so it holds on `de` as everywhere.
   # Alt is avoided on purpose: Alt+Print is Sys_Req.
   #
   # `edit` opens the annotator after capturing; `float` would pin the image on

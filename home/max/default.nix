@@ -15,7 +15,6 @@
     ./dms.nix
     ./quickshell.nix
     ./niri.nix
-    ./hyprland.nix
     ./firefox.nix
     ./ghostty.nix
     ./apps.nix
@@ -33,8 +32,8 @@
   # defaults this config was written against. Set once, then leave alone.
   home.stateVersion = "26.11";
 
-  # The launcher both compositor configs spawn, and the clipboard tools. The
-  # terminal they spawn is in ./ghostty.nix; everything else installed for this
+  # The launcher the niri config spawns, and the clipboard tools. The
+  # terminal it spawns is in ./ghostty.nix; everything else installed for this
   # user is in ./dev.nix, ./apps.nix or ./git.nix.
   #
   # These were in environment.systemPackages until now — installed machine-wide
@@ -42,9 +41,7 @@
   # user preferences, so this is where they belong.
   #
   # kitty and wofi are gone: they existed only because Hyprland's *default*
-  # config named them. Now that both compositors are configured here, one
-  # terminal and one launcher serve both, which is also one less thing to
-  # keep consistent between them.
+  # config named them, back when Hyprland ran next to niri.
   home.packages = with pkgs; [
     fuzzel
     wl-clipboard
@@ -66,15 +63,14 @@
     wev
   ];
 
-  # Enabling both compositors' Home Manager modules collides here: niri's sets
-  # xdg.portal.enable = true and Hyprland's sets it false, and the module
-  # system has no way to pick.
-  #
-  # Neither is needed. Portals are already configured at the system level by
-  # the NixOS modules (programs.niri wires xdg-desktop-portal-gnome,
-  # programs.hyprland wires xdg-desktop-portal-hyprland), and that is the layer
-  # that should own them — a portal backend is machine-wide infrastructure, not
-  # a user preference. So this turns the user-level duplicate off outright.
+  # niri's Home Manager module sets xdg.portal.enable = true, a user-level
+  # copy of what is already configured at the system level: programs.niri
+  # wires xdg-desktop-portal-gnome there, and that is the layer that should
+  # own it — a portal backend is machine-wide infrastructure, not a user
+  # preference. So this turns the user-level duplicate off outright. Forced
+  # since the days Hyprland's module set the same option to false and the
+  # module system could not pick; kept forced so the system layer stays the
+  # only owner whatever a module defaults to.
   xdg.portal.enable = lib.mkForce false;
 
   programs.home-manager.enable = true;

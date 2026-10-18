@@ -30,7 +30,7 @@
 # passphrase is typed at every boot, and only someone who knows it gets
 # that far, so asking again at the greeter adds typing, not protection. So
 # greetd starts max's niri session itself (initial_session), once per boot;
-# logging out, or wanting Hyprland, lands on the greeter as before. The lock
+# logging out lands on the greeter as before. The lock
 # screen and sudo still ask for the login password.
 #
 # Only where a LUKS volume is unlocked at boot, which is metal alone: every
@@ -102,10 +102,9 @@ in
     enable = true;
 
     # The greeter is a Quickshell client, so something has to be its Wayland
-    # compositor. niri rather than Hyprland: it is the lighter of the two, its
-    # config is validated at build time by checkConfig, and it has no
-    # deprecation warning pending. This does not influence which session you
-    # then log in to — both remain on offer.
+    # compositor: niri, the session compositor too. It was chosen over
+    # Hyprland while both ran here, for being the lighter of the two and
+    # validated at build time by checkConfig.
     compositor.name = "niri";
 
     # Use the niri the system already installs rather than resolving a second

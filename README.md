@@ -1,8 +1,7 @@
 # maxnix
 
-A declarative NixOS machine running **niri** and **Hyprland** side by side,
-with **Quickshell** on top. Both compositors are in daily use; which one you
-get is a pick at the login screen, not a decision this repo is working toward.
+A declarative NixOS machine running **niri**, with **Quickshell** on top.
+Hyprland ran next to it until 2026-10-18; see "Decisions, and why".
 
 ## Why this exists
 
@@ -38,7 +37,6 @@ nix run .#vm-ssh -- niri msg outputs   # run a command in the running VM (or ope
 nix run .#vm-restore-key               # put the VM's sops key back from 1Password after a full reset
 nix run .#test-desktop                 # boot, greeter, sessions, GPU
 nix run .#test-niri                    # niri: IPC, output, layout, shell, render
-nix run .#test-hyprland                # same, for Hyprland
 nix run .#test-vm-starts               # the runner above actually starts (opens a window for 8s)
 nix run .#blocked                      # which workarounds in docs/blocked.toml upstream has unblocked
 ```
@@ -51,8 +49,8 @@ Two ways to iterate on the running machine, both faster than a test run:
 
 - **From inside.** Clone the repo to `~/Repositories/github.com/maxstreese/maxnix`
   (on the `/home` disk, so it survives a root reset), edit there or run
-  `claude` in it, then `rebuild` — ~30 s, no reboot. Both compositors reload
-  their config on the spot, DMS restarts with the activation, and DMS's own
+  `claude` in it, then `rebuild` — ~30 s, no reboot. niri reloads
+  its config on the spot, DMS restarts with the activation, and DMS's own
   theme settings need no rebuild at all. Commit and push as on any machine.
 - **Without a rebuild at all,** for the two things where 30 s per keystroke is
   not a loop. `qs-dev` runs `home/max/quickshell/` straight from the clone and
@@ -64,7 +62,7 @@ Two ways to iterate on the running machine, both faster than a test run:
   below.
 - **From the host.** Edit here, `nix run .#vm-deploy`: builds on the host,
   copies the closure in over ssh, activates. Then drive and observe the
-  desktop over the same channel: `nix run .#vm-ssh -- niri msg …`, `hyprctl`,
+  desktop over the same channel: `nix run .#vm-ssh -- niri msg …`,
   `dms ipc`, and `nix run .#vm-ssh -- dms screenshot all --stdout --no-clipboard > shot.png` for a screenshot
   to look at.
 
@@ -81,7 +79,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 |---|---|
 | host, for now | Ubuntu 24.04, GNOME Wayland. Needs a Nix daemon, `/dev/kvm` and — for the GPU tier — a render node; both at mode 0666 so sandboxed builds can use KVM |
 | distro | NixOS, `nixpkgs-unstable`, pinned by `flake.lock` |
-| compositors | niri 26.04, Hyprland 0.56.2 — both in use, switched between at login |
+| compositor | niri 26.04 |
 | shell toolkit | Quickshell 0.3.0 |
 | shell | DankMaterialShell (bar, launcher, notifications, power menu) |
 | greeter | Dank Greeter (Quickshell UI hosted in niri) |
@@ -124,10 +122,10 @@ hosts/maxnix/
   disk-layout.nix            the LUKS2/btrfs layout as data, shared with its test
   vm.nix                     build-vm specifics: window, disk images, sshd, `rebuild`
 modules/
-  desktop/{default,niri,hyprland,greeter,onepassword,gpu-check,steam}.nix  system layer
+  desktop/{default,niri,greeter,onepassword,gpu-check,steam}.nix  system layer
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
 home/max/*.nix               user layer, one file per program: default (the
-                             layer itself), niri, hyprland, dms, ghostty,
+                             layer itself), niri, binds, dms, ghostty,
                              firefox, apps, dev, git, ssh
 tests/{desktop,compositor,vnc}.nix               integration tests
 tests/disk.nix               formats, installs and boots the real disk layout
@@ -152,14 +150,12 @@ and KVM — even the QEMU binary comes from the Nix store.
 |---|---|---|
 | channel | `nixpkgs-unstable`, also on the future host | these three packages move fast; stable would evaluate old versions. Decided 2026-09-17 to keep it |
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
-| compositors | both, for good | not an A/B: both stay and get switched between. NixOS makes two configs cheap, and shared DMS bindings make switching cheap too |
+| compositor | niri only | decided 2026-10-18, reversing "both, for good". Two compositors were two configs that diverged wherever they were not generated from one list (niri's own window-management binds, layout, gaps, animation), a second desktop suite, a static check and a Lua port to follow upstream's churn. niri was already the greeter's compositor and the autologin session, and is validated at build time. Hyprland's config, suite and findings are in git history before this decision. Open for the desktop PC: Hyprland was further along on HDR and VRR (`docs/desktop-pc.md`), so niri's support is to check against that monitor |
 | VM disks | root is disposable, `/home` is its own image, host `/nix/store` shared over virtiofs | root can be deleted to reset the machine without losing a single login; the VM is a variant of the machine, not the artifact |
 | repo in the guest | its own clone, no host share | the share was the fast loop and a hole in the boundary at once, and virtiofs broke it twice over (see findings); git syncs two machines, and the host deploys over ssh — the same model metal will use |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
-| Hyprland config | `configType = "lua"` | hyprlang was deprecated at 0.55 and we pin 0.56.2, so the runway was one release. `hl.monitor`'s `reserved_area` replaced `addreserved`, which was the one thing blocking the port. Net gain rather than net cost: `--verify-config` rejects an unknown keysym under Lua and returned "config ok" for one under hyprlang |
-| Hyprland session | under UWSM | systemd-managed session like niri's. The greeter also offers the unmanaged entry; hiding it would cost a package wrapper, so it stays |
 | modifier key | Super, as upstream | QEMU's keyboard grab makes Mutter inhibit its shortcuts for the window; `scripts/vm-keys` covers the two things the grab cannot: the overlay key, and GNOME's remembered permission |
-| shell | DankMaterialShell now, own Quickshell later | a usable desktop on both compositors today; DMS's QML is a worked example to learn from |
+| shell | DankMaterialShell now, own Quickshell later | a usable desktop today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | login passwords | metal: a yescrypt hash from sops (`login-password`) for `max` and root, users immutable; every VM: plaintext `maxnix` | decided 2026-09-17 as plaintext everywhere, changed 2026-10-13 for metal after measuring that the wiped root undid every `passwd` (Findings). Immutable users make the declared hash win at every activation, so `passwd` lasts only until the next one, and changing the password is a sops edit and a rebuild — the price of one a wipe cannot reset. Root shares the hash so the emergency shell still opens. The VMs hold no metal key and keep `maxnix`, which `vm-ssh` logs in with |
 | networking | NetworkManager; networks joined in the UI (DMS's widget, `nmcli`) and preserved, not declared from sops | decided 2026-10-14. A laptop meets new networks all the time, and a rebuild per café would make the declarative way unusable; the profiles survive the wiped root on `/persist`, which the backup covers. sops-declared profiles can join them later for fixed networks, better once metal's secrets are out of the VM key's reach. `max` is in `networkmanager`, so saving a network asks for no password |
@@ -178,9 +174,8 @@ and KVM — even the QEMU binary comes from the Nix store.
 | design loop | Quickshell config points at the clone in the VM; DMS theming is captured, not declared | the store is read-only, so a colour tweak would otherwise cost a 30 s rebuild. `maxnix.dev.liveConfig` makes generated Quickshell config an out-of-store symlink into the clone, so Quickshell's own file watcher has something that can change; it is off everywhere but the VM. DMS is the other way round — its settings UI already writes a mutable file, so `dms-capture` records that into the repo rather than declaring it and taking the UI's ability to save |
 | DMS plugins | declared via `programs.dank-material-shell.plugins`, source as `flake = false` inputs; settings captured | pinned by `flake.lock` and bumped by Renovate like every other input, instead of whatever `dms plugins install` fetched that day. Settings stay out of Nix for the same reason as DMS theming: declaring any of them makes `plugin_settings.json` a store file the UI cannot save. Quick Capture records through gpu-screen-recorder on metal and wf-recorder in the VM, which has no encoder |
 | observability | Alloy, Prometheus, Loki, Tempo and Grafana; not Mimir, VictoriaMetrics, OpenObserve or SigNoz | decided 2026-10-08 after comparing all four as single-machine backends; Tempo added 2026-10-09 for Claude Code's traces (beta since that day), with its span-metrics processor writing span durations into the same Prometheus rather than a second metrics store. Beyla added 2026-10-12 for servers only, after a probe of every process in the VM: short-lived clients such as `curl`, `nix` and `claude -p` exit before it attaches, so instrumenting everything bought desktop daemons, misdetections and noise, not the requests anyone asks about. An interactive Claude Code session it would attach to, but sees none of its API calls (see Findings), so Claude Code's own telemetry stays the only source for it; metrics only, no Beyla spans in Tempo, payload extraction off. Alloy is one binary for every planned input — OTLP, node_exporter, journald, and later eBPF network telemetry and profiling, both GA there. Loki's weakness, finding a record by an unindexed ID like Claude Code's `session.id`, costs the size of the streams a query selects; Claude Code's events are their own small stream, so at one machine's volume it does not bite. Prometheus over Mimir: clustering, tenants and object storage buy nothing on one box. mcp-grafana covers all of it, already the agent tool of choice. Claude Code's telemetry goes through a wrapper around `claude`, not session variables, so no other OTel SDK is redirected; prompt text is not sent. Grafana's admin password is generated on the machine, not kept in sops: Grafana applies it only when creating its database, so sops would suggest control it does not have, and it is the only reason the stack would need a secret. Anonymous visitors are Viewers, and `enforce_domain` refuses any host but `localhost`, which closes DNS rebinding from a browser tab |
-| shared bindings | one list, with `repeat` stated per binding | niri defaults repeat to true and Hyprland to false, so every shared binding behaved differently depending on which session you logged into, until it was named. The rule is repeat a step, never a spawn or a toggle — which overrides niri's default *and* upstream Hyprland's own example on mute |
-| app launching | Hyprland binds go through `uwsm app --` | own systemd unit per app, as upstream asks; niri scopes every `spawn` itself |
-| terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup on both compositors |
+| command bindings | one list as data (`home/max/binds.nix`), with `repeat` stated per binding | made for niri and Hyprland to share; niri defaults repeat to true and Hyprland to false, so every shared binding behaved differently depending on which session you logged into, until it was named. The rule is repeat a step, never a spawn or a toggle — which overrides niri's default on mute. Kept as data after Hyprland went; whether to fold it into `niri.nix` is an open point |
+| terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup |
 | VM access | sshd in the guest, host loopback 2222, password auth | `vm-deploy` and `vm-ssh` drive the running VM from the host; loopback-only, and the password is public by decision, so a key would add nothing |
 | credentials | 1Password in the guest | the repo installs, you sign in once; browser extension, SSH agent and `op` then serve every other login. Nothing secret in Nix or git |
 | unfree packages | per-module `allowUnfreePackages` list | matched on pname and concatenated across modules, so each unfree package is named next to its reason and a new one still fails evaluation |
@@ -353,8 +348,8 @@ arrows and function keys are layout-portable; punctuation is not.
 
 **`console.keyMap` and `XKB_DEFAULT_LAYOUT` are unrelated mechanisms** — TTY vs
 Wayland — and neither implies the other. `services.xserver.xkb.layout` reaches
-*nothing* in a Wayland-only system. Hyprland ignores `XKB_DEFAULT_LAYOUT`
-because its own `kb_layout` defaults to `"us"`; niri honours it.
+*nothing* in a Wayland-only system. niri honours `XKB_DEFAULT_LAYOUT`;
+Hyprland ignored it, because its own `kb_layout` defaults to `"us"`.
 
 **QEMU's keyboard grab does work — once GNOME is allowed to honour it.** On
 Wayland every key goes to Mutter first. When QEMU grabs the keyboard, GTK sends
@@ -373,29 +368,6 @@ window.
 **Homebrew's `gsettings` shadows the system one** and reports schema *defaults*
 rather than your dconf database. Use `/usr/bin/gsettings` or `dconf` when
 reading GNOME settings.
-
-**Hyprland's Lua API is documented by the package, not the wiki.**
-`$out/share/hypr/stubs/hl.meta.lua` is 67 KB of LuaLS annotations and
-`$out/share/hypr/hyprland.lua` a full worked example — both version-matched,
-which the wiki is not. Reverse-engineering through `hyprctl eval` was never
-necessary. `hyprctl dispatch exec` fails since 0.56; `hyprctl dispatch exit`
-still works.
-
-**`hyprctl binds` tells you less under Lua.** Every bind reports
-`dispatcher: __lua` and an opaque `arg: N`, so the command is not in the
-output at all and an assertion on it can only be vacuous. Flags still show as
-kind suffixes in a fixed order (`HyprCtl.cpp`: l, m, r, e, n, a, d, x), so
-`bindle` is locked+repeating — which is what the compositor suite matches on.
-
-**`hl.bind` has no `mouse` option, and upstream's own example passes one.**
-`LuaBindingsToplevel.cpp` never reads the field, so the shipped example's
-`{ mouse = true }` on its two mouse binds is a no-op. It would be harmful if
-it worked: `KeybindManager.cpp` dispatches `k->mouse ? "mouse" : k->handler`,
-so a bind carrying it would be routed to the legacy mouse dispatcher instead
-of to the Lua closure. `{ drag = true }` is not the substitute either — it
-sets *release*, so the bind would fire on button-up. A plain bind on
-`mouse:272` is correct, because `onMouseEvent` synthesises that key name and
-runs it through ordinary matching.
 
 **virtiofs needs shared guest memory, and `build-vm` does not give it any.**
 nixpkgs moved shared directories from 9p to virtiofs in September 2026. vhost-user
@@ -445,10 +417,10 @@ anchored to `$OLDPWD` because the runner has already done `cd "$TMPDIR"`.
 `/home` must be `neededForBoot`, because activation creates `/home/max` before
 systemd mounts anything.
 
-**niri scopes spawned programs by itself; Hyprland does not.** Under a systemd
-session niri puts every `spawn` into its own transient scope (its spawning
-code says why). Hyprland launches binds as children of the compositor, so its
-launcher binds carry `uwsm app --`, per the Hyprland wiki's UWSM page.
+**niri scopes spawned programs by itself.** Under a systemd session niri puts
+every `spawn` into its own transient scope (its spawning code says why), so no
+`uwsm app --` or `systemd-run` is needed in the binds. Hyprland did not: it
+launched binds as children of the compositor.
 
 **A VM sees QEMU's emulated keyboard, not your real one.** So Wootility runs
 in the guest but finds no device. Passing the hardware through works and needs
@@ -552,8 +524,8 @@ greetd's `preStart`. They fight.
 
 ## Tests
 
-Nine VM suites, three static checks, builds of the metal system and of the
-installer USB's, a check of how it lets people in, and a startup check. The three desktop suites — `desktop`, `niri`, `hyprland` — boot
+Eight VM suites, two static checks, builds of the metal system and of the
+installer USB's, a check of how it lets people in, and a startup check. The two desktop suites — `desktop` and `niri` — boot
 the whole machine from `hostModules`, so a test node cannot drift from what
 `nix run .#vm` builds. The other six (`secrets`, `fleet`, `containers`,
 `observability`, `metal-boots`, `metal-install`) each import only what they test, on small
@@ -580,18 +552,17 @@ The tiers come from one definition instantiated twice, differing only in a
 | QEMU | `-device virtio-vga` | `-device virtio-vga-gl` + `egl-headless` + `-vnc` |
 | desktop | 10 subtests | 12 |
 | niri | 2 | 6 |
-| hyprland | 3 | 8 |
 | sandboxed | yes, and cached | no — needs `/sys`, see above |
 
 The portable tier is everything that does not look at the screen. It is not a
-guess: without virgl both compositors *start* and serve their IPC but
-enumerate zero outputs and draw nothing, so every screen assertion, and
+guess: without virgl niri (and Hyprland, while it was here) *starts* and
+serves its IPC but enumerates zero outputs and draw nothing, so every screen assertion, and
 everything downstream of having a surface, is gated. Verified 2026-09-21 by
 running all three portable suites sandboxed (8 subtests, green) and the full
 desktop suite with `+virgl` (6 subtests, green).
 
-`test-vm-starts` is the odd one out and covers what the other three
-structurally cannot. They all override `-display` to `egl-headless`, so the
+`test-vm-starts` is the odd one out and covers what the desktop suites
+structurally cannot. They override `-display` to `egl-headless`, so the
 `gtk,gl=on` path a human uses was exercised by nothing — which is how the
 `-vnc` regression in `5231c9a` shipped with every suite green. QEMU validates
 flag compatibility at startup, so "still alive after 8 s" suffices: `timeout`
@@ -599,8 +570,8 @@ reports that as exit 124, and any other status means QEMU bailed. It needs a
 graphical session and flashes a window; that is inherent to testing
 `-display gtk`.
 
-Twelve checks sit alongside the desktop suites, all sandboxed and all in CI:
-three static ones, and the metal stage — the installable system, a check of
+Eleven checks sit alongside the desktop suites, all sandboxed and all in CI:
+two static ones, and the metal stage — the installable system, a check of
 its login stacks, and the suites for one module each. Subtest counts as of
 2026-10-14.
 
@@ -608,7 +579,6 @@ its login stacks, and the suites for one module each. Subtest counts as of
 | --- | --- | --- |
 | `formatting` | every `.nix` file is nixfmt-clean; fix with `nix fmt` | — |
 | `lint` | statix, deadnix, actionlint and the Renovate config validator find nothing; fix by hand, see below | — |
-| `hyprland-config` | Hyprland parses its own generated config and would load it | — |
 | `metal` | the machine as it would be *installed* builds | — |
 | `metal-boots` | that layout partitions, formats and boots | disko's own script |
 | `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk and puts the key on `/persist`, and the system booted from it decrypts with that key. Leaves only `nixos-install --flake …#maxnix` to the day | disko's own script, plus the script's |
@@ -622,14 +592,14 @@ its login stacks, and the suites for one module each. Subtest counts as of
 `ci` builds the static checks, then the metal stage, then the portable desktop
 suites, each stage one `nix build`. The metal stage runs its suites in
 parallel, the desktop stage one at a time: a guest keeps every page it
-touches, so what bounds it is its memory ceiling, and three 8 GiB desktop
-guests would add up to 24 GiB on a 16 GB runner. The metal stage's ceilings
+touches, so what bounds it is its memory ceiling, and two 8 GiB desktop
+guests would take all of a 16 GB runner. The metal stage's ceilings
 add up to 17 GiB, its measured peaks to about 9.4 (2026-10-12, before
 `metal-install`); the numbers are in the comment above the flag in
 `flake.nix`.
 
 `metal` is the one check nothing else can stand in for. `packages.vm` builds
-the vmVariant's toplevel and the three suites build a third variant again —
+the vmVariant's toplevel and the desktop suites build a third variant again —
 all of them get their disks and bootloader from `qemu-vm.nix`, so none of them
 touches the metal path. Demonstrated by deleting
 `boot.loader.systemd-boot.enable`: `checks.metal` fails, `nix build .#vm`
@@ -752,15 +722,15 @@ Hard-won lessons encoded in them:
   test only ever seen passing is indistinguishable from one that asserts
   nothing. The first attempt at that last one was itself vacuous: it injected
   `x = pkgs.hello`, which statix correctly ignores because the binding is not
-  named after the attribute. `hyprland-config` was broken three ways — a
-  misspelled dispatcher, an unknown keysym and an unknown option field — and
-  the bind assertion by a renderer that drops `repeating`.
-- **Break the renderer, not the input.** Flipping `repeat` in
-  `home/max/binds.nix` to test that assertion proves nothing: the expectation
-  is generated from that same list, so both sides move together and the test
-  stays green. That is correct — the list is the source of truth — but it
-  means the only fault that can demonstrate the check is one in the code
-  between the list and the compositor.
+  named after the attribute. The Hyprland checks, while they existed, were
+  broken by a misspelled dispatcher, an unknown keysym, an unknown option
+  field and a renderer that dropped `repeating`.
+- **Break the renderer, not the input.** Learned on Hyprland's bind
+  assertion: flipping `repeat` in `home/max/binds.nix` proved nothing, because
+  the expectation was generated from that same list, so both sides moved
+  together and the test stayed green. That is correct — the list is the
+  source of truth — but it means the only fault that can demonstrate such a
+  check is one in the code between the list and the compositor.
 
 ---
 
@@ -823,7 +793,7 @@ generated colours.
 **What this costs.** Nothing checks the live content: the suites build
 `hostModules` and never the VM variant, so they keep testing the store copy,
 which is also what metal gets. Nothing validates the QML either — there is no
-equivalent of `niri validate` or Hyprland's `--verify-config`, because
+equivalent of `niri validate`, because
 Quickshell needs a Wayland session to load a config at all, so a syntax error
 surfaces when you run it. Until a design is promoted back into the store,
 "it is in git" and "it is what the machine will boot with" are two different
@@ -920,7 +890,7 @@ What it took, neither of it code:
   firewall checks name Debian/Ubuntu, CentOS/Fedora and Arch, not NixOS, so a
   LUKS root and the NixOS firewall may report as missing — will IT accept
   that, or write custom checks? Is Fleet Desktop wanted (`maxnix.fleet.
-  desktop`, untested under niri and Hyprland)? Should IT be able to run
+  desktop`, untested under niri)? Should IT be able to run
   scripts here (`enableScripts`, off)? Do they rely on Enterprise-edition or
   MDM features, which Fleet supports only partly on Linux? And do they enforce
   a minimum agent version? The module turns off Orbit's self-update, so the
@@ -939,23 +909,15 @@ to carry the Neovim config over, the shell aliases and functions, a few
 tools proposed but not added, and the rows marked "?".
 
 **Bind reachability is only partly checked.** The dead German binds were found
-by a hand-run audit, not by anything in the repo. Both compositors now reject a
-bad keysym at *build* time — niri's module runs `niri validate` while building
-`config.kdl`, and since the move to Lua `checks.hyprland-config` fails with
-`Unknown keysym` where the same fault under hyprlang returned "config ok".
-Both were verified by injecting one. On top of that the compositor suite
-asserts what Hyprland actually registered, derived from `home/max/binds.nix`
-so it cannot drift from the list.
+by a hand-run audit, not by anything in the repo. niri rejects a bad keysym at
+*build* time — its module runs `niri validate` while building `config.kdl` —
+verified by injecting one into `home/max/binds.nix`.
 
-Two gaps survive all of that, and neither is closed by anything here. Nothing
-compares a keysym against the *compiled keymap*, which is the check that would
-have caught `Mod+BracketLeft` being unreachable on a German layout. And
-nothing catches a valid name carrying a wrong *value*: `hl.dsp.focus({
-direction = "l" })` parses, registers, and silently does nothing when pressed,
-because "l" is not a direction Hyprland knows. The parse half is measured:
-injected into the real generated config, that fault returns "config ok". The
-runtime half is not — `hl.bind` succeeded, so the bind registers like any
-other and there is nothing for the suite to notice. It needs a human pressing
+One gap survives that, and nothing here closes it: nothing compares a keysym
+against the *compiled keymap*, which is the check that would have caught
+`Mod+BracketLeft` being unreachable on a German layout. A valid keysym that
+sits on a shifted or AltGr level parses, shows in the hotkey overlay, and
+never fires. It needs `xkbcli compile-keymap --layout de` or a human pressing
 the key.
 
 **The secrets layer is in use, on the VM and in tests; metal waits for install day.** Three post-quantum
@@ -1008,12 +970,6 @@ five, the screen stays a single colour for the full 120 s while every other
 subtest passes; an immediate rerun passes. Neither failure's log was kept, so
 the cause is unknown. The test now dumps greetd's and the greeter compositor's
 journal on that failure.
-
-**Mod+drag is unverified.** Hyprland's source says a plain bind on
-`mouse:272` is the correct shape under Lua and that `hl.dsp.window.drag()`
-carries the drag itself, but nothing here injects pointer input — that is read
-rather than observed. One drag in a real session settles it, for both
-Mod+LMB (move) and Mod+RMB (resize).
 
 **Calendar accounts are added by hand, once per machine.** They are runtime
 state — OAuth tokens in the keyring, data under `~/.local/share` — so the
@@ -1164,15 +1120,13 @@ off; the attack needs physical access twice and was judged not worth that.
 **Media and brightness keys** are GNOME keybindings like any other, so they
 should follow the grab now. Not yet verified with a keypress.
 
-**Two compositor configs to keep in step.** Both compositors stay, so their
-configs are a permanent pair rather than a temporary one. The seventeen
-command bindings are no longer the problem: they live once in
-`home/max/binds.nix` and each compositor renders them, so muscle memory
-transfers by construction. What still diverges is everything *else* — niri's
-37 native window-management binds have no Hyprland equivalent, and the two
-files differ in animation, layout and gap settings that nothing compares.
-That divergence is legitimate rather than accidental, but nothing would tell
-you if it stopped being.
+**What the second compositor left behind.** Hyprland went on 2026-10-18 (see
+"Decisions, and why"), and two shapes it explains are still here.
+`home/max/binds.nix` is a compositor-neutral list of the command bindings,
+rendered by `home/max/niri.nix` next to niri's own binds; with one renderer it
+could be folded into that file, one place for every bind. And
+`tests/compositor.nix` is still parameterised per compositor, with niri its
+only instance. Neither is wrong, both are indirection without a second user.
 
 **A second machine: the Windows desktop.** A Z690 board with an i9-12900KF
 (no iGPU) and an RTX 3080 Ti, today on Windows with WSL2. Open since

@@ -2,8 +2,7 @@
 #
 # Prints everything that determines whether a compositor will start: DRM
 # devices, the virtio_gpu module, the card's bus driver, the PCI display
-# adapter, and the EGL renderer. Run it before blaming niri or Hyprland for
-# anything.
+# adapter, and the EGL renderer. Run it before blaming niri for anything.
 #
 # It lives in the desktop layer rather than with the machine because the
 # question it answers is a desktop one, and it stays worth having on real
@@ -11,7 +10,7 @@
 { pkgs, ... }:
 let
   # Prints everything that determines whether a Wayland compositor will start.
-  # Run it on the machine before blaming niri or Hyprland for anything.
+  # Run it on the machine before blaming niri for anything.
   gpu-check = pkgs.writeShellScriptBin "gpu-check" ''
     echo "== DRM devices =="
     if [ -d /dev/dri ]; then

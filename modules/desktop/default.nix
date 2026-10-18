@@ -1,13 +1,12 @@
-# The shared desktop layer: a greeter, and the bits both compositors expect to
-# find. The compositors themselves are one file each and nothing here depends
-# on which of them is installed. Both are meant to stay — the split is so each
-# one's enablement is self-contained, not so one can be dropped later.
+# The shared desktop layer: a greeter, and the bits the compositor expects to
+# find. niri itself is in ./niri.nix. Hyprland ran next to it until
+# 2026-10-18; what it needed of this layer is why the layer states things
+# niri would have provided anyway (the keyring, below).
 { pkgs, ... }:
 {
   imports = [
     ./greeter.nix
     ./niri.nix
-    ./hyprland.nix
     ./onepassword.nix
     ./gpu-check.nix
     ./steam.nix
@@ -18,8 +17,8 @@
   # tuigreet; see that file for what changed and how to go back.
 
   # Terminals and launchers used to live here, installed machine-wide purely so
-  # the compositors' *default* keybinds would not dead-end. Both compositors
-  # are now configured in home/max, so those are user packages and moved there
+  # the compositors' *default* keybinds would not dead-end. The compositor is
+  # now configured in home/max, so those are user packages and moved there
   # — which also let kitty and wofi go entirely.
   #
   # What stays is diagnostics: tools you want available before or without a
@@ -53,19 +52,20 @@
   # compositor sessions through PAM, same route as XKB_DEFAULT_LAYOUT.
   environment.sessionVariables.NIXOS_OZONE_WL = "1";
 
-  # A Secret Service for both sessions. Firefox, Spotify, 1Password's system
+  # A Secret Service for the session. Firefox, Spotify, 1Password's system
   # authentication and anything else that "remembers a login" stores it in
   # the keyring; without one they either prompt every start or forget. The
-  # niri module already enables this (mkDefault), but the Hyprland module does
-  # not, and this layer's contract is what *both* compositors can rely on —
-  # so it is stated here rather than inherited from one of them.
+  # niri module already enables this (mkDefault), but a keyring is part of
+  # this layer's contract rather than a side effect of the compositor's
+  # module — that was learned when Hyprland's did not set it — so it is
+  # stated here.
   #
   # Enabling the daemon is half of it. The other half is unlocking the keyring
   # with the login password, and that is already covered: NixOS puts
   # pam_gnome_keyring into the `login` PAM service whenever this daemon is
   # enabled, and greetd's PAM service is a substack of `login` (greetd sets
   # useDefaultRules = false and delegates every phase to it). So the password
-  # typed into Dank Greeter unlocks the keyring, in both compositor sessions.
+  # typed into Dank Greeter unlocks the keyring.
   #
   # Do NOT set security.pam.services.greetd.enableGnomeKeyring: greetd
   # replaces its rules wholesale, so that option renders nothing — it was

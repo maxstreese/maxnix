@@ -74,10 +74,10 @@ in
   # Whether this VM gets a GL-capable GPU.
   #
   # On (the default) the guest gets virtio-vga-gl backed by the host's real
-  # GPU, which is what niri and Hyprland need to draw anything at all.
+  # GPU, which is what niri needs to draw anything at all.
   #
-  # Off, the guest still boots and both compositors still *start* — the
-  # Wayland IPC socket appears — but they enumerate no outputs and nothing is
+  # Off, the guest still boots and niri still *starts* — the
+  # Wayland IPC socket appears — but it enumerates no outputs and nothing is
   # ever drawn. Measured 2026-09-21 on both `-device virtio-gpu` and
   # `-device virtio-vga`: `niri msg outputs` returns empty and the screen
   # stays a 2-3 colour text console. Without virgl there is no GL driver for
