@@ -125,9 +125,9 @@ modules/
   desktop/{default,niri,greeter,onepassword,gpu-check,steam}.nix  system layer
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
 home/max/*.nix               user layer, one file per program: default (the
-                             layer itself), niri, binds, dms, ghostty,
+                             layer itself), niri, dms, ghostty,
                              firefox, apps, dev, git, ssh
-tests/{desktop,compositor,vnc}.nix               integration tests
+tests/{desktop,niri,vnc}.nix                     integration tests
 tests/disk.nix               formats, installs and boots the real disk layout
 tests/fleet.nix              the Fleet agent starts and retries against no server
 tests/containers.nix         rootless Docker runs a Docker Hub image behind the firewall
@@ -174,7 +174,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | design loop | Quickshell config points at the clone in the VM; DMS theming is captured, not declared | the store is read-only, so a colour tweak would otherwise cost a 30 s rebuild. `maxnix.dev.liveConfig` makes generated Quickshell config an out-of-store symlink into the clone, so Quickshell's own file watcher has something that can change; it is off everywhere but the VM. DMS is the other way round — its settings UI already writes a mutable file, so `dms-capture` records that into the repo rather than declaring it and taking the UI's ability to save |
 | DMS plugins | declared via `programs.dank-material-shell.plugins`, source as `flake = false` inputs; settings captured | pinned by `flake.lock` and bumped by Renovate like every other input, instead of whatever `dms plugins install` fetched that day. Settings stay out of Nix for the same reason as DMS theming: declaring any of them makes `plugin_settings.json` a store file the UI cannot save. Quick Capture records through gpu-screen-recorder on metal and wf-recorder in the VM, which has no encoder |
 | observability | Alloy, Prometheus, Loki, Tempo and Grafana; not Mimir, VictoriaMetrics, OpenObserve or SigNoz | decided 2026-10-08 after comparing all four as single-machine backends; Tempo added 2026-10-09 for Claude Code's traces (beta since that day), with its span-metrics processor writing span durations into the same Prometheus rather than a second metrics store. Beyla added 2026-10-12 for servers only, after a probe of every process in the VM: short-lived clients such as `curl`, `nix` and `claude -p` exit before it attaches, so instrumenting everything bought desktop daemons, misdetections and noise, not the requests anyone asks about. An interactive Claude Code session it would attach to, but sees none of its API calls (see Findings), so Claude Code's own telemetry stays the only source for it; metrics only, no Beyla spans in Tempo, payload extraction off. Alloy is one binary for every planned input — OTLP, node_exporter, journald, and later eBPF network telemetry and profiling, both GA there. Loki's weakness, finding a record by an unindexed ID like Claude Code's `session.id`, costs the size of the streams a query selects; Claude Code's events are their own small stream, so at one machine's volume it does not bite. Prometheus over Mimir: clustering, tenants and object storage buy nothing on one box. mcp-grafana covers all of it, already the agent tool of choice. Claude Code's telemetry goes through a wrapper around `claude`, not session variables, so no other OTel SDK is redirected; prompt text is not sent. Grafana's admin password is generated on the machine, not kept in sops: Grafana applies it only when creating its database, so sops would suggest control it does not have, and it is the only reason the stack would need a secret. Anonymous visitors are Viewers, and `enforce_domain` refuses any host but `localhost`, which closes DNS rebinding from a browser tab |
-| command bindings | one list as data (`home/max/binds.nix`), with `repeat` stated per binding | made for niri and Hyprland to share; niri defaults repeat to true and Hyprland to false, so every shared binding behaved differently depending on which session you logged into, until it was named. The rule is repeat a step, never a spawn or a toggle — which overrides niri's default on mute. Kept as data after Hyprland went; whether to fold it into `niri.nix` is an open point |
+| command bindings | in `home/max/niri.nix` with the rest, `repeat` stated on every one through helpers that encode the rule | the rule is repeat a step, never a spawn or a toggle — which overrides niri's default (`true`) on spawns and on mute. Named per binding since niri and Hyprland shared one list (`home/max/binds.nix`) and defaulted it oppositely, so every shared binding behaved differently per session until it was. Folded into `niri.nix` 2026-10-18, after Hyprland went, with `config.kdl` byte-identical |
 | terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup |
 | VM access | sshd in the guest, host loopback 2222, password auth | `vm-deploy` and `vm-ssh` drive the running VM from the host; loopback-only, and the password is public by decision, so a key would add nothing |
 | credentials | 1Password in the guest | the repo installs, you sign in once; browser extension, SSH agent and `op` then serve every other login. Nothing secret in Nix or git |
@@ -726,7 +726,7 @@ Hard-won lessons encoded in them:
   broken by a misspelled dispatcher, an unknown keysym, an unknown option
   field and a renderer that dropped `repeating`.
 - **Break the renderer, not the input.** Learned on Hyprland's bind
-  assertion: flipping `repeat` in `home/max/binds.nix` proved nothing, because
+  assertion: flipping `repeat` in the shared bind list proved nothing, because
   the expectation was generated from that same list, so both sides moved
   together and the test stayed green. That is correct — the list is the
   source of truth — but it means the only fault that can demonstrate such a
@@ -911,7 +911,7 @@ tools proposed but not added, and the rows marked "?".
 **Bind reachability is only partly checked.** The dead German binds were found
 by a hand-run audit, not by anything in the repo. niri rejects a bad keysym at
 *build* time — its module runs `niri validate` while building `config.kdl` —
-verified by injecting one into `home/max/binds.nix`.
+verified by injecting one into `home/max/niri.nix`.
 
 One gap survives that, and nothing here closes it: nothing compares a keysym
 against the *compiled keymap*, which is the check that would have caught
@@ -1119,14 +1119,6 @@ off; the attack needs physical access twice and was judged not worth that.
 
 **Media and brightness keys** are GNOME keybindings like any other, so they
 should follow the grab now. Not yet verified with a keypress.
-
-**What the second compositor left behind.** Hyprland went on 2026-10-18 (see
-"Decisions, and why"), and two shapes it explains are still here.
-`home/max/binds.nix` is a compositor-neutral list of the command bindings,
-rendered by `home/max/niri.nix` next to niri's own binds; with one renderer it
-could be folded into that file, one place for every bind. And
-`tests/compositor.nix` is still parameterised per compositor, with niri its
-only instance. Neither is wrong, both are indirection without a second user.
 
 **A second machine: the Windows desktop.** A Z690 board with an i9-12900KF
 (no iGPU) and an RTX 3080 Ti, today on Windows with WSL2. Open since

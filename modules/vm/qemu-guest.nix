@@ -86,7 +86,7 @@ in
   #
   # So this is not a performance knob. Off means every assertion about what is
   # on screen has to be skipped, which is exactly what tests/desktop.nix and
-  # tests/compositor.nix do with their own `gpu` flag.
+  # tests/niri.nix do with their own `gpu` flag.
   #
   # It exists because a GitHub-hosted runner has KVM but no /dev/dri, and
   # because a sandboxed `nix build` cannot do GL on this host either: the Nix

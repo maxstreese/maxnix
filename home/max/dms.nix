@@ -19,7 +19,7 @@
 #      and Mod+V with toggle-window-floating.
 #
 # Nothing in it is hard to reproduce: every binding is `dms ipc <thing>
-# <action>`. So the binds live in ./binds.nix, rendered by ./niri.nix.
+# <action>`. So the binds live in ./niri.nix.
 #
 # The main module below is compositor-agnostic: it does not mention niri.
 {

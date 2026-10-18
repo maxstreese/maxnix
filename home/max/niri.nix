@@ -14,42 +14,68 @@
 # The Home Manager option sits under wayland.windowManager, so despite both
 # being "niri config", the two never collide.
 {
-  lib,
   osConfig,
   pkgs,
   ...
 }:
 let
-  # The command bindings from ./binds.nix, rendered into niri's shape.
-  # niri spells modifiers Mod/Shift/Alt/Ctrl and joins them to the key with
-  # "+".
-  niriMods = {
-    mod = "Mod";
-    shift = "Shift";
-    alt = "Alt";
-    ctrl = "Ctrl";
+  # ── Binds that run a command ─────────────────────────────────────────────
+  #
+  # `repeat` is written out on every one of them, even where it matches niri's
+  # default, which is `true` (niri-config/src/binds.rs, `let mut repeat =
+  # true`). The rule is: repeat a step, never a spawn or a toggle. Holding
+  # Mod+T should not open a terminal eleven times (niri repeats at 25/s after
+  # 600ms), and holding mute should not flap it on and off — niri's own default
+  # config repeats on mute. Volume and brightness are increments and want it.
+  # The helpers below are that rule: what they spawn decides whether it may
+  # repeat, so no bind can leave it to the default.
+  #
+  # These lived in a compositor-neutral list, home/max/binds.nix, while niri
+  # and Hyprland both rendered it; Hyprland defaulted repeat to false, which
+  # is how the field came to be stated at all. Folded in here on 2026-10-18,
+  # right after Hyprland went, with config.kdl byte-identical.
+  #
+  # spawn is argv, so an empty string is a real argument rather than
+  # whitespace (the brightness binds pass one).
+
+  # Runs a command, shown in the hotkey overlay under `title`. Never repeats.
+  command = title: argv: {
+    _props = {
+      hotkey-overlay-title = title;
+      repeat = false;
+    };
+    spawn = argv;
   };
-  sharedBinds = lib.listToAttrs (
-    map (b: {
-      name = lib.concatStringsSep "+" (map (m: niriMods.${m}) b.mods ++ [ b.key ]);
-      value = {
-        _props =
-          lib.optionalAttrs (b ? title) { hotkey-overlay-title = b.title; }
-          // lib.optionalAttrs (b.locked or false) { allow-when-locked = true; }
-          # Written out even when it matches niri's default, which is `true`.
-          # That default once made the list diverge unnoticed from Hyprland,
-          # which defaulted the other way, so the generated config.kdl says
-          # what it means rather than inheriting it.
-          // {
-            inherit (b) repeat;
-          };
-        # Kept as a list: niri's spawn is argv, so an empty string here is a
-        # real argument rather than whitespace (the brightness binds pass
-        # one).
-        inherit (b) spawn;
-      };
-    }) (import ./binds.nix)
-  );
+
+  # A DankMaterialShell action: a short-lived `dms ipc` call that talks to the
+  # already-running shell.
+  dms =
+    title: words:
+    command title (
+      [
+        "dms"
+        "ipc"
+      ]
+      ++ words
+    );
+
+  # Media and brightness keys: no overlay title, and allowed while locked —
+  # turning the volume down should not require logging in first. A step
+  # repeats while held, a toggle does not.
+  step = argv: {
+    _props = {
+      allow-when-locked = true;
+      repeat = true;
+    };
+    spawn = argv;
+  };
+  lockedToggle = argv: {
+    _props = {
+      allow-when-locked = true;
+      repeat = false;
+    };
+    spawn = argv;
+  };
 in
 {
   wayland.windowManager.niri = {
@@ -143,6 +169,15 @@ in
 
         "Mod+O".toggle-overview = { };
 
+        "Mod+Shift+7".show-hotkey-overlay = { };
+        "Mod+Shift+E".quit = { };
+
+        "Mod+T" = command "Open a Terminal" [
+          "ghostty"
+          "+new-window"
+        ];
+        "Mod+D" = command "Run an Application" [ "fuzzel" ];
+
         # ── DankMaterialShell ──────────────────────────────────────────────
         #
         # Reproduced from inputs.dms.homeModules.niri, which we cannot import
@@ -152,17 +187,136 @@ in
         #   upstream        here              collided with
         #   Mod+Comma       Mod+Shift+Comma   Mod+Comma  consume-or-expel-left
         #   Mod+V           Mod+C             Mod+V      toggle-window-floating
-        # Media and brightness keys. Portable across layouts, and allowed
-        # while the screen is locked.
+        "Mod+Space" = dms "Toggle Application Launcher" [
+          "spotlight"
+          "toggle"
+        ];
+        # The bar. Auto-hide rather than hiding outright: windows get the full
+        # screen either way, but an auto-hidden bar still slides in at the top
+        # edge, so the clock and tray are a mouse move away instead of a
+        # keypress. Mod+Shift+B slides it in and out from the keyboard; DMS
+        # ignores that one (BAR_AUTO_HIDE_DISABLED) unless auto-hide is on.
+        # Both save to DMS's settings.json, so the state survives a restart.
+        "Mod+B" = dms "Toggle Bar Auto-Hide" [
+          "bar"
+          "toggleAutoHide"
+          "index"
+          "0"
+        ];
+        "Mod+Shift+B" = dms "Reveal or Tuck the Bar" [
+          "bar"
+          "toggleReveal"
+          "index"
+          "0"
+        ];
+        "Mod+N" = dms "Toggle Notification Center" [
+          "notifications"
+          "toggle"
+        ];
+        "Mod+Shift+Comma" = dms "Toggle Settings" [
+          "settings"
+          "toggle"
+        ];
+        "Mod+P" = dms "Toggle Notepad" [
+          "notepad"
+          "toggle"
+        ];
+        "Mod+X" = dms "Toggle Power Menu" [
+          "powermenu"
+          "toggle"
+        ];
+        "Mod+C" = dms "Toggle Clipboard Manager" [
+          "clipboard"
+          "toggle"
+        ];
+        "Mod+M" = dms "Toggle Process List" [
+          "processlist"
+          "toggle"
+        ];
+        "Mod+Alt+N" = dms "Toggle Night Mode" [
+          "night"
+          "toggle"
+        ];
+        "Mod+Alt+L" = dms "Lock the Screen" [
+          "lock"
+          "lock"
+        ];
+
+        # Screen capture, through the Quick Capture plugin (./dms.nix). This
+        # replaces niri's built-in Print screenshot. Print is a named keysym
+        # on no layer of any layout, so it holds on `de` as everywhere. Alt is
+        # avoided on purpose: Alt+Print is Sys_Req.
         #
-        # Print used to be niri's own `screenshot` here. It is Quick Capture
-        # in ./binds.nix now.
-        "Mod+Shift+7".show-hotkey-overlay = { };
-        "Mod+Shift+E".quit = { };
-      }
-      # Everything that runs a command comes from ./binds.nix, rendered
-      # above.
-      // sharedBinds;
+        # `edit` opens the annotator after capturing; `float` would pin the
+        # image on screen instead.
+        "Print" = dms "Capture a Region" [
+          "call"
+          "quickCapture"
+          "screenshot"
+          "region"
+          "edit"
+        ];
+        "Shift+Print" = dms "Capture the Screen" [
+          "call"
+          "quickCapture"
+          "screenshot"
+          "full"
+          "edit"
+        ];
+        # A toggle: the first press starts a region recording, the next stops
+        # it. gpu-screen-recorder on metal, wf-recorder in the VM; see
+        # ./dms.nix.
+        "Mod+Print" = dms "Start or Stop Recording a Region" [
+          "call"
+          "quickCapture"
+          "recordToggle"
+          "region"
+        ];
+
+        # ── Media and brightness ───────────────────────────────────────────
+        "XF86AudioRaiseVolume" = step [
+          "dms"
+          "ipc"
+          "audio"
+          "increment"
+          "3"
+        ];
+        "XF86AudioLowerVolume" = step [
+          "dms"
+          "ipc"
+          "audio"
+          "decrement"
+          "3"
+        ];
+        "XF86AudioMute" = lockedToggle [
+          "dms"
+          "ipc"
+          "audio"
+          "mute"
+        ];
+        "XF86AudioMicMute" = lockedToggle [
+          "dms"
+          "ipc"
+          "audio"
+          "micmute"
+        ];
+        "XF86MonBrightnessUp" = step [
+          "dms"
+          "ipc"
+          "brightness"
+          "increment"
+          "5"
+          ""
+        ];
+        "XF86MonBrightnessDown" = step [
+          "dms"
+          "ipc"
+          "brightness"
+          "decrement"
+          "5"
+          ""
+        ];
+      };
 
       # Stated explicitly, even though niri would pick this up from
       # XKB_DEFAULT_LAYOUT on its own — it leaves the field empty, so

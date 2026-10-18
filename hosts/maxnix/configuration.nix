@@ -111,7 +111,7 @@
   # Drive, into rclone:gdrive:maxnix-backup. Each needs the machine's key,
   # which metal gets on install day and the VM already has (./vm.nix, which
   # also gives the VM a backup folder of its own). The test nodes hold no key
-  # and turn all four off (tests/desktop.nix, tests/compositor.nix).
+  # and turn all four off (tests/desktop.nix, tests/niri.nix).
   maxnix.fleet.enable = true;
   maxnix.fleet.desktop = true;
   maxnix.harlequin.profiles.enable = true;

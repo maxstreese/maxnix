@@ -223,10 +223,8 @@
         };
       };
 
-      # Integration tests over that same machine definition. The compositor
-      # test is parameterised by how you ask a compositor what it is doing —
-      # see tests/compositor.nix. `session` is the desktop entry the greeter
-      # would offer; the test runs its real Exec.
+      # Integration tests over that same machine definition: tests/desktop.nix
+      # for the machine and its greeter, tests/niri.nix for the session.
       #
       # Each is built twice, from one definition, differing only in `gpu`:
       #
@@ -244,27 +242,7 @@
       mkTests = gpu: {
         desktop = pkgs.testers.runNixOSTest (import ./tests/desktop.nix { inherit hostModules gpu; });
 
-        niri = pkgs.testers.runNixOSTest (
-          import ./tests/compositor.nix {
-            inherit hostModules gpu;
-            name = "niri";
-            session = "niri";
-            # ghostty opens its window from its D-Bus-activated service, so
-            # even a client the test starts by hand lands in that unit.
-            launch = "ghostty +new-window";
-            appUnit = "app-com.mitchellh.ghostty.service";
-            ipcReady = "ls /run/user/1000/niri.wayland-*.sock";
-            outputs = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1) niri msg outputs";
-            layout = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1) niri msg keyboard-layouts";
-            # niri has no IPC for listing binds — `niri msg binds` is not a
-            # subcommand. It needs none, and that is measured rather than
-            # assumed: the home-manager module runs `niri validate` while
-            # building config.kdl, so an unusable key fails the *build* with
-            # "error loading config" (checked by injecting a bogus keysym into
-            # home/max/binds.nix). Hyprland, while it ran here, accepted such
-            # a config and needed a runtime assertion on `hyprctl binds`.
-          }
-        );
+        niri = pkgs.testers.runNixOSTest (import ./tests/niri.nix { inherit hostModules gpu; });
       };
 
       # The two instantiations. `tests` keeps its old meaning — the full,

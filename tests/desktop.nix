@@ -2,7 +2,7 @@
 # installed and the only session offered, and the guest GPU works.
 #
 # Deliberately has NO autologin, so this exercises the configuration exactly as
-# committed. Per-compositor behaviour lives in ./compositor.nix.
+# committed. The niri session itself is tested in ./niri.nix.
 #
 # HOW TO RUN:
 #
@@ -77,7 +77,7 @@
         "-vnc 127.0.0.1:9"
       ];
 
-      # See the note in ./compositor.nix.
+      # See the note in ./niri.nix.
       users.users.root.initialPassword = lib.mkForce null;
 
       # What uses the machine's sops secrets, off: a test node holds no key,
