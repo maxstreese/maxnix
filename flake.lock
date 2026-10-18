@@ -115,11 +115,11 @@
     "dms-plugins-hthienloc": {
       "flake": false,
       "locked": {
-        "lastModified": 1792194024,
-        "narHash": "sha256-mn1X8DNe06yNYL/fI2otMjlpbSDggBpjICMy8DOEB+Q=",
+        "lastModified": 1792303702,
+        "narHash": "sha256-En8Kh6jccpxOi0LXaRe3TydQ+dCZ1EOOEbsFY9uxH0A=",
         "owner": "hthienloc",
         "repo": "dms-plugins",
-        "rev": "9a595891d829c3703a879d50bda6d9c1b54495d3",
+        "rev": "4344da6e8a65dddf973eda684aa0fdaf3939e78b",
         "type": "github"
       },
       "original": {
@@ -190,11 +190,11 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1792099399,
-        "narHash": "sha256-GZXltf6mtqBYRuyMX2Bg+9VNvgyynHrXCNcmbkhgHuA=",
+        "lastModified": 1792270892,
+        "narHash": "sha256-aefPlhND0AelMxBw8g1R0JZKpm/Wkamhj49sbR60pHw=",
         "owner": "nix-community",
         "repo": "lanzaboote",
-        "rev": "bca381a05c2b2cde9e322a6fdba82b8984aa95b8",
+        "rev": "4b98333073bdaf9b1b5dd7d87c2dab96883b234e",
         "type": "github"
       },
       "original": {
