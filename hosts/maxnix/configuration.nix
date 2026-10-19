@@ -167,29 +167,13 @@
 
   # Unfree packages. `allowUnfreePackages` is a list matched against pname and
   # concatenated across modules, so each module names what it needs (see
-  # ../../modules/desktop/onepassword.nix for the reasoning). Two groups land
-  # here: wootility and twingate just above, and the *user* layer's — Home
-  # Manager modules
-  # cannot declare their own, because with useGlobalPkgs (below) they borrow
-  # the system's nixpkgs config. See home/max/apps.nix for why each is wanted.
+  # ../../modules/desktop/onepassword.nix for the reasoning). Here: wootility
+  # and twingate just above. The user layer's are in the roles that import
+  # it, ../../modules/base and ../../modules/desktop.
   nixpkgs.config.allowUnfreePackages = [
     "wootility"
     "twingate"
-    "spotify"
-    "claude-code"
-    "slack"
-    # See home/max/dev.nix: agent-browser's browser, and a real Chrome.
-    "google-chrome"
-    # Both halves: the wrapper and the derivation it wraps each carry the
-    # licence, and the allow-list matches on pname, so listing one leaves
-    # the other refused.
-    "discord"
-    "discord-unwrapped"
   ];
-
-  # The user layer, whole for now: shell and dev next to the desktop. The
-  # Home Manager plumbing is in ../../modules/base.
-  home-manager.users.max = import ../../home/max;
 
   # Pins the defaults this config was written against so stateful services keep
   # their original semantics across nixpkgs upgrades. It is NOT a version to

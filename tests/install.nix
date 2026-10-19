@@ -73,6 +73,8 @@ disko.lib.testLib.makeDiskoTest {
       imports = [
         sops-nix.nixosModules.sops
         ../hosts/maxnix/secrets.nix
+        # Declares maxnix.harlequin.profiles, which secrets.nix reads.
+        ../modules/base/dev.nix
         # secrets.nix reads their switches; both stay off.
         ../modules/metal/fleet.nix
         ../modules/metal/backup.nix

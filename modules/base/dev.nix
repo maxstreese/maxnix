@@ -51,4 +51,13 @@
       '';
     };
   };
+
+  # Declared here, with the other dev options, so every host that imports the
+  # user layer's core can evaluate ../../home/max/core/harlequin.nix. Where
+  # it is on, the profiles come from sops, wired per host
+  # (../../hosts/maxnix/secrets.nix).
+  options.maxnix.harlequin.profiles.enable = lib.mkEnableOption ''
+    Harlequin's connection profiles, rendered from sops into
+    ~/.config/harlequin/config.toml (see home/max/core/harlequin.nix)
+  '';
 }

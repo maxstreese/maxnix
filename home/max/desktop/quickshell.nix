@@ -31,7 +31,7 @@ in
       # The normal path, and the only one metal or a test ever sees: the
       # directory copied into the store, immutable like every other generated
       # config here.
-      ./quickshell;
+      ../quickshell;
 
   # `qs-dev` — run the scratchpad against the clone, whatever liveConfig says.
   #
@@ -41,7 +41,7 @@ in
   # that nothing reads — which is exactly the confusion the option could
   # otherwise create.
   #
-  # MAXNIX_FLAKE first, matching `rebuild` in ../../hosts/maxnix/vm.nix, so a
+  # MAXNIX_FLAKE first, matching `rebuild` in ../../../hosts/maxnix/vm.nix, so a
   # clone in an unusual place needs no rebuild to work with.
   home.packages = [
     (pkgs.writeShellApplication {

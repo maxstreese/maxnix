@@ -72,7 +72,7 @@ one definition of "the machine" and nothing finer to choose from.
   (user `max`, timezone, keymap, Nix settings, gc and optimise), what is true
   of the ThinkPad (the facter report, `hardware.graphics`, zram, wooting) and
   what is policy for that machine (NetworkManager, Twingate, Fleet, backups).
-- `home/max/default.nix` imports DMS, Quickshell, niri, Ghostty and Firefox
+- `home/max/default.nix` imported (until the split, 2026-10-18) DMS, Quickshell, niri, Ghostty and Firefox
   next to shell, git, ssh, dev and harlequin.
 
 The proposal is roles that hosts compose:
@@ -203,7 +203,11 @@ boot.
 - [ ] Settle the engine.
 - [ ] Take the facter report from a stick (section 4).
 - [ ] Find out Secure Boot, BitLocker and which disk Windows is on.
-- [x] Split the roles (section 3), system side: done 2026-10-18 (README,
-  "Decisions, and why"). `home/max` splits into core and desktop with
-  `hosts/wsl`, its first user that needs only part of it.
-- [ ] `hosts/wsl`, then a desktop host.
+- [x] Split the roles (section 3): done 2026-10-18 (README, "Decisions, and
+  why"), `home/max` into core and desktop with it.
+- [x] `hosts/wsl`, repo side: builds (`checks.wsl`), image from
+  `sudo nix run .#wsl-tarball`. Open there: its age key and which secrets it
+  gets, the login password (NixOS-WSL's default for now: none, and sudo asks
+  for none), 1Password's agent and signing bridged from Windows.
+- [ ] Import it on the desktop and boot it; see whether Beyla gets eBPF.
+- [ ] A desktop host.

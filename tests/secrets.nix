@@ -74,6 +74,8 @@ in
     imports = [
       sops-nix.nixosModules.sops
       ../hosts/maxnix/secrets.nix
+      # Declares maxnix.harlequin.profiles, which secrets.nix reads.
+      ../modules/base/dev.nix
       # On, so the wiring in secrets.nix runs exactly as on the machine:
       # both Fleet values from sops, the URL through the rendered env file.
       ../modules/metal/fleet.nix

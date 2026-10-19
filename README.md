@@ -103,7 +103,7 @@ renovate.jsonc               flake.lock and action-SHA updates, as PRs
 hosts/maxnix/secrets.nix     sops-nix: three post-quantum keys, secrets declared per consumer
 hosts/maxnix/secrets.yaml    the encrypted secrets; .sops.yaml at the root says who can open it
 hosts/maxnix/secrets-metal.yaml  metal's own, which the VM's key cannot open
-flake.nix                    inputs, roles, hostModules, packages + apps + checks + devShell
+flake.nix                    inputs, roles, mkHost, hosts, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
 docs/inventory.md            what the current host runs daily; the list to migrate from
 docs/desktop-pc.md           the second machine: maxnix under WSL, on its metal, for games
@@ -117,22 +117,24 @@ hosts/maxnix/                the ThinkPad: base + desktop + metal, and what is o
   configuration.nix          hostname, network, Twingate, wooting, zram, which features are on
   laptop.nix                 the laptop services its hardware report asks for
   vm.nix                     build-vm specifics: window, disk images, sshd, `rebuild`
+hosts/wsl/                   NixOS under WSL on the Windows desktop: base + NixOS-WSL
 modules/                     roles a host is composed from (`roles` in flake.nix)
   base/default.nix           every machine: user, locale, keyboard, Nix settings, Home Manager
   base/containers.nix        rootless Docker, with DOCKER_HOST for the whole session
   base/dev.nix               where the clone lives, and the live-config switch
   base/login-limits.nix      pam_faillock in every stack that takes the login password
   base/observability/        metrics, logs, traces, Grafana; its dashboards/ as JSON
-  desktop/{default,niri,greeter,onepassword,gpu-check,steam}.nix  niri and what it needs
+  desktop/{default,niri,greeter,lock-screen,onepassword,gpu-check,steam}.nix  niri and what it needs
   metal/disk.nix             bootloader, and the layout wired into NixOS
   metal/disk-layout.nix      the LUKS2/btrfs layout as data, shared with its test
   metal/persistence.nix      the wiped root, and what survives it on /persist
   metal/backup.nix           restic: what to back up, and what to skip
   metal/fleet.nix            the employer's Fleet agent, off until IT supplies a URL
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
-home/max/*.nix               user layer, one file per program: default (the
-                             layer itself), niri, dms, ghostty,
-                             firefox, apps, dev, git, ssh
+home/max/core/               user layer, every machine: shell, git, dev, harlequin, claude
+home/max/desktop/            user layer, with the desktop role: niri, dms, quickshell,
+                             ghostty, firefox, apps, onepassword (ssh agent, signing)
+home/max/{quickshell,dms-state}/  the QML and DMS state those two files deploy
 tests/{desktop,niri,vnc}.nix                     integration tests
 tests/disk.nix               formats, installs and boots the real disk layout
 tests/fleet.nix              the Fleet agent starts and retries against no server
@@ -157,7 +159,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | channel | `nixpkgs-unstable`, also on the future host | these three packages move fast; stable would evaluate old versions. Decided 2026-09-17 to keep it |
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
 | compositor | niri only | decided 2026-10-18, reversing "both, for good". Two compositors were two configs that diverged wherever they were not generated from one list (niri's own window-management binds, layout, gaps, animation), a second desktop suite, a static check and a Lua port to follow upstream's churn. niri was already the greeter's compositor and the autologin session, and is validated at build time. Hyprland's config, suite and findings are in git history before this decision. Open for the desktop PC: Hyprland was further along on HDR and VRR (`docs/desktop-pc.md`), so niri's support is to check against that monitor |
-| repo structure | hosts composed from roles: `modules/base`, `modules/desktop`, `modules/metal`, plus `hosts/<name>` | decided 2026-10-18, so a second machine (`docs/desktop-pc.md`) can take part of the machine rather than all of it. Roles import modules that define options; the host switches them on. Secrets stay with the host: which sops files and key a machine uses is its own. The user layer is still one `home/max`, imported by the host, until a machine without a desktop needs only part of it. Done as a refactor checked by store path: every one stayed the same except where expected — the order of the system's package list (its `sw` tree came out identical), comments inside test scripts, and the dashboards' path in the clone, which moved with observability into `modules/base` |
+| repo structure | hosts composed from roles: `modules/base`, `modules/desktop`, `modules/metal`, plus `hosts/<name>` | decided 2026-10-18, so a second machine (`docs/desktop-pc.md`) can take part of the machine rather than all of it. Roles import modules that define options; the host switches them on. Secrets stay with the host: which sops files and key a machine uses is its own. The user layer splits the same way: `home/max/core` comes with base, `home/max/desktop` with the desktop role, each role allowing its half's unfree packages. Hosts so far: `maxnix` (base, desktop, metal) and `wsl` (base, NixOS-WSL), the second only built by CI, since no NixOS test can boot WSL. Done as a refactor checked by store path: every one stayed the same except where expected — the order of the system's package list (its `sw` tree came out identical), comments inside test scripts, and the dashboards' path in the clone, which moved with observability into `modules/base` |
 | VM disks | root is disposable, `/home` is its own image, host `/nix/store` shared over virtiofs | root can be deleted to reset the machine without losing a single login; the VM is a variant of the machine, not the artifact |
 | repo in the guest | its own clone, no host share | the share was the fast loop and a hole in the boundary at once, and virtiofs broke it twice over (see findings); git syncs two machines, and the host deploys over ssh — the same model metal will use |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
@@ -181,7 +183,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | design loop | Quickshell config points at the clone in the VM; DMS theming is captured, not declared | the store is read-only, so a colour tweak would otherwise cost a 30 s rebuild. `maxnix.dev.liveConfig` makes generated Quickshell config an out-of-store symlink into the clone, so Quickshell's own file watcher has something that can change; it is off everywhere but the VM. DMS is the other way round — its settings UI already writes a mutable file, so `dms-capture` records that into the repo rather than declaring it and taking the UI's ability to save |
 | DMS plugins | declared via `programs.dank-material-shell.plugins`, source as `flake = false` inputs; settings captured | pinned by `flake.lock` and bumped by Renovate like every other input, instead of whatever `dms plugins install` fetched that day. Settings stay out of Nix for the same reason as DMS theming: declaring any of them makes `plugin_settings.json` a store file the UI cannot save. Quick Capture records through gpu-screen-recorder on metal and wf-recorder in the VM, which has no encoder |
 | observability | Alloy, Prometheus, Loki, Tempo and Grafana; not Mimir, VictoriaMetrics, OpenObserve or SigNoz | decided 2026-10-08 after comparing all four as single-machine backends; Tempo added 2026-10-09 for Claude Code's traces (beta since that day), with its span-metrics processor writing span durations into the same Prometheus rather than a second metrics store. Beyla added 2026-10-12 for servers only, after a probe of every process in the VM: short-lived clients such as `curl`, `nix` and `claude -p` exit before it attaches, so instrumenting everything bought desktop daemons, misdetections and noise, not the requests anyone asks about. An interactive Claude Code session it would attach to, but sees none of its API calls (see Findings), so Claude Code's own telemetry stays the only source for it; metrics only, no Beyla spans in Tempo, payload extraction off. Alloy is one binary for every planned input — OTLP, node_exporter, journald, and later eBPF network telemetry and profiling, both GA there. Loki's weakness, finding a record by an unindexed ID like Claude Code's `session.id`, costs the size of the streams a query selects; Claude Code's events are their own small stream, so at one machine's volume it does not bite. Prometheus over Mimir: clustering, tenants and object storage buy nothing on one box. mcp-grafana covers all of it, already the agent tool of choice. Claude Code's telemetry goes through a wrapper around `claude`, not session variables, so no other OTel SDK is redirected; prompt text is not sent. Grafana's admin password is generated on the machine, not kept in sops: Grafana applies it only when creating its database, so sops would suggest control it does not have, and it is the only reason the stack would need a secret. Anonymous visitors are Viewers, and `enforce_domain` refuses any host but `localhost`, which closes DNS rebinding from a browser tab |
-| command bindings | in `home/max/niri.nix` with the rest, `repeat` stated on every one through helpers that encode the rule | the rule is repeat a step, never a spawn or a toggle — which overrides niri's default (`true`) on spawns and on mute. Named per binding since niri and Hyprland shared one list (`home/max/binds.nix`) and defaulted it oppositely, so every shared binding behaved differently per session until it was. Folded into `niri.nix` 2026-10-18, after Hyprland went, with `config.kdl` byte-identical |
+| command bindings | in `home/max/desktop/niri.nix` with the rest, `repeat` stated on every one through helpers that encode the rule | the rule is repeat a step, never a spawn or a toggle — which overrides niri's default (`true`) on spawns and on mute. Named per binding since niri and Hyprland shared one list (`home/max/binds.nix`) and defaulted it oppositely, so every shared binding behaved differently per session until it was. Folded into `niri.nix` 2026-10-18, after Hyprland went, with `config.kdl` byte-identical |
 | terminal | ghostty via `ghostty +new-window` | replaced alacritty 2026-09-18; windows come from ghostty's own D-Bus service, so they sit outside the compositor's cgroup |
 | VM access | sshd in the guest, host loopback 2222, password auth | `vm-deploy` and `vm-ssh` drive the running VM from the host; loopback-only, and the password is public by decision, so a key would add nothing |
 | credentials | 1Password in the guest | the repo installs, you sign in once; browser extension, SSH agent and `op` then serve every other login. Nothing secret in Nix or git |
@@ -459,7 +461,7 @@ its own runtime dependencies and nothing else, with no pip. It installs
 cleanly, starts cleanly, and then a notebook's `import polars` fails, and
 installing polars elsewhere in the profile does not help. Declaring the
 library set alongside marimo in one `python3.withPackages` is what makes the
-global install honest; `home/max/dev.nix` carries the reasoning.
+global install honest; `home/max/core/dev.nix` carries the reasoning.
 
 **An unconfigured Twingate daemon respawns forever.** Its unit pairs
 `Restart=always` with `StartLimitIntervalSec=0`, which turns off systemd's
@@ -577,9 +579,9 @@ reports that as exit 124, and any other status means QEMU bailed. It needs a
 graphical session and flashes a window; that is inherent to testing
 `-display gtk`.
 
-Eleven checks sit alongside the desktop suites, all sandboxed and all in CI:
-two static ones, and the metal stage — the installable system, a check of
-its login stacks, and the suites for one module each. Subtest counts as of
+Twelve checks sit alongside the desktop suites, all sandboxed and all in CI:
+two static ones, and the metal stage — the installable systems (the ThinkPad
+and the WSL host), a check of the ThinkPad's login stacks, and the suites for one module each. Subtest counts as of
 2026-10-14.
 
 | check | what it asserts | subtests |
@@ -587,6 +589,7 @@ its login stacks, and the suites for one module each. Subtest counts as of
 | `formatting` | every `.nix` file is nixfmt-clean; fix with `nix fmt` | — |
 | `lint` | statix, deadnix, actionlint and the Renovate config validator find nothing; fix by hand, see below | — |
 | `metal` | the machine as it would be *installed* builds | — |
+| `wsl` | the WSL host (`hosts/wsl`) builds; nothing in CI can boot a WSL distribution, so its boot is checked on the desktop | — |
 | `metal-boots` | that layout partitions, formats and boots | disko's own script |
 | `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk and puts the key on `/persist`, and the system booted from it decrypts with that key. Leaves only `nixos-install --flake …#maxnix` to the day | disko's own script, plus the script's |
 | `installer` | the installer USB's system builds; the image is that plus a squashfs, left to `nix build .#installer-iso` | — |
@@ -777,7 +780,7 @@ screen. DMS is still the shell.
 
 **DMS theming** — already live, and the trap is the obvious fix. Its Home
 Manager module generates `~/.config/DankMaterialShell/settings.json` only when
-`programs.dank-material-shell.settings` is non-empty, and `home/max/dms.nix`
+`programs.dank-material-shell.settings` is non-empty, and `home/max/desktop/dms.nix`
 deliberately leaves it unset. That is *why* theming needs no rebuild: the file
 is plain mutable state DMS owns. Declaring it from the repo would move it into
 the store and take away the settings UI's ability to write it — trading the
@@ -918,7 +921,7 @@ tools proposed but not added, and the rows marked "?".
 **Bind reachability is only partly checked.** The dead German binds were found
 by a hand-run audit, not by anything in the repo. niri rejects a bad keysym at
 *build* time — its module runs `niri validate` while building `config.kdl` —
-verified by injecting one into `home/max/niri.nix`.
+verified by injecting one into `home/max/desktop/niri.nix`.
 
 One gap survives that, and nothing here closes it: nothing compares a keysym
 against the *compiled keymap*, which is the check that would have caught
@@ -980,7 +983,7 @@ journal on that failure.
 
 **Calendar accounts are added by hand, once per machine.** They are runtime
 state — OAuth tokens in the keyring, data under `~/.local/share` — so the
-configuration cannot declare them (`home/max/dms.nix`). Each needs a Desktop
+configuration cannot declare them (`home/max/desktop/dms.nix`). Each needs a Desktop
 OAuth client in Google Cloud with the Calendar API (and, for tasks, the Tasks
 API) enabled; `dcal account setup google` prints the steps:
 

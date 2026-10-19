@@ -44,7 +44,7 @@
 #
 # ── Claude Code ──────────────────────────────────────────────────────────
 #
-# Its exporter settings are in ../../../home/max/apps.nix, as a wrapper around
+# Its exporter settings are in ../../../home/max/core/claude.nix, as a wrapper around
 # the `claude` binary rather than session variables: OTEL_* in the session
 # would redirect every program with an OpenTelemetry SDK, not just this one.
 # Its counters are set to cumulative there. Prometheus rejects OTLP deltas
@@ -584,7 +584,7 @@ in
       readOnly = true;
       description = ''
         Where the Grafana service-account token for mcp-grafana is written,
-        owned by mcpTokenOwner. See home/max/apps.nix for the consumer.
+        owned by mcpTokenOwner. See home/max/core/claude.nix for the consumer.
       '';
     };
 
@@ -898,7 +898,7 @@ in
     # so no token outlives the machine state that issued it.
     #
     # Viewer because mcp-grafana runs with --disable-write anyway (see
-    # home/max/apps.nix), and a reader is all an agent analysing data needs.
+    # home/max/core/claude.nix), and a reader is all an agent analysing data needs.
     systemd.services.grafana-mcp-token = {
       description = "Issue a Grafana service-account token for mcp-grafana";
       after = [

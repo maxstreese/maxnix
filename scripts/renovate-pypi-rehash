@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Recomputes the sdist hashes in home/max/harlequin-adapters.json from the
+# Recomputes the sdist hashes in home/max/core/harlequin-adapters.json from the
 # versions in it. Renovate runs this after bumping a version there (see the
 # postUpgradeTasks in renovate.jsonc); by hand it is the same command.
 #
@@ -9,7 +9,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-file=home/max/harlequin-adapters.json
+file=home/max/core/harlequin-adapters.json
 export NIX_CONFIG="extra-experimental-features = nix-command"
 
 # The expression is Nix, single-quoted so the shell leaves its ${…} alone.

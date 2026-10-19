@@ -88,7 +88,7 @@
   // instead and asks GitHub for newer ones. (renovate#45258 would teach the
   // nix manager this; once it lands, the first entry can go.)
   //
-  // The second keeps the Harlequin adapters in home/max/harlequin-adapters.json
+  // The second keeps the Harlequin adapters in home/max/core/harlequin-adapters.json
   // on PyPI's latest release.
   //
   // Neither has an artifact step of its own — a regex manager only edits
@@ -168,10 +168,10 @@
       // the build. The script refetches every pinned sdist and rewrites the
       // hashes from the versions now in the file.
       "description": "Rehash after a Harlequin adapter bump",
-      "matchFileNames": ["home/max/harlequin-adapters.json"],
+      "matchFileNames": ["home/max/core/harlequin-adapters.json"],
       "postUpgradeTasks": {
         "commands": ["scripts/renovate-pypi-rehash"],
-        "fileFilters": ["home/max/harlequin-adapters.json"],
+        "fileFilters": ["home/max/core/harlequin-adapters.json"],
         "installTools": { "nix": {} },
         "executionMode": "update"
       }

@@ -11,7 +11,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # DMS plugins by hthienloc, one directory per plugin; home/max/dms.nix
+    # DMS plugins by hthienloc, one directory per plugin; home/max/desktop/dms.nix
     # picks the ones it wants by subpath. Not a flake, just source. Quick
     # Capture moved here from its own repo, hthienloc/dms-quick-capture,
     # which was archived on 2026-09-19.
@@ -43,7 +43,7 @@
     };
 
     # A prebuilt file->package index, so `,` and nix-locate work without
-    # anyone building a database first. See home/max/dev.nix.
+    # anyone building a database first. See home/max/core/dev.nix.
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -62,6 +62,14 @@
     # Off unless maxnix.boot.secureBoot is set; see modules/metal/disk.nix.
     lanzaboote = {
       url = "github:nix-community/lanzaboote";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # NixOS as a WSL distribution, for hosts/wsl on the Windows desktop
+    # (docs/desktop-pc.md): the module that makes a NixOS system boot under
+    # WSL, and the tarball builder for `wsl --import`.
+    nixos-wsl = {
+      url = "github:nix-community/NixOS-WSL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -104,7 +112,7 @@
           inputs.sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
 
-          # The user layer needs flake inputs of its own (home/max/dms.nix
+          # The user layer needs flake inputs of its own (home/max/desktop/dms.nix
           # imports one), and Home Manager modules do not see them by default.
           { home-manager.extraSpecialArgs = { inherit inputs; }; }
         ];
@@ -118,7 +126,13 @@
           inputs.preservation.nixosModules.preservation
           inputs.lanzaboote.nixosModules.lanzaboote
         ];
+        # Running as a WSL distribution: the platform in place of metal.
+        wsl = [ inputs.nixos-wsl.nixosModules.default ];
       };
+
+      # A host's modules: the roles it names, in that order, then its own
+      # directory.
+      mkHost = names: dir: lib.concatMap (n: roles.${n}) names ++ [ dir ];
 
       # One machine, one source of truth: the ThinkPad, as its roles and
       # hosts/maxnix.
@@ -135,11 +149,24 @@
       # It also has to be shared whole: the base role *sets* home-manager
       # options, which only exist once home-manager's NixOS module is imported
       # — so a node importing the one without the other fails to evaluate.
-      hostModules = roles.base ++ roles.desktop ++ roles.metal ++ [ ./hosts/maxnix ];
+      hostModules = mkHost [
+        "base"
+        "desktop"
+        "metal"
+      ] ./hosts/maxnix;
 
       maxnix = lib.nixosSystem {
         inherit system;
         modules = hostModules ++ [ ./hosts/maxnix/vm.nix ];
+      };
+
+      # NixOS under WSL on the Windows desktop; see hosts/wsl.
+      wsl = lib.nixosSystem {
+        inherit system;
+        modules = mkHost [
+          "base"
+          "wsl"
+        ] ./hosts/wsl;
       };
 
       # The installer USB and its script (hosts/installer). The key it must
@@ -286,6 +313,12 @@
       # the answer to it is a disko VM test.
       metalChecks = {
         metal = maxnix.config.system.build.toplevel;
+
+        # The WSL host, built. There is no booting a WSL distribution in a
+        # NixOS test — it needs Windows' WSL to start it — so building it is
+        # what CI can honestly say about it; the boot is checked on the
+        # desktop.
+        wsl = wsl.config.system.build.toplevel;
 
         # How the machine lets people in, read off the files it would install
         # rather than the options behind them. The VM suites cannot answer
@@ -1039,7 +1072,7 @@
             nix build --print-build-logs ${checkArgs staticChecks}
 
             echo >&2
-            echo "-- the metal system builds --" >&2
+            echo "-- the installable systems build --" >&2
             nix build --print-build-logs ${checkArgs metalChecks}
 
             echo >&2
@@ -1422,6 +1455,7 @@
     in
     {
       nixosConfigurations.maxnix = maxnix;
+      nixosConfigurations.wsl = wsl;
       nixosConfigurations.installer = installer;
 
       # nix fmt
@@ -1448,6 +1482,12 @@
       packages.${system} = {
         vm = maxnix.config.system.build.vm;
         default = maxnix.config.system.build.vm;
+
+        # The script that writes nixos.wsl, the file `wsl --import` takes.
+        # NixOS-WSL's own builder, run as root since it assembles a root
+        # filesystem: `sudo nix run .#wsl-tarball`, then copy nixos.wsl to
+        # Windows.
+        wsl-tarball = wsl.config.system.build.tarballBuilder;
 
         # The installer USB; see hosts/installer for writing it to a stick.
         installer-iso = installer.config.system.build.isoImage;

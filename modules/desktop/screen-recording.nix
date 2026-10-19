@@ -1,5 +1,5 @@
 # gpu-screen-recorder, the preferred recording backend of DMS's Quick Capture
-# plugin (see home/max/dms.nix). Hardware encoding through NVENC or VA-API, and
+# plugin (see home/max/desktop/dms.nix). Hardware encoding through NVENC or VA-API, and
 # the only backend there that records audio and can pause.
 #
 # A NixOS module rather than a user package, for the same reason as Steam:
@@ -13,7 +13,7 @@
 # mkDefault, because ../vm/qemu-guest.nix turns it off for every VM — the
 # build-vm guest and every test node alike — since a virtio GPU has no encoder
 # to drive. So the bare machine (`checks.metal`, the install) has it and
-# nothing virtual does. wf-recorder in home/max/dms.nix covers the VM.
+# nothing virtual does. wf-recorder in home/max/desktop/dms.nix covers the VM.
 { lib, ... }:
 {
   programs.gpu-screen-recorder.enable = lib.mkDefault true;

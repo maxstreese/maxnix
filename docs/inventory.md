@@ -29,19 +29,19 @@ later is the same collection; the counts below will have moved.
 - **mise goes.** It manages node, pnpm, java, uv, deno, sops, yq and more by
   downloading generic Linux binaries, which NixOS does not run (see the
   README finding). Runtimes become per-project flakes entered through the
-  direnv + nix-direnv already in `home/max/dev.nix`; the few CLIs wanted
+  direnv + nix-direnv already in `home/max/core/dev.nix`; the few CLIs wanted
   everywhere go in the user layer. sdkman goes for the same reason.
 - **Three host services are not coming**: an endpoint-security agent, a
   second VPN client, and a remote-desktop tool. Twingate is the VPN here.
 - **Ubuntu-only plumbing is not coming**: snapd, livepatch, the apt/snap/brew
   update alias (`sysup`) that Nix replaces.
 - **Prompt and history** are Home Manager's atuin and starship modules, in
-  `home/max/shell.nix`, which also enables zsh beside bash so both get the
+  `home/max/core/shell.nix`, which also enables zsh beside bash so both get the
   hooks. atuin's history from the Ubuntu host has to be copied over by hand.
 - **DBeaver, not DataGrip.** DataGrip came over first and was swapped out the
   same day: DBeaver is free, so it needs no unfree allow-list entry.
 - **Harlequin for SQL in the terminal**, with Trino and MySQL adapters
-  packaged in `home/max/harlequin.nix`. It covers what `trino`, `mysql` and
+  packaged in `home/max/core/harlequin.nix`. It covers what `trino`, `mysql` and
   `psql` were typed for, so those three stay out (`trino-cli` is in anyway).
 
 ## Still to decide
@@ -62,8 +62,8 @@ steampipe, duckdb, scala, claude-code, 1Password and `op`, Twingate, Docker
 Wootility, htop, osquery, vim, comma.
 
 From the inventory (2026-10-01), marked ✓ in the tables: the everyday CLI in
-`home/max/dev.nix`, atuin, starship, bat and zsh in `home/max/shell.nix`, OBS
-and GIMP in `home/max/apps.nix`, DBeaver, Harlequin.
+`home/max/core/dev.nix`, atuin, starship, bat and zsh in `home/max/core/shell.nix`, OBS
+and GIMP in `home/max/desktop/apps.nix`, DBeaver, Harlequin.
 
 Not from the inventory, added since: sbomnix and nix-tree (CVE checks
 against the running system), restic for the nightly backup, and rclone,

@@ -1,14 +1,9 @@
-# Daily-driver applications that need an account.
+# Claude Code, and what ties it to this machine: telemetry into the local
+# observability stack, and the grafana-local MCP server.
 #
-# Nothing here carries a credential. Each signs in once through Firefox with
-# the 1Password extension (see ./firefox.nix and
-# ../../modules/desktop/onepassword.nix) and keeps its own session state on
-# the guest disk from then on.
-#
-# Both packages are unfree. Home Manager cannot declare that itself here —
-# with useGlobalPkgs it borrows the system's nixpkgs config — so the
-# allow-list entries live next to the home-manager block in
-# hosts/maxnix/configuration.nix.
+# Unfree: the allow-list entry is in ../../../modules/base/default.nix, next to
+# where this layer is imported. Home Manager cannot declare it itself — with
+# useGlobalPkgs it borrows the system's nixpkgs config.
 {
   config,
   lib,
@@ -20,7 +15,7 @@ let
   observability = osConfig.maxnix.observability;
 
   # Claude Code's OpenTelemetry export, to the local Alloy in
-  # ../../modules/base/observability. A wrapper rather than session
+  # ../../../modules/base/observability. A wrapper rather than session
   # variables, for two reasons: home.sessionVariables never reaches a
   # terminal here (see modules/base/default.nix), and system-wide
   # OTEL_* would redirect every program with an OpenTelemetry SDK, not just
@@ -38,7 +33,7 @@ let
   # trace's root is the claude_code.llm_request itself.
   claudeWithTelemetry = pkgs.symlinkJoin {
     # claude-code's own pname, so the unfree allow-list entry for it (in
-    # hosts/maxnix/configuration.nix, matched on pname) covers the wrapper.
+    # modules/base/default.nix, matched on pname) covers the wrapper.
     pname = "claude-code";
     inherit (pkgs.claude-code) version;
     paths = [ pkgs.claude-code ];
@@ -97,36 +92,12 @@ in
     ''
   );
 
-  home.packages =
-    lib.optional observability.enable grafanaLocalMcp
-    ++ (with pkgs; [
-      # Spotify's Linux client is Chromium-based. It runs natively on Wayland
-      # when NIXOS_OZONE_WL=1 is in the environment, which the desktop layer
-      # sets; without it, it falls back to XWayland. First start: "Log in with
-      # browser" hands the login to Firefox. State lands in ~/.config/spotify.
-      spotify
-
-      # Claude Code, the `claude` CLI. First run: `claude` opens the browser
-      # for OAuth against the same Claude account as the web app. The resulting
-      # token is kept in ~/.claude, since Linux gets no keychain integration.
-      # An API key via `op read` works too, if that is ever preferred.
-      # Wrapped to send telemetry when the observability stack is on (above).
-      (if observability.enable then claudeWithTelemetry else claude-code)
-
-      # Slack. Electron, so it follows NIXOS_OZONE_WL onto Wayland like the
-      # others. Sign-in is the usual workspace URL and email link, handled in
-      # Firefox; the session then lives in ~/.config/Slack.
-      slack
-
-      # Discord, also Electron. Home Manager has a programs.discord module,
-      # unused on purpose: all it adds is writing settings.json, and Discord
-      # rewrites that file itself — the same fight the greeter's colour file
-      # lost. The package alone is what is wanted.
-      discord
-
-      # No account needed for these two; they sit here as the other desktop
-      # applications.
-      obs-studio
-      gimp
-    ]);
+  home.packages = lib.optional observability.enable grafanaLocalMcp ++ [
+    # Claude Code, the `claude` CLI. First run: `claude` opens the browser
+    # for OAuth against the same Claude account as the web app. The resulting
+    # token is kept in ~/.claude, since Linux gets no keychain integration.
+    # An API key via `op read` works too, if that is ever preferred.
+    # Wrapped to send telemetry when the observability stack is on (above).
+    (if observability.enable then claudeWithTelemetry else pkgs.claude-code)
+  ];
 }

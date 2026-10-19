@@ -40,7 +40,7 @@ pkgs = "nixosConfigurations.maxnix.pkgs"
 [[entry]]
 id = "harlequin-trino-nixpkgs"
 title = "Take harlequin-trino from nixpkgs"
-workaround = "home/max/harlequin.nix: built from PyPI, pinned in harlequin-adapters.json"
+workaround = "home/max/core/harlequin.nix: built from PyPI, pinned in harlequin-adapters.json"
 then = "Use python3Packages.harlequin-trino; drop it from harlequin.nix, the JSON and renovate.jsonc"
 check = { nix = '''
   pkgs: {
@@ -56,7 +56,7 @@ check = { nix = '''
 [[entry]]
 id = "harlequin-mysql-nixpkgs"
 title = "Take harlequin-mysql from nixpkgs"
-workaround = "home/max/harlequin.nix: built from PyPI, pinned in harlequin-adapters.json"
+workaround = "home/max/core/harlequin.nix: built from PyPI, pinned in harlequin-adapters.json"
 then = "Use python3Packages.harlequin-mysql; drop it from harlequin.nix, the JSON and renovate.jsonc"
 check = { nix = '''
   pkgs: {
@@ -72,7 +72,7 @@ check = { nix = '''
 [[entry]]
 id = "trino-client-metadata"
 title = "Use nixpkgs' trino client unmodified"
-workaround = "home/max/harlequin.nix: trino-python-client with dontCheckPythonMetadata"
+workaround = "home/max/core/harlequin.nix: trino-python-client with dontCheckPythonMetadata"
 then = "Drop the override and use py.trino-python-client directly"
 # nixpkgs' package fails its own build, which is why it is missing from the
 # binary cache. Hydra caches it once that is fixed, so its presence there is

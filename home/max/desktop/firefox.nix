@@ -2,7 +2,7 @@
 #
 # The browser is where most logins actually happen — Google, Claude, Spotify
 # all start as a web sign-in — so this is the front half of the credential
-# story; ../../modules/desktop/onepassword.nix is the back half.
+# story; ../../../modules/desktop/onepassword.nix is the back half.
 #
 # Enterprise policies are the declarative route to a preinstalled extension.
 # Home Manager writes `policies` into the Firefox wrapper's policies.json, so

@@ -6,11 +6,28 @@
 {
   imports = [
     ./greeter.nix
+    ./lock-screen.nix
     ./niri.nix
     ./onepassword.nix
     ./gpu-check.nix
     ./steam.nix
     ./screen-recording.nix
+  ];
+
+  # The user layer's desktop half, on top of the core the base role imports.
+  home-manager.users.max.imports = [ ../../home/max/desktop ];
+
+  # Its unfree packages; see ../../home/max/desktop/apps.nix for why each is
+  # wanted. Home Manager modules cannot declare their own: with useGlobalPkgs
+  # they borrow the system's nixpkgs config.
+  nixpkgs.config.allowUnfreePackages = [
+    "spotify"
+    "slack"
+    # Both halves: the wrapper and the derivation it wraps each carry the
+    # licence, and the allow-list matches on pname, so listing one leaves
+    # the other refused.
+    "discord"
+    "discord-unwrapped"
   ];
 
   # The login screen lives in ./greeter.nix. It used to be configured here as

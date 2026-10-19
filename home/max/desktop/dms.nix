@@ -64,7 +64,7 @@ let
   ];
 
   # Literal shell, not Nix: the scripts expand MAXNIX_FLAKE at runtime and fall
-  # back to the declared path, matching `rebuild` in ../../hosts/maxnix/vm.nix.
+  # back to the declared path, matching `rebuild` in ../../../hosts/maxnix/vm.nix.
   clone = "\${MAXNIX_FLAKE:-${osConfig.maxnix.dev.clonePath}}";
 
   capture = pkgs.writeShellApplication {
@@ -156,7 +156,7 @@ in
   ++ (with pkgs; [
     # The CPU recording backend. gpu-screen-recorder is the preferred one and
     # comes from the system layer, metal only — see
-    # ../../modules/desktop/screen-recording.nix. The plugin's "auto" backend
+    # ../../../modules/desktop/screen-recording.nix. The plugin's "auto" backend
     # probes for it with `command -v` and falls back to this, so the VM records
     # through wf-recorder and metal through the GPU, with no setting to change.
     wf-recorder
@@ -228,7 +228,7 @@ in
   #
   # Accounts are runtime state, not configuration: each is added once with
   # `dcal account add google`, its tokens kept in the keyring (GNOME Keyring,
-  # unlocked at login; ../../modules/desktop/default.nix) and its data in
+  # unlocked at login; ../../../modules/desktop/default.nix) and its data in
   # ~/.local/share, both on /home. Each with its own OAuth client, kept in
   # 1Password (README, "Decisions, and why").
   systemd.user.services.dcal = {

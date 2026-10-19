@@ -41,7 +41,7 @@
   #
   # It is a *default*, and only compositors that leave the layout unset will
   # consult it. niri does, and reports "German"; Hyprland, while it ran here,
-  # did not (its kb_layout defaults to "us"). home/max/niri.nix states the
+  # did not (its kb_layout defaults to "us"). home/max/desktop/niri.nix states the
   # layout anyway, reading it back from this option, so the layout is still
   # defined in exactly one place.
   #
@@ -138,7 +138,7 @@
   # marimo checks PyPI on startup and nags when it is behind, which on a
   # Nix-installed package is advice that cannot be followed: the store path
   # is immutable and the version is whatever the pinned nixpkgs carries.
-  # ../../home/max/dev.nix explains the lag.
+  # ../../home/max/core/dev.nix explains the lag.
   #
   # This looks like it belongs in the user layer, and Home Manager's
   # home.sessionVariables is the obvious option — but that option means
@@ -157,7 +157,8 @@
   # Home Manager as a NixOS module, so one `nix build` rebuilds the machine and
   # the user layer together into a single generation — no separate
   # `home-manager switch`. Which user layer a machine gets is the host's choice
-  # (hosts/maxnix/configuration.nix); the layer itself lives in ../../home/max.
+  # Every machine gets ../../home/max/core, imported below; the desktop role
+  # adds ../../home/max/desktop.
   home-manager = {
     # Use the system's pkgs and nixpkgs config rather than a second instance.
     useGlobalPkgs = true;
@@ -172,7 +173,19 @@
     # With it, they are renamed aside — which is also a neat demonstration of
     # the imperative state this whole layer exists to replace.
     backupFileExtension = "hm-bak";
+
+    users.max.imports = [ ../../home/max/core ];
   };
+
+  # The core user layer's unfree packages. Home Manager modules cannot
+  # declare their own: with useGlobalPkgs (above) they borrow the system's
+  # nixpkgs config.
+  nixpkgs.config.allowUnfreePackages = [
+    # ../../home/max/core/claude.nix
+    "claude-code"
+    # ../../home/max/core/dev.nix: agent-browser's browser, and a real Chrome.
+    "google-chrome"
+  ];
 
   environment.systemPackages = with pkgs; [
     git

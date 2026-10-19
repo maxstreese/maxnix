@@ -136,11 +136,6 @@ in
     };
   };
 
-  options.maxnix.harlequin.profiles.enable = lib.mkEnableOption ''
-    Harlequin's connection profiles, rendered from sops into
-    ~/.config/harlequin/config.toml (see home/max/harlequin.nix)
-  '';
-
   config = {
     sops = {
       defaultSopsFile = ./secrets.yaml;
@@ -240,7 +235,7 @@ in
     # Harlequin's profiles. The file's shape is public; which systems it points
     # at is not, so host and user come from sops like Fleet's URL. Rendered
     # owned by max, since harlequin and hsql read it as that user;
-    # home/max/harlequin.nix links it into ~/.config. Passwords never go here:
+    # home/max/core/harlequin.nix links it into ~/.config. Passwords never go here:
     # a profile that needs one names an environment variable
     # (password = "${TRINO_PASSWORD}"), filled by `op run` at launch.
     #

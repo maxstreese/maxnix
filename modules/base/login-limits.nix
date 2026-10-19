@@ -40,22 +40,7 @@
   ...
 }:
 let
-  # Every service that asks for the login password:
-  #   login      the text consoles, and the greeter, whose greetd service is
-  #              a substack of login (../../modules/desktop/default.nix)
-  #   sudo, su
-  #   polkit-1   graphical password prompts, and run0
-  #   dankshell  the lock screen, see below
-  # Listed rather than derived from security.pam.services: setting options on
-  # every member of that attrset while reading its names is infinite
-  # recursion.
-  services = [
-    "login"
-    "sudo"
-    "su"
-    "polkit-1"
-    "dankshell"
-  ];
+  inherit (config.maxnix.loginLimits) services;
 
   faillock = "${config.security.pam.package}/lib/security/pam_faillock.so";
 
@@ -114,28 +99,38 @@ let
     };
 in
 {
-  security.pam.services =
+  options.maxnix.loginLimits.services = lib.mkOption {
+    type = lib.types.listOf lib.types.str;
+    description = ''
+      Every PAM service that asks for the login password, and so gets the
+      lockout:
+        login      the text consoles, and the greeter, whose greetd service
+                   is a substack of login (../../modules/desktop/default.nix)
+        sudo, su
+        polkit-1   graphical password prompts, and run0
+      The desktop role adds its lock screen's (../desktop/lock-screen.nix).
+      Listed rather than derived from security.pam.services: setting options
+      on every member of that attrset while reading its names is infinite
+      recursion.
+    '';
+  };
+
+  # A definition, not the option's default: a default applies only while
+  # nothing else defines the option, so the desktop role's addition would
+  # have replaced these four instead of joining them. Measured 2026-10-18:
+  # with a default, login, sudo and polkit-1 lost their pam_faillock lines.
+  config.maxnix.loginLimits.services = [
+    "login"
+    "sudo"
+    "su"
+    "polkit-1"
+  ];
+
+  config.security.pam.services =
     lib.genAttrs services (name: {
       rules = rulesFor name;
     })
     // {
-      # DMS's lock screen checks the password through Quickshell's PamContext,
-      # and chooses the PAM service itself: a custom path from its settings,
-      # else /etc/pam.d/login if told it is "externally managed", else
-      # /etc/pam.d/dankshell if that exists, else one it generates in the
-      # user's config, else a `login` it ships — pam_env and pam_unix, no
-      # lockout (Modules/Lock/Pam.qml and assets/pam/login in dms-shell 1.6.3).
-      # Defining dankshell here puts the lock screen on a NixOS-built stack
-      # with the rules above; none of the settings ahead of it are set in
-      # ../../home/max/dms-state.
-      #
-      # Without fingerprint: DMS runs the reader in a PamContext of its own,
-      # next to this one, and pam_fprintd in the password stack would make
-      # every typed password wait for a finger first.
-      dankshell = {
-        rules = rulesFor "dankshell";
-        fprintAuth = false;
-      };
       # su is the one service where nixpkgs turns logFailures on: a bare
       # pam_faillock line of its own, counting without locking. Off, since the
       # rules above replace it; mkForce because nixpkgs sets it as a plain
@@ -146,7 +141,7 @@ in
       };
     };
 
-  environment.etc."security/faillock.conf".text = ''
+  config.environment.etc."security/faillock.conf".text = ''
     # ./login-limits.nix in the maxnix repo.
     deny = 10
     fail_interval = 900
@@ -156,12 +151,12 @@ in
     dir = ${dir}
   '';
 
-  systemd.tmpfiles.rules = [ "d ${dir} 0700 root root -" ];
+  config.systemd.tmpfiles.rules = [ "d ${dir} 0700 root root -" ];
 
   # The `faillock` command, from the PAM the stacks above load, pointed at
   # the same directory. hiPrio over the unwrapped one, which looks in
   # /var/run/faillock and would show an empty count.
-  environment.systemPackages = [
+  config.environment.systemPackages = [
     (lib.hiPrio (
       pkgs.writeShellScriptBin "faillock" ''
         exec ${config.security.pam.package}/bin/faillock --dir ${dir} "$@"

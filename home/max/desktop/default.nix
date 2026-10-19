@@ -1,14 +1,6 @@
-# The user layer.
-#
-# Home Manager runs the same module system as the rest of this repo, scoped to
-# one user instead of the machine. It builds dotfiles into /nix/store and
-# symlinks them into $HOME, so ~/.config files stop being things you edit and
-# become build artifacts — the same trade NixOS makes for /etc.
-#
-# The split with the system layer: NixOS *enables* a thing (installs it,
-# registers its session, wires portals); this layer *configures* it. Note that
-# programs.niri exists in both namespaces and they are not the same option —
-# see ./niri.nix.
+# The user layer's desktop half: niri's config, DankMaterialShell and
+# Quickshell, the terminal, Firefox and the desktop applications. Imported by
+# the desktop role (../../../modules/desktop/default.nix), on top of ../core.
 { lib, pkgs, ... }:
 {
   imports = [
@@ -18,23 +10,12 @@
     ./firefox.nix
     ./ghostty.nix
     ./apps.nix
-    ./dev.nix
-    ./git.nix
-    ./ssh.nix
-    ./shell.nix
-    ./harlequin.nix
+    ./onepassword.nix
   ];
-
-  home.username = "max";
-  home.homeDirectory = "/home/max";
-
-  # Same rule as system.stateVersion, and a separate value: it pins the
-  # defaults this config was written against. Set once, then leave alone.
-  home.stateVersion = "26.11";
 
   # The launcher the niri config spawns, and the clipboard tools. The
   # terminal it spawns is in ./ghostty.nix; everything else installed for this
-  # user is in ./dev.nix, ./apps.nix or ./git.nix.
+  # user is in ./apps.nix or ../core.
   #
   # These were in environment.systemPackages until now — installed machine-wide
   # purely so the compositors' default keybinds would not dead-end. They are
@@ -72,6 +53,4 @@
   # module system could not pick; kept forced so the system layer stays the
   # only owner whatever a module defaults to.
   xdg.portal.enable = lib.mkForce false;
-
-  programs.home-manager.enable = true;
 }

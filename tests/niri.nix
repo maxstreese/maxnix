@@ -160,7 +160,7 @@ in
           )
 
       with subtest("niri gives DMS its calendar from DankCalendar"):
-          # ../home/max/dms.nix: DankCalendar's daemon starts with the
+          # ../home/max/desktop/dms.nix: DankCalendar's daemon starts with the
           # session, and DMS — which prefers it over khal, deliberately not
           # installed — connects to its socket. DMS looks for a calendar only
           # once one is shown, not at start: in the VM the handshake came the

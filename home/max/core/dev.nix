@@ -49,7 +49,7 @@
   # without it, collection would happily delete the dependencies of every
   # project not touched that month, and the next cd would rebuild them.
   #
-  # .direnv is excluded from backups in ../../modules/metal/backup.nix for the
+  # .direnv is excluded from backups in ../../../modules/metal/backup.nix for the
   # same reason it is gitignored: it is a cache with a GC root in it, entirely
   # rebuildable from the flake beside it.
   programs.direnv = {
@@ -77,7 +77,7 @@
     # ~/.aws/config and credentials, deliberately unused: there are no
     # profiles to declare yet, and when there are, its own advice is to use
     # `credential_process` to pull them from a password manager at runtime
-    # rather than write them down — which is what ../../modules/desktop/
+    # rather than write them down — which is what ../../../modules/desktop/
     # onepassword.nix already provides.
     awscli2
 
@@ -89,7 +89,7 @@
     # ── marimo, in a Python that can actually import things ──────────────
     #
     # marimo is a reactive Python notebook; `marimo edit foo.py` opens it in
-    # the browser (Firefox, per ./firefox.nix).
+    # the browser (Firefox, per ../desktop/firefox.nix).
     #
     # It comes from a python3.withPackages environment rather than the bare
     # `marimo` package, and that is the whole point. The bare package is
@@ -142,7 +142,7 @@
     # ── Everyday CLI ─────────────────────────────────────────────────────
     #
     # Carried over from the Ubuntu host on the evidence in
-    # ../../docs/inventory.md: each of these was typed in the last 90 days.
+    # ../../../docs/inventory.md: each of these was typed in the last 90 days.
     # Rarer tools are left to `,` above.
     ripgrep
     fd
@@ -238,7 +238,7 @@
     # generic-linux binary this distribution cannot execute. It also searches
     # PATH (google-chrome first, then chromium and brave), so Google Chrome
     # here serves both agent-browser and any site that wants real Chrome.
-    # Unfree; its allow-list entry is in ../../hosts/maxnix/configuration.nix.
+    # Unfree; its allow-list entry is in ../../../modules/base/default.nix.
     # Started from somewhere without this profile's PATH, agent-browser will
     # not find it; AGENT_BROWSER_EXECUTABLE_PATH is the way round that.
     #
@@ -269,6 +269,6 @@
   #
   # The variable that silences it is NOT here, and not a home.sessionVariables
   # entry either, because that option only reaches login shells. It is set at
-  # the system level in ../../modules/base/default.nix, which is the
+  # the system level in ../../../modules/base/default.nix, which is the
   # one route that reaches a terminal inside the compositor.
 }
