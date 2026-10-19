@@ -24,7 +24,7 @@
 #               would have meant an unpinned build over Wi-Fi
 #   5. key      onto /persist/sops/age.key, where ../maxnix/secrets.nix reads
 #               it, before the first boot needs it
-#   6. install  nixos-install --flake <this repo>#maxnix
+#   6. install  nixos-install --flake <this repo>#t14s
 #
 # checks.metal-install runs 1 to 5 against a virtual disk with --no-install,
 # then installs a small test system itself and boots it. Step 6 is NixOS's
@@ -124,7 +124,7 @@ pkgs.writeShellApplication {
 
     # ── 6. install ─────────────────────────────────────────────────────
     if [ "$install" = 1 ]; then
-      nixos-install --no-root-passwd --no-channel-copy --flake "${flake}#maxnix"
+      nixos-install --no-root-passwd --no-channel-copy --flake "${flake}#t14s"
       echo "installed. Reboot, remove the USB stick, and type the LUKS passphrase." >&2
     fi
   '';

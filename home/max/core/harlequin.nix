@@ -124,7 +124,7 @@ in
 
   # The connection profiles. Their hosts and users are sops secrets, so the
   # file is rendered at activation by the system layer
-  # (../../../hosts/maxnix/secrets.nix) into /run/secrets, outside the store,
+  # (../../../hosts/t14s/secrets.nix) into /run/secrets, outside the store,
   # and only linked from here. Read-only as a result: change a profile there
   # and rebuild, not with `hsql --config init`.
   xdg.configFile."harlequin/config.toml" = lib.mkIf osConfig.maxnix.harlequin.profiles.enable {

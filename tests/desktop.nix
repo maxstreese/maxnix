@@ -276,7 +276,7 @@
               assert got == owner, f"{path} owned by {got}, not {owner}"
 
       with subtest("NetworkManager runs alone, and max can add a connection it keeps"):
-          # ../hosts/maxnix/configuration.nix: NetworkManager rather than
+          # ../hosts/t14s/configuration.nix: NetworkManager rather than
           # the scripted networking, and no dhcpcd beside it.
           machine.wait_for_unit("NetworkManager.service")
           machine.fail("systemctl is-active dhcpcd.service")
@@ -292,7 +292,7 @@
           machine.fail(f"test -e {path}")
 
       with subtest("the laptop services answer, the way DMS's widgets ask them"):
-          # ../hosts/maxnix/laptop.nix, over the system bus: what Quickshell's
+          # ../hosts/t14s/laptop.nix, over the system bus: what Quickshell's
           # UPower service and DMS's power widget read. In a VM there is no
           # battery and only a placeholder power driver, so this checks that
           # each service answers, not what it reports.
@@ -313,7 +313,7 @@
           machine.fail("journalctl -b | grep -q 'RTKit error'")
 
       with subtest("swap is compressed RAM, and nothing on disk"):
-          # ../hosts/maxnix/configuration.nix: zram with zstd, no swap
+          # ../hosts/t14s/configuration.nix: zram with zstd, no swap
           # partition or file — hibernation is left for the hardware.
           swaps = machine.succeed("swapon --show=NAME,TYPE --noheadings").split("\n")
           swaps = [s.split() for s in swaps if s.strip()]

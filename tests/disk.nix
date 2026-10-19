@@ -136,9 +136,9 @@ disko.lib.testLib.makeDiskoTest {
     # catch up from after a boot (../modules/metal/persistence.nix).
     machine.succeed("echo marker > /var/lib/systemd/timers/preserved-marker")
     machine.succeed("test -f /persist/var/lib/systemd/timers/preserved-marker")
-    # NetworkManager's saved networks and its state (../hosts/maxnix/
+    # NetworkManager's saved networks and its state (../hosts/t14s/
     # configuration.nix): a Wi-Fi joined once stays joined.
-    # And the laptop services' (../hosts/maxnix/laptop.nix): Bluetooth
+    # And the laptop services' (../hosts/t14s/laptop.nix): Bluetooth
     # pairings, a staged firmware update, the chosen power profile, battery
     # history.
     laptop = ["/var/lib/bluetooth", "/var/lib/fwupd",

@@ -100,9 +100,9 @@ credentials from there. No credential is in this repo, and none ever should be.
 .github/workflows/checks.yml all of CI: install Nix, then `nix run .#ci`
 .github/workflows/closure-diff.yml  on the lock refresh PR: which packages change on metal
 renovate.jsonc               flake.lock and action-SHA updates, as PRs
-hosts/maxnix/secrets.nix     sops-nix: three post-quantum keys, secrets declared per consumer
-hosts/maxnix/secrets.yaml    the encrypted secrets; .sops.yaml at the root says who can open it
-hosts/maxnix/secrets-metal.yaml  metal's own, which the VM's key cannot open
+hosts/t14s/secrets.nix     sops-nix: three post-quantum keys, secrets declared per consumer
+hosts/t14s/secrets.yaml    the encrypted secrets; .sops.yaml at the root says who can open it
+hosts/t14s/secrets-metal.yaml  metal's own, which the VM's key cannot open
 flake.nix                    inputs, roles, mkHost, hosts, packages + apps + checks + devShell
                              `nix run .#install -- root@host` installs it for real
 docs/inventory.md            what the current host runs daily; the list to migrate from
@@ -113,11 +113,11 @@ tools/blocked-report.py      its results as issues, one per entry that has becom
 .github/workflows/blocked.yml  runs that weekly and whenever flake.lock or the list changes
 treefmt.nix                  what `nix fmt` runs, and what it deliberately does not
 statix.toml                  the two statix lints this repo switches off, with reasons
-hosts/maxnix/                the ThinkPad: base + desktop + metal, and what is only its own
+hosts/t14s/                the ThinkPad: base + desktop + metal, and what is only its own
   configuration.nix          hostname, network, Twingate, wooting, zram, which features are on
   laptop.nix                 the laptop services its hardware report asks for
   vm.nix                     build-vm specifics: window, disk images, sshd, `rebuild`
-hosts/wsl/                   NixOS under WSL on the Windows desktop: base + NixOS-WSL
+hosts/z690-wsl/                   NixOS under WSL on the Windows desktop: base + NixOS-WSL
 modules/                     roles a host is composed from (`roles` in flake.nix)
   base/default.nix           every machine: user, locale, keyboard, Nix settings, Home Manager
   base/containers.nix        rootless Docker, with DOCKER_HOST for the whole session
@@ -159,7 +159,8 @@ and KVM — even the QEMU binary comes from the Nix store.
 | channel | `nixpkgs-unstable`, also on the future host | these three packages move fast; stable would evaluate old versions. Decided 2026-09-17 to keep it |
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
 | compositor | niri only | decided 2026-10-18, reversing "both, for good". Two compositors were two configs that diverged wherever they were not generated from one list (niri's own window-management binds, layout, gaps, animation), a second desktop suite, a static check and a Lua port to follow upstream's churn. niri was already the greeter's compositor and the autologin session, and is validated at build time. Hyprland's config, suite and findings are in git history before this decision. Open for the desktop PC: Hyprland was further along on HDR and VRR (`docs/desktop-pc.md`), so niri's support is to check against that monitor |
-| repo structure | hosts composed from roles: `modules/base`, `modules/desktop`, `modules/metal`, plus `hosts/<name>` | decided 2026-10-18, so a second machine (`docs/desktop-pc.md`) can take part of the machine rather than all of it. Roles import modules that define options; the host switches them on. Secrets stay with the host: which sops files and key a machine uses is its own. The user layer splits the same way: `home/max/core` comes with base, `home/max/desktop` with the desktop role, each role allowing its half's unfree packages. Hosts so far: `maxnix` (base, desktop, metal) and `wsl` (base, NixOS-WSL), the second only built by CI, since no NixOS test can boot WSL. Done as a refactor checked by store path: every one stayed the same except where expected — the order of the system's package list (its `sw` tree came out identical), comments inside test scripts, and the dashboards' path in the clone, which moved with observability into `modules/base` |
+| repo structure | hosts composed from roles: `modules/base`, `modules/desktop`, `modules/metal`, plus `hosts/<name>` | decided 2026-10-18, so a second machine (`docs/desktop-pc.md`) can take part of the machine rather than all of it. Roles import modules that define options; the host switches them on. Secrets stay with the host: which sops files and key a machine uses is its own. The user layer splits the same way: `home/max/core` comes with base, `home/max/desktop` with the desktop role, each role allowing its half's unfree packages. Hosts so far: `t14s` (base, desktop, metal) and `z690-wsl` (base, NixOS-WSL), the second only built by CI, since no NixOS test can boot WSL. Done as a refactor checked by store path: every one stayed the same except where expected — the order of the system's package list (its `sw` tree came out identical), comments inside test scripts, and the dashboards' path in the clone, which moved with observability into `modules/base` |
+| machine names | by hardware: `t14s` (the ThinkPad), `z690-wsl` (WSL on the Windows desktop), `z690` (that desktop on its own metal, when it gets a host); `maxnix` names the project — the repo, the `maxnix.*` options, Grafana's folder, the Drive backup folders, the VMs' password | decided 2026-10-19, when a second host made `maxnix` stop saying which machine. Hostname, `nixosConfigurations` name and `hosts/` directory are always the same word: the VM's `rebuild` and `nixos-rebuild --flake .` on metal pick the configuration by hostname. Renamed before metal's install day, so no machine's history, Fleet record from hardware or Secure Boot enrollment carries the old name; the VM's Fleet entry shows the new hostname from its next deploy |
 | VM disks | root is disposable, `/home` is its own image, host `/nix/store` shared over virtiofs | root can be deleted to reset the machine without losing a single login; the VM is a variant of the machine, not the artifact |
 | repo in the guest | its own clone, no host share | the share was the fast loop and a hole in the boundary at once, and virtiofs broke it twice over (see findings); git syncs two machines, and the host deploys over ssh — the same model metal will use |
 | niri config | Home Manager's module | no extra input, and `checkConfig` validates by running niri at build time |
@@ -467,7 +468,7 @@ global install honest; `home/max/core/dev.nix` carries the reasoning.
 `Restart=always` with `StartLimitIntervalSec=0`, which turns off systemd's
 rate limit — and before `twingate setup` has named a network the daemon exits
 at once, so it restarts every 2 s indefinitely (655 journal lines in the first
-few minutes). `hosts/maxnix/configuration.nix` gives the limit back, so it
+few minutes). `hosts/t14s/configuration.nix` gives the limit back, so it
 gives up after five tries and stays in `failed` until configured.
 
 **Rootless Docker's socket variable never reaches the desktop.**
@@ -589,9 +590,9 @@ and the WSL host), a check of the ThinkPad's login stacks, and the suites for on
 | `formatting` | every `.nix` file is nixfmt-clean; fix with `nix fmt` | — |
 | `lint` | statix, deadnix, actionlint and the Renovate config validator find nothing; fix by hand, see below | — |
 | `metal` | the machine as it would be *installed* builds | — |
-| `wsl` | the WSL host (`hosts/wsl`) builds; nothing in CI can boot a WSL distribution, so its boot is checked on the desktop | — |
+| `z690-wsl` | the WSL host (`hosts/z690-wsl`) builds; nothing in CI can boot a WSL distribution, so its boot is checked on the desktop | — |
 | `metal-boots` | that layout partitions, formats and boots | disko's own script |
-| `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk and puts the key on `/persist`, and the system booted from it decrypts with that key. Leaves only `nixos-install --flake …#maxnix` to the day | disko's own script, plus the script's |
+| `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk and puts the key on `/persist`, and the system booted from it decrypts with that key. Leaves only `nixos-install --flake …#t14s` to the day | disko's own script, plus the script's |
 | `installer` | the installer USB's system builds; the image is that plus a squashfs, left to `nix build .#installer-iso` | — |
 | `metal-auth` | metal's built `sudoers` asks `wheel` for a password, and each of its five password stacks has pam_faillock in place: before the first line that can let someone in, after the last password check, with its config file | — |
 | `secrets` | sops-nix decrypts a post-quantum age key at activation, root-only and in memory, and Fleet and the backup get their values from it | 4 |
@@ -851,7 +852,7 @@ The Google side is done (2026-10-02): a Cloud project `maxstreese-laptop-backup`
 in the company Workspace, an Internal OAuth client of type Desktop with the
 `drive.file` scope, and a token for it. Four values make it work, each kept in
 1Password and, for the machine, in sops: the client id, secret and token,
-rendered into an `rclone.conf` by a template in `hosts/maxnix/secrets.nix`,
+rendered into an `rclone.conf` by a template in `hosts/t14s/secrets.nix`,
 and the **repository password**, the client-side encryption key. Lose that one
 and the backups are permanently unreadable, which is why it must not live
 *only* on `/persist`.
@@ -866,7 +867,7 @@ path for the day this disk is gone along with its sops key. `nix run .#backup
 The VM backs up into a folder of its own, `maxnix-backup-vm`, so the whole path
 is exercised before install day without its snapshots sharing retention with
 metal's under the same hostname. Metal has `maxnix.backup.enable = true` since
-2026-10-15 (`hosts/maxnix/configuration.nix`); the first backup runs once its
+2026-10-15 (`hosts/t14s/configuration.nix`); the first backup runs once its
 key is on `/persist`.
 
 Three questions for the employer went with it, treated as settled outside this
@@ -884,7 +885,7 @@ nixpkgs' `services.orbit`, which is Orbit supervising its own osquery, behind
 root wipe. `checks.fleet` boots it against a server that is not there and
 shows that it starts, reads its secret and retries in-process without
 crashing. The VM is enrolled with IT's server since 2026-09-29; metal is on
-since 2026-10-15 (`hosts/maxnix/configuration.nix`) and enrolls on its first
+since 2026-10-15 (`hosts/t14s/configuration.nix`) and enrolls on its first
 boot with its key, as a host of its own in IT's console.
 
 What it took, neither of it code:
@@ -936,9 +937,9 @@ one each for the VM and metal. All three private halves are kept in
 1Password, and the machine keys are *restored* onto disk rather than
 generated there — the VM's onto its `/home` disk, metal's onto `/persist` at
 install — so a wipe or reinstall never changes `.sops.yaml`. The commands are
-in `hosts/maxnix/secrets.nix`. The values are in two files:
-`hosts/maxnix/secrets.yaml`, which all three keys open, for what both
-machines use, and `hosts/maxnix/secrets-metal.yaml`, which only admin and
+in `hosts/t14s/secrets.nix`. The values are in two files:
+`hosts/t14s/secrets.yaml`, which all three keys open, for what both
+machines use, and `hosts/t14s/secrets-metal.yaml`, which only admin and
 metal open, for what the VM must not read — the login password and metal's
 restic password (split 2026-10-15; until then the VM's key, in a disk image
 on the Ubuntu host, opened both). `checks.secrets` shows sops-nix decrypting a
@@ -1052,7 +1053,7 @@ Before the day:
    the **login password**, the **metal restic password**, and the
    account's email and Secret Key, for signing the CLI in on the stick. The
    login password and the restic password are in
-   `hosts/maxnix/secrets-metal.yaml`. The login password kept its value
+   `hosts/t14s/secrets-metal.yaml`. The login password kept its value
    through the split (decided 2026-10-15): its earlier hash stays in git
    history, readable with the VM's key, but a yescrypt hash of a long
    random password is not worth attacking offline. Note each item's secret

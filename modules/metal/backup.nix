@@ -30,7 +30,7 @@
 # ── Off until enabled on a machine holding the secrets ───────────────────
 #
 # The Drive credentials and the repository password come from sops
-# (../../hosts/maxnix/secrets.nix), which declares them only once this is enabled. So this is
+# (../../hosts/t14s/secrets.nix), which declares them only once this is enabled. So this is
 # disabled by default, switched on per machine, and asserts rather than
 # silently doing nothing when half-configured.
 #
@@ -59,7 +59,7 @@ in
 
     repository = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
-      # The `gdrive` remote is the one ../../hosts/maxnix/secrets.nix renders into
+      # The `gdrive` remote is the one ../../hosts/t14s/secrets.nix renders into
       # rclone.conf, and `nix run .#backup` reads this same value, so the
       # machine and the restore path cannot point at different folders.
       default = "rclone:gdrive:maxnix-backup";
@@ -80,7 +80,7 @@ in
         long-lived credential and belongs with the repository password rather
         than on disk beside it.
 
-        ../../hosts/maxnix/secrets.nix renders it from three sops values and sets this; the
+        ../../hosts/t14s/secrets.nix renders it from three sops values and sets this; the
         values come from the 1Password item `nix run .#backup` reads:
 
           1. An OAuth client of our own, in the company Workspace's Google
@@ -90,7 +90,7 @@ in
              being retired during 2026.
           2. A token for it, from `nix run .#backup -- authorize` on a machine
              with a browser, saved as the item's `token` field.
-          3. The client id, secret and token piped into sops (../../hosts/maxnix/secrets.nix).
+          3. The client id, secret and token piped into sops (../../hosts/t14s/secrets.nix).
 
         Note what this does NOT replace: restic still encrypts everything
         client-side with maxnix.backup.passwordFile before anything is

@@ -1,5 +1,5 @@
-# Who can decrypt hosts/maxnix/secrets.yaml and secrets-metal.yaml. See
-# hosts/maxnix/secrets.nix.
+# Who can decrypt hosts/t14s/secrets.yaml and secrets-metal.yaml. See
+# hosts/t14s/secrets.nix.
 #
 # Public keys only, and all three are post-quantum hybrid (age1pq1…): the
 # encrypted file is public for good, so it has to hold up against whatever
@@ -20,12 +20,12 @@ creation_rules:
   # Metal's own: what the VM must not read. The VM's key sits in a disk
   # image on the Ubuntu host, a far easier place to lose it from than the
   # LUKS-encrypted /persist, so it opens the shared file only.
-  - path_regex: hosts/maxnix/secrets-metal\.yaml$
+  - path_regex: hosts/t14s/secrets-metal\.yaml$
     key_groups:
       - age:
           - *admin
           - *metal
-  - path_regex: hosts/maxnix/secrets\.yaml$
+  - path_regex: hosts/t14s/secrets\.yaml$
     key_groups:
       # One group, three keys: any ONE of them decrypts. A second group, or
       # a `-` before `age`, would make sops demand one key from each group.

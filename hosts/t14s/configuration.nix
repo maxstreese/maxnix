@@ -8,7 +8,7 @@
 # "Why this exists").
 { ... }:
 {
-  networking.hostName = "maxnix";
+  networking.hostName = "t14s";
 
   # NetworkManager, for a laptop that meets new networks all the time, and
   # what DMS's network widget talks to. Networks are joined in that widget or

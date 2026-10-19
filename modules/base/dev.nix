@@ -15,7 +15,7 @@
         Absolute path to the working clone inside this machine.
 
         The guest keeps its own clone rather than sharing the host's (see
-        ../../hosts/maxnix/vm.nix), and two things need to agree on where it is: `rebuild`,
+        ../../hosts/t14s/vm.nix), and two things need to agree on where it is: `rebuild`,
         which builds from it, and liveConfig below, which points generated
         config at it. Declared once here so they cannot disagree.
 
@@ -40,7 +40,7 @@
         Off by default, and deliberately so: it makes the running system
         depend on a mutable path that may not exist. On a fresh install,
         before the clone is made, the symlink would simply dangle. It is
-        turned on for the VM in ../../hosts/maxnix/vm.nix, which is where development happens
+        turned on for the VM in ../../hosts/t14s/vm.nix, which is where development happens
         and where the clone is guaranteed by the workflow.
 
         What it costs: nothing can check the live content. The suites build
@@ -55,7 +55,7 @@
   # Declared here, with the other dev options, so every host that imports the
   # user layer's core can evaluate ../../home/max/core/harlequin.nix. Where
   # it is on, the profiles come from sops, wired per host
-  # (../../hosts/maxnix/secrets.nix).
+  # (../../hosts/t14s/secrets.nix).
   options.maxnix.harlequin.profiles.enable = lib.mkEnableOption ''
     Harlequin's connection profiles, rendered from sops into
     ~/.config/harlequin/config.toml (see home/max/core/harlequin.nix)

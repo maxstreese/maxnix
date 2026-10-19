@@ -12,7 +12,7 @@
 #
 # Wayland has a protocol for exactly this: keyboard-shortcuts-inhibit. When
 # QEMU grabs the keyboard (Ctrl+Alt+G, fullscreen, or grab-on-hover — see
-# hosts/maxnix/vm.nix) GTK sends that request, and once Mutter grants it, it
+# hosts/t14s/vm.nix) GTK sends that request, and once Mutter grants it, it
 # skips its keybindings for that window and everything goes through. Verified
 # with WAYLAND_DEBUG=1: the `active` event arrives ~10 ms after the request,
 # and Alt+Tab, Super+1 and Super+Space were all delivered to QEMU.

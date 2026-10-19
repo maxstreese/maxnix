@@ -12,13 +12,13 @@
 # silently doing nothing when half-configured — the same shape as
 # ./backup.nix.
 #
-# Both come in through sops (../../hosts/maxnix/secrets.nix), and so does the URL: the repo
+# Both come in through sops (../../hosts/t14s/secrets.nix), and so does the URL: the repo
 # is public, and IT would rather not publish where its Fleet server is. The
 # enroll secret is a credential — anyone holding it can enroll a machine as
 # one of the company's — and reaches the unit through LoadCredential. The
 # URL reaches it as ORBIT_FLEET_URL in an EnvironmentFile, since that is how
 # Orbit reads it. Neither is ever in the store. Turning it on is one line,
-# with ../../hosts/maxnix/secrets.nix supplying both paths:
+# with ../../hosts/t14s/secrets.nix supplying both paths:
 #
 #   maxnix.fleet.enable = true;
 #
@@ -103,7 +103,7 @@ in
     # Only when enabled, so the unfree licence is never evaluated otherwise.
     # fleet-orbit is dual-licensed: MIT, plus Fleet's Enterprise Edition
     # licence for the ee/ parts compiled in, and nixpkgs marks it unfree for
-    # the latter. See ../../hosts/maxnix/configuration.nix for how this list works.
+    # the latter. See ../../hosts/t14s/configuration.nix for how this list works.
     nixpkgs.config.allowUnfreePackages = [ "fleet-orbit" ];
 
     services.orbit = {

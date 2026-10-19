@@ -1,7 +1,7 @@
 # Virtual hardware shared by every way this host runs as a VM.
 #
 # Applied through two different mechanisms:
-#   hosts/maxnix/vm.nix  -> nested under virtualisation.vmVariant, for build-vm
+#   hosts/t14s/vm.nix  -> nested under virtualisation.vmVariant, for build-vm
 #   tests/desktop.nix    -> directly on the test node
 #
 # That duplication is the whole reason this file exists. The NixOS test
@@ -132,7 +132,7 @@ in
   # at all. Plaintext and world-readable in the store, decided 2026-09-17 for
   # the VM: nothing in it is worth a password, and `nix run .#vm-ssh` logs in
   # with exactly this value (../../flake.nix). mkForce over the machine's
-  # `true` in ../../hosts/maxnix/configuration.nix.
+  # `true` in ../../hosts/t14s/configuration.nix.
   config.maxnix.loginPassword.fromSops = lib.mkForce false;
   # Likewise every other secret only metal's key opens: a VM backs up with
   # the VM's restic password from the shared file.
@@ -141,7 +141,7 @@ in
   # The machine's hardware report describes the ThinkPad, not QEMU: its
   # microcode, firmware and initrd modules have no business in a VM, and
   # would change every VM's and test node's closure for nothing. Off here,
-  # over ../../hosts/maxnix/configuration.nix.
+  # over ../../hosts/t14s/configuration.nix.
   config.hardware.facter.reportPath = lib.mkForce null;
 
   # No password prompt on sudo, purely to skip typing in a guest whose disk

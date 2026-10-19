@@ -11,7 +11,7 @@ at all? Nothing here is decided; what gets decided moves into README's
 The repo is public, so this records the hardware by model only. Firmware
 versions, device instance IDs, MAC-derived identifiers and whatever else
 Windows reported about the individual machine stayed out, as serials stay out
-of `hosts/maxnix/facter.json`.
+of `hosts/t14s/facter.json`.
 
 ## 1. The hardware, and how it was read
 
@@ -68,7 +68,7 @@ one definition of "the machine" and nothing finer to choose from.
 
 - `hostModules` in `flake.nix` is a flat list — disko, lanzaboote,
   preservation, `laptop.nix`, `modules/desktop`, the greeter — taken whole.
-- `hosts/maxnix/configuration.nix` mixed (until the split, 2026-10-18) what is true of the user everywhere
+- `hosts/t14s/configuration.nix` mixed (until the split, 2026-10-18) what is true of the user everywhere
   (user `max`, timezone, keymap, Nix settings, gc and optimise), what is true
   of the ThinkPad (the facter report, `hardware.graphics`, zram, wooting) and
   what is policy for that machine (NetworkManager, Twingate, Fleet, backups).
@@ -84,16 +84,16 @@ modules/
   desktop/    as today: niri, greeter, 1Password, Steam
   metal/      disko + LUKS/btrfs, lanzaboote, preservation, facter, backup, Fleet
 hosts/
-  maxnix/     base + desktop + metal + laptop.nix + facter.json (the ThinkPad, unchanged)
-  wsl/        base + NixOS-WSL (wsl.enable, wsl.defaultUser, wsl.useWindowsDriver)
-  <desktop>/  base + desktop + metal + an NVIDIA/gaming role (section 5)
+  t14s/       base + desktop + metal + laptop.nix + facter.json (the ThinkPad)
+  z690-wsl/   base + NixOS-WSL (wsl.enable, wsl.defaultUser, wsl.useWindowsDriver)
+  z690/       base + desktop + metal + an NVIDIA/gaming role (section 5)
 home/max/
   core/       shell, git, ssh, dev, harlequin
   desktop/    DMS, Quickshell, niri, Ghostty, Firefox, apps, binds
 ```
 
-In the flake: a small `mkHost`, `nixosConfigurations.wsl`, its
-`tarballBuilder` as a package, and a `checks.wsl` that builds the toplevel —
+In the flake: a small `mkHost`, `nixosConfigurations.z690-wsl`, its
+`tarballBuilder` as a package, and a `checks.z690-wsl` that builds the toplevel —
 there is no booting a WSL distribution in a NixOS test, so a build is the
 honest tier. The desktop suites must go on importing exactly the ThinkPad's
 set of modules, or "the tests cannot drift from the real machine" stops
@@ -123,7 +123,7 @@ Linux there, but still boot it on the metal; a USB stick is the plain one.
 The repo's own installer ISO (`nix build .#installer-iso`) is enough, though
 it is built for the ThinkPad: facter does not care, and `install-maxnix` is
 simply not run. Wired network is the easy start, since the I225-V needs no
-setup. With the pinned nixpkgs, as `hosts/maxnix/configuration.nix` asks:
+setup. With the pinned nixpkgs, as `hosts/t14s/configuration.nix` asks:
 
 ```bash
 sudo $(nix build --no-link --print-out-paths --inputs-from /etc/maxnix \
@@ -205,8 +205,8 @@ boot.
 - [ ] Find out Secure Boot, BitLocker and which disk Windows is on.
 - [x] Split the roles (section 3): done 2026-10-18 (README, "Decisions, and
   why"), `home/max` into core and desktop with it.
-- [x] `hosts/wsl`, repo side: builds (`checks.wsl`), image from
-  `sudo nix run .#wsl-tarball`. Open there: its age key and which secrets it
+- [x] `hosts/z690-wsl`, repo side: builds (`checks.z690-wsl`), image from
+  `sudo nix run .#z690-wsl-tarball`. Open there: its age key and which secrets it
   gets, the login password (NixOS-WSL's default for now: none, and sudo asks
   for none), 1Password's agent and signing bridged from Windows.
 - [ ] Import it on the desktop and boot it; see whether Beyla gets eBPF.

@@ -65,7 +65,7 @@
   # password (../../modules/vm/qemu-guest.nix), a root shell too.
 
   # The machine needs flakes so it can rebuild itself from a clone of this
-  # repo. In the VM, `rebuild` (../../hosts/maxnix/vm.nix) activates the result without a
+  # repo. In the VM, `rebuild` (../../hosts/t14s/vm.nix) activates the result without a
   # reboot; on metal it is plain nixos-rebuild.
   nix.settings.experimental-features = [
     "nix-command"

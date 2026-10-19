@@ -3,8 +3,8 @@
 # windows into Windows' own — and no metal role: Windows owns the disk, the
 # bootloader and the network, and the whole distribution is one VHDX file.
 #
-# Built here as `nix build .#checks.x86_64-linux.wsl`; imported on Windows
-# from `sudo nix run .#wsl-tarball` (a nixos.wsl file) with `wsl --import`.
+# Built here as `nix build .#checks.x86_64-linux.z690-wsl`; imported on Windows
+# from `sudo nix run .#z690-wsl-tarball` (a nixos.wsl file) with `wsl --import`.
 #
 # Deliberately still open (docs/desktop-pc.md, "Still to decide"):
 #
@@ -21,7 +21,7 @@
 #              not import it).
 { ... }:
 {
-  networking.hostName = "wsl";
+  networking.hostName = "z690-wsl";
 
   wsl.enable = true;
   wsl.defaultUser = "max";

@@ -64,7 +64,7 @@ let
   ];
 
   # Literal shell, not Nix: the scripts expand MAXNIX_FLAKE at runtime and fall
-  # back to the declared path, matching `rebuild` in ../../../hosts/maxnix/vm.nix.
+  # back to the declared path, matching `rebuild` in ../../../hosts/t14s/vm.nix.
   clone = "\${MAXNIX_FLAKE:-${osConfig.maxnix.dev.clonePath}}";
 
   capture = pkgs.writeShellApplication {

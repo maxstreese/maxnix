@@ -10,11 +10,11 @@
 #   extraSystemConfig  the system the harness then installs onto that disk
 #                      and boots carries the machine's secrets wiring, so the
 #                      key install-maxnix placed has to decrypt a secret at
-#                      first boot, from where ../hosts/maxnix/secrets.nix
+#                      first boot, from where ../hosts/t14s/secrets.nix
 #                      reads it
 #
 # --no-install skips the script's last step, `nixos-install --flake
-# …#maxnix`: NixOS's own installer command, building the whole machine, which
+# …#t14s`: NixOS's own installer command, building the whole machine, which
 # a sandbox cannot do offline. The harness installs its own test system
 # instead. So this proves the steps that are install-maxnix's — checks,
 # secrets, disko, key — and leaves the one command it delegates.
@@ -72,7 +72,7 @@ disko.lib.testLib.makeDiskoTest {
     {
       imports = [
         sops-nix.nixosModules.sops
-        ../hosts/maxnix/secrets.nix
+        ../hosts/t14s/secrets.nix
         # Declares maxnix.harlequin.profiles, which secrets.nix reads.
         ../modules/base/dev.nix
         # secrets.nix reads their switches; both stay off.

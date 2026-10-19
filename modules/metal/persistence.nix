@@ -105,7 +105,7 @@
         "/var/lib/systemd/timers"
 
         # NetworkManager's connections, Wi-Fi passwords included, as joined in
-        # DMS's widget or with nmcli (../../hosts/maxnix/configuration.nix). Root-only, as
+        # DMS's widget or with nmcli (../../hosts/t14s/configuration.nix). Root-only, as
         # NetworkManager keeps them.
         {
           directory = "/etc/NetworkManager/system-connections";
@@ -119,7 +119,7 @@
           mode = "0700";
         }
 
-        # The laptop services' state (../../hosts/maxnix/laptop.nix, and Bluetooth from the
+        # The laptop services' state (../../hosts/t14s/laptop.nix, and Bluetooth from the
         # hardware report). Paired devices and their keys, root-only: without
         # it every headset is a stranger after a reboot.
         {

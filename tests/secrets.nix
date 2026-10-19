@@ -19,7 +19,7 @@
 # file, as metal's own do, and are absent from the shared one.
 #
 # The key and the encrypted file are made at build time, so no real key is
-# involved and the fixture cannot rot. The node takes ../hosts/maxnix/
+# involved and the fixture cannot rot. The node takes ../hosts/t14s/
 # secrets.nix as is and overrides only the two paths a test must: which file
 # to decrypt and which key to decrypt it with.
 #
@@ -41,7 +41,7 @@ let
             export HOME=$TMPDIR
             mkdir $out
             age-keygen -pq -o $out/key.txt 2>/dev/null
-            # A hash, as the real secret is, made the way ../hosts/maxnix/
+            # A hash, as the real secret is, made the way ../hosts/t14s/
             # secrets.nix says to make it.
             echo -n not-a-real-login | mkpasswd -m yescrypt --stdin > $out/login-hash
             cat > plain.yaml <<EOF
@@ -73,7 +73,7 @@ in
   nodes.machine = {
     imports = [
       sops-nix.nixosModules.sops
-      ../hosts/maxnix/secrets.nix
+      ../hosts/t14s/secrets.nix
       # Declares maxnix.harlequin.profiles, which secrets.nix reads.
       ../modules/base/dev.nix
       # On, so the wiring in secrets.nix runs exactly as on the machine:
@@ -84,7 +84,7 @@ in
     ];
     maxnix.fleet.enable = true;
     maxnix.backup.enable = true;
-    # As on the machine (../hosts/maxnix/configuration.nix).
+    # As on the machine (../hosts/t14s/configuration.nix).
     maxnix.loginPassword.fromSops = true;
     maxnix.secrets.metal.enable = true;
     users.mutableUsers = false;

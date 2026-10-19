@@ -35,7 +35,7 @@
 
 [settings]
 # What a `nix` check receives as `pkgs`.
-pkgs = "nixosConfigurations.maxnix.pkgs"
+pkgs = "nixosConfigurations.t14s.pkgs"
 
 [[entry]]
 id = "harlequin-trino-nixpkgs"
@@ -79,7 +79,7 @@ then = "Drop the override and use py.trino-python-client directly"
 # the signal. "is not valid" is how nix says the cache lacks it; any other
 # failure is a real error, not a "still blocked".
 check = { command = '''
-  out=$(nix eval --raw .#nixosConfigurations.maxnix.pkgs.python3Packages.trino-python-client.outPath 2>/dev/null) || exit 2
+  out=$(nix eval --raw .#nixosConfigurations.t14s.pkgs.python3Packages.trino-python-client.outPath 2>/dev/null) || exit 2
   if err=$(nix path-info --store https://cache.nixos.org "$out" 2>&1 >/dev/null); then
     echo "in cache.nixos.org, so it builds: $out"; exit 0
   fi

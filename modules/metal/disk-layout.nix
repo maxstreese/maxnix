@@ -35,7 +35,7 @@
   # The ThinkPad's one M.2 slot, by PCI path. Stable across reboots in a way
   # /dev/nvme0n1 is not guaranteed to be, and unlike /dev/disk/by-id/… it
   # names the slot rather than the drive, so no serial number lands in this
-  # public repo (the same reason ../../hosts/maxnix/facter.json is stripped of them). With a
+  # public repo (the same reason ../../hosts/t14s/facter.json is stripped of them). With a
   # single slot that loses nothing: a replacement drive sits at the same
   # path. Only disko reads it, on install day — the installed system finds
   # its partitions by label (disk-main-ESP, disk-main-luks).

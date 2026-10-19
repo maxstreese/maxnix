@@ -22,7 +22,7 @@
 # Positions are relative to nixpkgs' own rules, as its pam.nix asks: fixed
 # numbers could silently reorder on an update and leave the stack open.
 #
-# Root too (even_deny_root). Root has the same password (../../hosts/maxnix/secrets.nix), and
+# Root too (even_deny_root). Root has the same password (../../hosts/t14s/secrets.nix), and
 # a root login at the text console would otherwise be the way around the
 # limit. The emergency shell is unaffected: sulogin does not link PAM at all —
 # it reads /etc/shadow itself (getspnam, crypt; checked 2026-10-14) — so a

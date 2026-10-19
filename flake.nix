@@ -36,7 +36,7 @@
     };
 
     # Secrets that live encrypted in this repo. Imported but unconfigured;
-    # see hosts/maxnix/secrets.nix for what it is waiting on.
+    # see hosts/t14s/secrets.nix for what it is waiting on.
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -65,7 +65,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # NixOS as a WSL distribution, for hosts/wsl on the Windows desktop
+    # NixOS as a WSL distribution, for hosts/z690-wsl on the Windows desktop
     # (docs/desktop-pc.md): the module that makes a NixOS system boot under
     # WSL, and the tarball builder for `wsl --import`.
     nixos-wsl = {
@@ -135,7 +135,7 @@
       mkHost = names: dir: lib.concatMap (n: roles.${n}) names ++ [ dir ];
 
       # One machine, one source of truth: the ThinkPad, as its roles and
-      # hosts/maxnix.
+      # hosts/t14s.
       #
       # Evaluated normally this describes the system that is meant to end up
       # installed on metal.
@@ -153,20 +153,20 @@
         "base"
         "desktop"
         "metal"
-      ] ./hosts/maxnix;
+      ] ./hosts/t14s;
 
-      maxnix = lib.nixosSystem {
+      t14s = lib.nixosSystem {
         inherit system;
-        modules = hostModules ++ [ ./hosts/maxnix/vm.nix ];
+        modules = hostModules ++ [ ./hosts/t14s/vm.nix ];
       };
 
-      # NixOS under WSL on the Windows desktop; see hosts/wsl.
-      wsl = lib.nixosSystem {
+      # NixOS under WSL on the Windows desktop; see hosts/z690-wsl.
+      z690Wsl = lib.nixosSystem {
         inherit system;
         modules = mkHost [
           "base"
           "wsl"
-        ] ./hosts/wsl;
+        ] ./hosts/z690-wsl;
       };
 
       # The installer USB and its script (hosts/installer). The key it must
@@ -295,7 +295,7 @@
 
       # The machine as it would be installed, built.
       #
-      # This is the configuration hosts/maxnix/configuration.nix claims to
+      # This is the configuration hosts/t14s/configuration.nix claims to
       # describe, and until modules/metal/disk.nix existed it could not even be
       # evaluated — it failed on having no root filesystem and no bootloader.
       # Nothing built it, so nothing checked it: `packages.vm` builds the
@@ -312,13 +312,13 @@
       # actually partition, format and come up is a different question, and
       # the answer to it is a disko VM test.
       metalChecks = {
-        metal = maxnix.config.system.build.toplevel;
+        metal = t14s.config.system.build.toplevel;
 
         # The WSL host, built. There is no booting a WSL distribution in a
         # NixOS test — it needs Windows' WSL to start it — so building it is
         # what CI can honestly say about it; the boot is checked on the
         # desktop.
-        wsl = wsl.config.system.build.toplevel;
+        z690-wsl = z690Wsl.config.system.build.toplevel;
 
         # How the machine lets people in, read off the files it would install
         # rather than the options behind them. The VM suites cannot answer
@@ -334,7 +334,7 @@
         #   account   pam_faillock, to clear the count after a success
         metal-auth =
           let
-            etc = maxnix.config.environment.etc;
+            etc = t14s.config.environment.etc;
             stacks = [
               "login"
               "sudo"
@@ -351,13 +351,13 @@
                 s = cfg.services.greetd.settings;
               in
               if s ? initial_session then s.initial_session.user else null;
-            vmCfg = maxnix.config.virtualisation.vmVariant;
+            vmCfg = t14s.config.virtualisation.vmVariant;
           in
           assert lib.assertMsg (
-            autologin maxnix.config == "max"
+            autologin t14s.config == "max"
           ) "metal does not log max in after the passphrase";
           assert lib.assertMsg (
-            maxnix.config.boot.initrd.luks.devices ? crypted
+            t14s.config.boot.initrd.luks.devices ? crypted
           ) "metal has no LUKS volume to unlock";
           assert lib.assertMsg (
             autologin vmCfg == null
@@ -452,7 +452,7 @@
           echo "capture:  nix run nixpkgs#vncdotool -- -s localhost::5909 capture /tmp/shot.png" >&2
           # Prepended, so a QEMU_OPTS already in the environment still wins.
           export QEMU_OPTS="-display egl-headless -vnc 127.0.0.1:9 ''${QEMU_OPTS:-}"
-          exec ${lib.getExe maxnix.config.system.build.vm} "$@"
+          exec ${lib.getExe t14s.config.system.build.vm} "$@"
         '';
       };
 
@@ -529,7 +529,7 @@
           fi
 
           echo "installer-vm: disk $disk, stick $([ "$stick" = 1 ] && echo in || echo out), network ''${net[0]}" >&2
-          exec ${maxnix.config.virtualisation.vmVariant.virtualisation.qemu.package}/bin/qemu-system-x86_64 \
+          exec ${t14s.config.virtualisation.vmVariant.virtualisation.qemu.package}/bin/qemu-system-x86_64 \
             -machine q35,accel=kvm -cpu host -smp 4 -m 8192 \
             -device virtio-vga-gl,xres=1920,yres=1080 \
             -drive if=pflash,format=raw,readonly=on,file=${pkgs.OVMF.fd}/FV/OVMF_CODE.fd \
@@ -580,7 +580,7 @@
           # Scratch disks, so a test run never disturbs the VM state in ./.vm
           # or depends on where it was invoked from.
           set +e
-          NIX_DISK_IMAGE="$scratch/test.qcow2"           MAXNIX_HOME_IMAGE="$scratch/home.qcow2"             timeout 8 ${lib.getExe maxnix.config.system.build.vm} > "$scratch/qemu.log" 2>&1
+          NIX_DISK_IMAGE="$scratch/test.qcow2"           MAXNIX_HOME_IMAGE="$scratch/home.qcow2"             timeout 8 ${lib.getExe t14s.config.system.build.vm} > "$scratch/qemu.log" 2>&1
           rc=$?
           set -e
 
@@ -597,7 +597,7 @@
 
       # An `ssh` that reaches the VM.
       #
-      # Goes through the loopback port forward in hosts/maxnix/vm.nix, logs in
+      # Goes through the loopback port forward in hosts/t14s/vm.nix, logs in
       # with the (plaintext, by decision) VM password, and ignores host keys —
       # every root-image reset mints a new one, and this is loopback to a
       # machine you own. -F /dev/null skips the host's /etc/ssh/ssh_config,
@@ -607,7 +607,7 @@
       # exec whatever `ssh` they find, so this is how vm-deploy's copies get
       # their port and password without any of those tools knowing.
       vmSshShim = pkgs.writeShellScriptBin "ssh" ''
-        exec ${lib.getExe pkgs.sshpass} -p ${lib.escapeShellArg maxnix.config.virtualisation.vmVariant.users.users.max.initialPassword} \
+        exec ${lib.getExe pkgs.sshpass} -p ${lib.escapeShellArg t14s.config.virtualisation.vmVariant.users.users.max.initialPassword} \
           ${pkgs.openssh}/bin/ssh \
             -p 2222 \
             -F /dev/null \
@@ -658,7 +658,7 @@
       #
       # Put the VM's sops key back after a full reset (.vm/home.qcow2 deleted),
       # or onto a fresh VM. The key is kept in 1Password and restored, never
-      # generated in the guest — see hosts/maxnix/secrets.nix for why.
+      # generated in the guest — see hosts/t14s/secrets.nix for why.
       #
       # It goes from `op read` straight through the ssh pipe into a root-only
       # file; nothing prints it and nothing on the host writes it down. Run it
@@ -673,7 +673,7 @@
         let
           # Where the VM decrypts from, read off its own config so the two
           # cannot disagree.
-          key = maxnix.config.virtualisation.vmVariant.sops.age.keyFile;
+          key = t14s.config.virtualisation.vmVariant.sops.age.keyFile;
 
           # The guest half. Lands in /run (tmpfs) first and replaces the key
           # only if something arrived: if `op read` fails — prompt denied,
@@ -722,14 +722,14 @@
 
       # nix run .#secret-set -- <name> <op-reference>
       #
-      # Put one value from 1Password into hosts/maxnix/secrets.yaml, or
+      # Put one value from 1Password into hosts/t14s/secrets.yaml, or
       # secrets-metal.yaml for metal's own, from the repo root and your own
       # terminal, where 1Password can prompt:
       #
       #   nix run .#secret-set -- restic-password "op://<vault>/<item>/password"
       #
       # What the hand-written `op read | jq -R . | sops set` in
-      # hosts/maxnix/secrets.nix did, with its gaps closed:
+      # hosts/t14s/secrets.nix did, with its gaps closed:
       #
       #   - Only names the machine declares, metal or VM, read off their
       #     configs: a typo would otherwise sit in the file, unused, while the
@@ -750,15 +750,15 @@
       secretSet =
         let
           # Name → the file it lives in, read off the secret's sopsFile, so a
-          # secret moved between hosts/maxnix/secrets.yaml and
+          # secret moved between hosts/t14s/secrets.yaml and
           # secrets-metal.yaml is written where the machine looks for it.
           # Both machines' declarations: metal's names and the VM's are not
           # the same set. A name the two read from different files has no
           # one answer, and stops the build.
           filesOf =
-            cfg: lib.mapAttrs (_: s: "hosts/maxnix/${baseNameOf (toString s.sopsFile)}") cfg.sops.secrets;
-          metalFiles = filesOf maxnix.config;
-          vmFiles = filesOf maxnix.config.virtualisation.vmVariant;
+            cfg: lib.mapAttrs (_: s: "hosts/t14s/${baseNameOf (toString s.sopsFile)}") cfg.sops.secrets;
+          metalFiles = filesOf t14s.config;
+          vmFiles = filesOf t14s.config.virtualisation.vmVariant;
           clashes = lib.filter (n: metalFiles ? ${n} && metalFiles.${n} != vmFiles.${n}) (
             builtins.attrNames vmFiles
           );
@@ -768,7 +768,7 @@
             ) "secret-set: metal and the VM read ${toString clashes} from different files";
             vmFiles // metalFiles;
           declared = builtins.attrNames files;
-          hashed = builtins.attrNames (lib.filterAttrs (_: s: s.neededForUsers) maxnix.config.sops.secrets);
+          hashed = builtins.attrNames (lib.filterAttrs (_: s: s.neededForUsers) t14s.config.sops.secrets);
         in
         pkgs.writeShellApplication {
           name = "secret-set";
@@ -792,7 +792,7 @@
             case " $declared " in
               *" $name "*) ;;
               *)
-                echo "$name is not a secret the machine declares; declare it in hosts/maxnix/secrets.nix first" >&2
+                echo "$name is not a secret the machine declares; declare it in hosts/t14s/secrets.nix first" >&2
                 exit 1
                 ;;
             esac
@@ -875,11 +875,11 @@
       backup =
         let
           item = "op://uxobupcysqhat566ymgikx46fm/vzuc267xgjsigg4luhczyeml6q";
-          # One restic password per repository, as in hosts/maxnix/secrets.nix:
+          # One restic password per repository, as in hosts/t14s/secrets.nix:
           # the VM's key must not open metal's snapshots.
           resticPasswordVm = "op://uxobupcysqhat566ymgikx46fm/3mgylwhm4eziob5ka5v2vv4o24/password";
           resticPasswordMetal = "op://uxobupcysqhat566ymgikx46fm/remrafourzg634zb6a33fn2hoa/password";
-          vmRepository = maxnix.config.virtualisation.vmVariant.maxnix.backup.repository;
+          vmRepository = t14s.config.virtualisation.vmVariant.maxnix.backup.repository;
 
           # Runs inside `op run`, after the references are resolved.
           authorize = pkgs.writeShellScript "backup-authorize" ''
@@ -939,9 +939,9 @@
             export RCLONE_CONFIG_GDRIVE_TOKEN="${item}/token"
             # The machine's own setting, so the two cannot drift apart, unless
             # overridden: RESTIC_REPOSITORY=rclone:gdrive:maxnix-backup-vm for
-            # the VM's (hosts/maxnix/vm.nix), which also picks the VM's
+            # the VM's (hosts/t14s/vm.nix), which also picks the VM's
             # password.
-            export RESTIC_REPOSITORY="''${RESTIC_REPOSITORY:-${maxnix.config.maxnix.backup.repository}}"
+            export RESTIC_REPOSITORY="''${RESTIC_REPOSITORY:-${t14s.config.maxnix.backup.repository}}"
             if [ "$RESTIC_REPOSITORY" = ${lib.escapeShellArg vmRepository} ]; then
               export RESTIC_PASSWORD="${resticPasswordVm}"
             else
@@ -965,7 +965,7 @@
       # activate now, leave the bootloader alone, the disk is disposable.
       #
       # --no-check-sigs: the host's paths are unsigned; the guest accepts them
-      # because max is a trusted user there (hosts/maxnix/vm.nix). The copy is
+      # because max is a trusted user there (hosts/t14s/vm.nix). The copy is
       # over loopback and only sends what the guest does not already have.
       #
       # The toplevel is interpolated into the script, so `nix run .#vm-deploy`
@@ -973,7 +973,7 @@
       # deployed is exactly what this evaluation of the flake describes.
       vmDeploy =
         let
-          toplevel = maxnix.config.virtualisation.vmVariant.system.build.toplevel;
+          toplevel = t14s.config.virtualisation.vmVariant.system.build.toplevel;
         in
         pkgs.writeShellApplication {
           name = "vm-deploy";
@@ -988,7 +988,7 @@
             # The same diff the in-guest `rebuild` prints, run in the guest
             # because that is where both systems are: the new one has just
             # been copied there, and the current one was never here. See the
-            # note at `rebuild` in hosts/maxnix/vm.nix for why this is the
+            # note at `rebuild` in hosts/t14s/vm.nix for why this is the
             # artifact worth having.
             echo >&2
             ssh max@127.0.0.1 nvd diff /run/current-system ${toplevel} >&2 || true
@@ -1164,14 +1164,14 @@
           # ended up being.
           pkgs.jq
 
-          # Editing hosts/maxnix/secrets.yaml, and reading a key's public
+          # Editing hosts/t14s/secrets.yaml, and reading a key's public
           # half with `age-keygen -y`. Pinned here so the sops that writes
           # the file is the flake's, not whatever the host has.
           pkgs.sops
           pkgs.age
 
           # The login password's hash, for the `login-password` secret
-          # (hosts/maxnix/secrets.nix): `mkpasswd -m yescrypt --stdin`.
+          # (hosts/t14s/secrets.nix): `mkpasswd -m yescrypt --stdin`.
           pkgs.mkpasswd
 
           # `rclone authorize "drive" <id> <secret>` for the backup's Google
@@ -1184,7 +1184,7 @@
         # sops gets the admin key from 1Password on each run rather than from
         # a file: the command's output is the key, and 1Password prompts
         # before handing it over. Here rather than in .envrc so `nix develop`
-        # sets it too, on a machine without direnv. See hosts/maxnix/secrets.nix.
+        # sets it too, on a machine without direnv. See hosts/t14s/secrets.nix.
         #
         # A command, not `op run` with SOPS_AGE_KEY: that would put the key in
         # sops's environment, and `sops edit` passes its environment on to the
@@ -1271,7 +1271,7 @@
             echo "two things to do first (device path, encryption key)." >&2
             exit 2
           fi
-          exec nixos-anywhere --flake "${inputs.self}#maxnix" "$@"
+          exec nixos-anywhere --flake "${inputs.self}#t14s" "$@"
         '';
       };
 
@@ -1312,7 +1312,7 @@
           fi
           [ -e flake.nix ] || { echo "run this from the repo root" >&2; exit 1; }
           rev=$(git rev-parse --verify "$1^{commit}")
-          attr=nixosConfigurations.maxnix.config.system.build.toplevel
+          attr=nixosConfigurations.t14s.config.system.build.toplevel
           out=$(mktemp -d)
           trap 'rm -rf "$out"' EXIT
 
@@ -1454,8 +1454,8 @@
       # the two lints this repo switches off, and why.
     in
     {
-      nixosConfigurations.maxnix = maxnix;
-      nixosConfigurations.wsl = wsl;
+      nixosConfigurations.t14s = t14s;
+      nixosConfigurations.z690-wsl = z690Wsl;
       nixosConfigurations.installer = installer;
 
       # nix fmt
@@ -1480,14 +1480,14 @@
       # no GC root, so a garbage collection can force a rebuild. Use
       # `nix build .#vm` when you want the closure pinned.
       packages.${system} = {
-        vm = maxnix.config.system.build.vm;
-        default = maxnix.config.system.build.vm;
+        vm = t14s.config.system.build.vm;
+        default = t14s.config.system.build.vm;
 
         # The script that writes nixos.wsl, the file `wsl --import` takes.
         # NixOS-WSL's own builder, run as root since it assembles a root
-        # filesystem: `sudo nix run .#wsl-tarball`, then copy nixos.wsl to
+        # filesystem: `sudo nix run .#z690-wsl-tarball`, then copy nixos.wsl to
         # Windows.
-        wsl-tarball = wsl.config.system.build.tarballBuilder;
+        z690-wsl-tarball = z690Wsl.config.system.build.tarballBuilder;
 
         # The installer USB; see hosts/installer for writing it to a stick.
         installer-iso = installer.config.system.build.isoImage;

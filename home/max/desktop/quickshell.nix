@@ -41,7 +41,7 @@ in
   # that nothing reads — which is exactly the confusion the option could
   # otherwise create.
   #
-  # MAXNIX_FLAKE first, matching `rebuild` in ../../../hosts/maxnix/vm.nix, so a
+  # MAXNIX_FLAKE first, matching `rebuild` in ../../../hosts/t14s/vm.nix, so a
   # clone in an unusual place needs no rebuild to work with.
   home.packages = [
     (pkgs.writeShellApplication {
