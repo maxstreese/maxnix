@@ -49,7 +49,7 @@ jobs:
       # Not RENOVATE_VERSION: the action hands every RENOVATE_* variable to
       # the container, where Renovate would read it as a config option.
       # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
-      SELF_HOSTED_RENOVATE_VERSION: 44.167.6
+      SELF_HOSTED_RENOVATE_VERSION: 44.171.1
     steps:
       - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         id: app-token
