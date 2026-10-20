@@ -140,3 +140,21 @@ check = { nix = '''
         "grafana-alloy ${pkgs.grafana-alloy.version} no longer links systemd-minimal-libs";
   }
 ''' }
+
+[[entry]]
+id = "sbomnix-typepy"
+title = "Bring sbomnix back"
+upstream = "https://github.com/NixOS/nixpkgs/pull/573108 (merged into staging 2026-10-14)"
+workaround = "home/max/core/dev.nix: sbomnix commented out; `, vulnxscan` meanwhile"
+then = "Build sbomnix once by hand (the check looks for this fix, not for a working build), then re-add it to dev.nix"
+check = { nix = '''
+  pkgs: let
+    p = pkgs.python3Packages;
+    relaxed = d: builtins.elem "typepy" (d.pythonRelaxDeps or [ ]);
+    ok = relaxed p.sqliteschema && relaxed p.simplesqlite
+      || builtins.compareVersions p.typepy.version "2" < 0;
+  in {
+    unblocked = ok;
+    evidence = "typepy ${p.typepy.version}; relaxed in sqliteschema and simplesqlite: ${if ok then "yes" else "no"}";
+  }
+''' }

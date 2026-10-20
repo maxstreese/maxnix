@@ -185,6 +185,10 @@
     "claude-code"
     # ../../home/max/core/dev.nix: agent-browser's browser, and a real Chrome.
     "google-chrome"
+    # ../../home/max/core/dev.nix: Atlassian's CLI. The binary is its own
+    # unfree derivation under the wrapper, so both names are needed.
+    "acli"
+    "acli-unwrapped"
   ];
 
   environment.systemPackages = with pkgs; [

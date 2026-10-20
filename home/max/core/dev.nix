@@ -228,7 +228,14 @@
     # nix-tree is the follow-up question: what pulls a flagged library into
     # the closure, and so whether it can be dropped or has to wait for
     # nixpkgs.
-    sbomnix
+    #
+    # sbomnix is out for now: nixpkgs-unstable carries typepy 2.0.0, which
+    # its dependencies sqliteschema and simplesqlite reject, so it does not
+    # build (2026-10-20). Upstream relaxed the pin in staging; the
+    # `sbomnix-typepy` entry in ../../../docs/blocked.toml says when it has
+    # reached the pin. Meanwhile `, vulnxscan` fetches it on demand — from
+    # a nixpkgs that builds it, not this one.
+    # sbomnix
     nix-tree
 
     # ── Browser automation for agents ─────────────────────────────────────
@@ -248,6 +255,12 @@
     # need.
     agent-browser
     google-chrome
+
+    # ── Atlassian ─────────────────────────────────────────────────────────
+    #
+    # acli, Atlassian's own CLI for Jira and the rest of the Cloud suite.
+    # Unfree; its allow-list entry is in ../../../modules/base/default.nix.
+    acli
 
     # ── Secrets ───────────────────────────────────────────────────────────
     sops
