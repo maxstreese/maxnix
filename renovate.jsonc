@@ -139,6 +139,24 @@
       "groupName": "dependencies"
     },
     {
+      // Renovate releases on every merged fix or feature, 3 to 13 times a day
+      // (2026-10-08 to 10-21), so with the nightly run the pin in
+      // .github/workflows/renovate.yml moved almost every night. Nothing about
+      // the bot needs to be that current; Mondays only (Europe/Berlin, which
+      // the 02:17 UTC run always falls on).
+      //
+      // Its own group because a schedule cannot be set per update inside one:
+      // a branch takes its config from whichever upgrade sorts first, so in
+      // "dependencies" this would either hold back every other bump or be
+      // ignored. updateNotScheduled false so an open PR also waits for
+      // Monday, instead of following each new release until then.
+      "description": "Renovate's own image weekly, in its own PR",
+      "matchDepNames": ["ghcr.io/renovatebot/renovate"],
+      "groupName": "renovate",
+      "schedule": ["* * * * 1"],
+      "updateNotScheduled": false
+    },
+    {
       // A new tag in flake.nix leaves flake.lock on the old commit. `nix
       // flake lock` re-resolves only inputs whose URL changed.
       //
