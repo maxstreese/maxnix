@@ -6,8 +6,10 @@
 
     # DankMaterialShell — a Quickshell-based desktop shell. Not in nixpkgs;
     # "stable" is upstream's release branch (drop the suffix for master).
+    # Since 2.0 (2026-10-20) it is Dux Labs' dux-shell; AvengeMedia's URLs
+    # still redirect, but upstream asks packagers to move.
     dms = {
-      url = "github:AvengeMedia/DankMaterialShell/stable";
+      url = "github:duxlabs-dev/dux-shell/stable";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -22,9 +24,10 @@
 
     # Dank Greeter — the graphical login screen matching DMS. It lives in its
     # own repo; the DMS flake's nixosModules.greeter is now only a deprecation
-    # warning pointing here.
+    # warning pointing here. Renamed dux-greeter with DMS 2.0; the input keeps
+    # its old name, which nothing outside this file would gain from changing.
     dank-greeter = {
-      url = "github:AvengeMedia/dank-greeter";
+      url = "github:duxlabs-dev/dux-greeter";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

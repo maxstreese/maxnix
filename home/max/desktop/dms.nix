@@ -33,10 +33,15 @@ let
   #
   # `programs.dank-material-shell.settings` exists and is deliberately unset
   # below, which is what makes theming instant: the module only generates
-  # ~/.config/DankMaterialShell/settings.json when that option is non-empty,
-  # so today the file is plain mutable state DMS owns and its settings UI can
-  # write. Setting the option would put it in the store, and DMS would lose
-  # the ability to save — the fast loop traded away for version control.
+  # ~/.config/dms/settings.json when that option is non-empty, so today the
+  # file is plain mutable state DMS owns and its settings UI can write.
+  # Setting the option would put it in the store, and DMS would lose the
+  # ability to save — the fast loop traded away for version control.
+  #
+  # ~/.config/dms since DMS 2.0 (2026-10-20); before, DankMaterialShell. DMS
+  # moves the old config, state and cache dirs to the new names on first start
+  # and leaves symlinks behind, so the old paths still resolve, but nothing
+  # here should rely on that.
   #
   # These two keep both. Theme in the UI as now, then `dms-capture` to record
   # the result in the clone, where git sees it like any other change. Explicit
@@ -72,7 +77,7 @@ let
     runtimeInputs = [ pkgs.git ];
     text = ''
       clone="${clone}"
-      src="$HOME/.config/DankMaterialShell"
+      src="$HOME/.config/dms"
       dest="$clone/${stateDir}"
 
       if [ ! -d "$src" ]; then
@@ -112,7 +117,7 @@ let
     text = ''
       clone="${clone}"
       src="$clone/${stateDir}"
-      dest="$HOME/.config/DankMaterialShell"
+      dest="$HOME/.config/dms"
 
       if [ ! -d "$src" ]; then
         echo "dms-restore: nothing captured yet at $src" >&2
@@ -187,7 +192,7 @@ in
     enableSystemMonitoring = true;
 
     # Plugins are declared rather than installed with `dms plugins install`:
-    # the module links each `src` into ~/.config/DankMaterialShell/plugins/
+    # the module links each `src` into ~/.config/dms/plugins/
     # under its attribute name, which must be the plugin's `id` from its
     # plugin.json. The code is pinned by flake.lock and read-only.
     #

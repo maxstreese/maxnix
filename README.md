@@ -780,7 +780,7 @@ false and `activeConfig` is null — so the scratchpad cannot fight DMS for the
 screen. DMS is still the shell.
 
 **DMS theming** — already live, and the trap is the obvious fix. Its Home
-Manager module generates `~/.config/DankMaterialShell/settings.json` only when
+Manager module generates `~/.config/dms/settings.json` only when
 `programs.dank-material-shell.settings` is non-empty, and `home/max/desktop/dms.nix`
 deliberately leaves it unset. That is *why* theming needs no rebuild: the file
 is plain mutable state DMS owns. Declaring it from the repo would move it into
@@ -790,7 +790,7 @@ fast loop for the version control, when the point is to have both.
 So theming is captured rather than declared:
 
 ```
-dms-capture       # ~/.config/DankMaterialShell -> home/max/dms-state, then git status
+dms-capture       # ~/.config/dms -> home/max/dms-state, then git status
 dms-restore       # the other way, after a root reset; restarts dms if it is up
 ```
 

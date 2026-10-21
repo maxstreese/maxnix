@@ -116,9 +116,11 @@ in
     # happen to be adjacent.
     #
     # This expands to three files the greeter copies into its own cache:
-    #   ~/.config/DankMaterialShell/settings.json
-    #   ~/.local/state/DankMaterialShell/session.json
-    #   ~/.cache/DankMaterialShell/dms-colors.json   -> colors.json
+    #   ~/.config/dms/settings.json
+    #   ~/.local/state/dms/session.json
+    #   ~/.cache/dms/dms-colors.json   -> colors.json
+    # each also at its pre-2.0 path under DankMaterialShell/, listed first so
+    # the dms one wins where both exist (DMS 2.0 renamed the dirs, 2026-10-20).
     #
     # The copy happens in greetd's preStart, which runs as root, so it can read
     # a 0700 home directory; each copy is guarded on the file existing, so a
