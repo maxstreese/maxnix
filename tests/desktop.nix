@@ -36,6 +36,18 @@
   lib,
   ...
 }:
+let
+  # A stand-in for what mise downloads: a binary whose loader is the FHS path
+  # and which carries no RPATH, so it finds neither its loader nor its
+  # libraries unless nix-ld supplies both. Made from pigz because pigz needs
+  # zlib, which only nix-ld's library list provides, and built locally so the
+  # check needs no network. runCommand has no fixup phase, so nothing
+  # re-patches it on the way into the store.
+  foreignBinary = hostPkgs.runCommand "foreign-pigz" { } ''
+    install -D -m 755 ${hostPkgs.pigz}/bin/pigz $out/bin/pigz
+    ${lib.getExe hostPkgs.patchelf} --set-interpreter /lib64/ld-linux-x86-64.so.2 --remove-rpath $out/bin/pigz
+  '';
+in
 {
   name = "maxnix-desktop";
 
@@ -60,6 +72,9 @@
 
       # To drive a PAM service directly, as the lockout subtest does.
       environment.systemPackages = [ pkgs.pamtester ];
+
+      # In the guest's store, but deliberately not on PATH.
+      virtualisation.additionalPaths = [ foreignBinary ];
 
       # The driver appends -nographic when it finds no DISPLAY in its own
       # environment, which would leave virtio-vga-gl without a GL-capable
@@ -204,6 +219,20 @@
           )
           machine.succeed(
               "su max -c 'HOME=/home/max grep -q \"direnv hook bash\" ~/.bashrc'"
+          )
+          # mise, for the work repos, the same two halves: on PATH, and
+          # hooked into the shell, since an unhooked mise never puts a repo's
+          # pinned tools on PATH and the repo silently gets this profile's.
+          installed(["mise"], user=True)
+          machine.succeed(
+              "su max -c 'HOME=/home/max grep -q \"mise.* activate bash\" ~/.bashrc'"
+          )
+          # What mise downloads are generic-linux binaries, and they run
+          # only through nix-ld (modules/base/nix-ld.nix). Run as max from a
+          # login shell, where mise's downloads would run, and with a library
+          # (zlib) that only nix-ld's list provides.
+          machine.succeed(
+              "su - max -c 'echo foreign | ${foreignBinary}/bin/pigz | ${foreignBinary}/bin/pigz -d | grep -qx foreign'"
           )
 
           # The udev rules are what let a normal user talk to the keyboard;

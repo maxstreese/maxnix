@@ -4,7 +4,7 @@
 #
 # The work this machine is for is built on Docker: compose files across the
 # work repositories, Dockerfiles for the company's base and builder images,
-# Testcontainers pinned at 1.16 in rtp-library-test (from before its Podman
+# Testcontainers pinned at 1.16 in a work repo's tests (from before its Podman
 # support was good), and the JetBrains IDEs' Docker integration. Podman's
 # compatibility socket covers most of that and not all of it, and each gap
 # would be found one project at a time. Rootless Docker gets the security

@@ -11,6 +11,7 @@
     ./containers.nix
     ./dev.nix
     ./login-limits.nix
+    ./nix-ld.nix
     ./observability
   ];
 

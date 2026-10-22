@@ -26,11 +26,15 @@ later is the same collection; the counts below will have moved.
 
 ## Decided
 
-- **mise goes.** It manages node, pnpm, java, uv, deno, sops, yq and more by
-  downloading generic Linux binaries, which NixOS does not run (see the
-  README finding). Runtimes become per-project flakes entered through the
-  direnv + nix-direnv already in `home/max/core/dev.nix`; the few CLIs wanted
-  everywhere go in the user layer. sdkman goes for the same reason.
+- **mise stays, for work repos only** (changed 2026-10-22). It was to go: it
+  manages node, pnpm, java, uv, deno, sops, yq and more by downloading generic
+  Linux binaries, which NixOS does not run (see the README finding). For my
+  own projects that still holds, and runtimes are per-project flakes entered
+  through the direnv + nix-direnv in `home/max/core/dev.nix`, with the few
+  CLIs wanted everywhere in the user layer. But the work repos pin their tools
+  in a `mise.toml` that is not mine to replace, so nix-ld now runs those
+  downloads and mise has no global tools (README "Decisions, and why").
+  sdkman goes, as before.
 - **Three host services are not coming**: an endpoint-security agent, a
   second VPN client, and a remote-desktop tool. Twingate is the VPN here.
 - **Ubuntu-only plumbing is not coming**: snapd, livepatch, the apt/snap/brew
@@ -171,8 +175,8 @@ or IDEs rather than typed, which history cannot see.
   `jsontidy`, `tp`, and launchers for IntelliJ and CLion. None ported; the
   `kubectx`/`kubens` aliases are moot now that the real tools are in.
 - **Functions:** `rt`, `svim`. Not ported.
-- **Hooks:** starship and atuin ✓ (Home Manager modules); mise and sdkman
-  going; cargo and deno env; and a long run of `source <(… completion bash)`
+- **Hooks:** starship and atuin ✓ (Home Manager modules); mise ✓ (Home Manager
+  module), sdkman going; cargo and deno env; and a long run of `source <(… completion bash)`
   lines. Most of those completions come free once the package is in Home
   Manager.
 

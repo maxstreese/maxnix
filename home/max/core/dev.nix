@@ -57,6 +57,35 @@
     nix-direnv.enable = true;
   };
 
+  # mise, for work repos that pin their tools in a mise.toml. My own projects
+  # carry a flake (direnv, above); mise is for repos I don't own, and its
+  # downloads are upstream generic-linux builds that run only because of
+  # nix-ld (../../../modules/base/nix-ld.nix). Nothing is installed through
+  # it globally — tools wanted everywhere belong in home.packages below — so
+  # it only ever acts inside a repo, and a repo's config acts only after
+  # `mise trust`, the same gate as `direnv allow`.
+  #
+  # The activation hook goes into bash and zsh and puts a trusted repo's
+  # tools ahead of this profile's on PATH. Its downloads land in
+  # ~/.local/share/mise, which backups skip (../../../modules/metal/backup.nix).
+  programs.mise = {
+    enable = true;
+    globalConfig.settings = {
+      # mise detects NixOS and then defaults to compiling tools such as node
+      # from source instead of downloading upstream builds, even with
+      # nix-ld on. node 24's configure fails outright here (Python 3.14,
+      # "too many values to unpack"; 2026-10-22), and even where it works it
+      # is minutes of build per version. mise itself deprecates that default
+      # and points at nix-ld, which is what makes the downloads run. Stated
+      # explicitly until the default goes (mise 2027.8.0, per its warning).
+      all_compile = false;
+
+      # The self-update nag, which can never be acted on for a Nix-installed
+      # mise — see the marimo note at the end of this file.
+      disable_update_warning = true;
+    };
+  };
+
   # gh, through its module rather than as a bare package, for one setting:
   # `gh repo clone` and friends default to HTTPS, which would ignore the SSH
   # auth key entirely and ask for a token instead. This points them at the
@@ -117,8 +146,9 @@
     #   programs.nix-ld.enable, which puts a stub loader at /lib64 for every
     #     process on the machine.
     #
-    # The first keeps the impurity out of the machine, so prefer it. The
-    # NixOS wiki leads with the second.
+    # The first keeps the impurity out of this environment, so prefer it.
+    # nix-ld is on now anyway, for the work repos' mise toolchains, but a
+    # notebook here should not depend on it.
     (python3.withPackages (
       ps: with ps; [
         marimo
@@ -192,8 +222,9 @@
     trino-cli
     visualvm
 
-    # uv. Its downloaded CPython cannot run here; point it at a Nix Python
-    # instead, as the marimo note above describes.
+    # uv. Its downloaded CPython runs since nix-ld is on (work repos' uv
+    # scripts pin their own Python); for my own use, point it at a Nix
+    # Python instead, as the marimo note above describes.
     uv
 
     # DBeaver Community, the database GUI. Free (Apache-2.0), so no

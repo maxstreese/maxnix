@@ -176,6 +176,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | boot and login | one password at power-on: the LUKS passphrase, then greetd starts max's niri session (`initial_session`); no TPM unlock; the login keyring with an empty password | decided 2026-10-15, over typing a passphrase and then a password. Only someone who knows the passphrase gets past power-on, so the greeter added typing, not protection; the lock screen and sudo still take the login password. TPM unlock was dropped with it: together with autologin, the power button alone would open the session, and `modules/desktop/greeter.nix` refuses that combination. The keyring cannot be opened by the boot passphrase — greetd starts an autologin session without `pam_authenticate`, the step in which `pam_gnome_keyring` and `pam_systemd_loadkey` act (read in their sources) — so it has no password of its own, and LUKS protects its file. Metal only: VMs and test nodes have no LUKS and keep the greeter |
 | backups | restic, to Google Drive over rclone; VM only until install day | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
 | containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
+| foreign binaries | `programs.nix-ld` on every host, plus mise for repos that pin tools in a `mise.toml`; my own projects keep a flake each | decided 2026-10-22, reversing "nix-ld was not kept" (Findings) for one reason: the work repos are not mine to convert, and they pin node, pnpm, uv and a dozen CLIs through mise, which downloads upstream generic-linux builds. Both repos were run end to end in the VM: every tool installs and runs, uv fetches and runs its own CPython, and the frontend's vitest (unit and Chromium component tests) passes, with Playwright's e2e suite running against Chromium. The cost is the loud failure: an undeclared binary now just runs, outside anything Nix can roll back or collect. The library list holds only what a named tool failed without, today Playwright's Chromium. In base, not desktop, because WSL runs the same repos. Considered and not taken: the Nix-backed mise plugins (a work repo's `node = "24"` reaches them only through hand-kept `tool_alias` mappings, exact pins often do not exist in nixpkgs, and npm's prebuilt binaries would need nix-ld anyway), a flake per work repo kept beside it (drifts from the team's pins), and a container per repo |
 | device management | Fleet's agent (Orbit + osquery) via nixpkgs' `services.orbit`, off until configured | the employer is adopting Fleet (learned 2026-09-29). Wired ahead of the URL and enroll secret; both come from sops, so turning it on is one line. `osquery` itself is a general system tool in `configuration.nix`; `osqueryi` also lets the machine be checked the way Fleet will check it. NixOS is not a Fleet-supported distro, so its disk-encryption and firewall checks may misreport — a question for IT |
 | backup secrets | sops-nix, rendered into an rclone.conf template | the repository password and the rclone OAuth token are both long-lived and must survive a reinstall, so neither can live only on the machine being backed up |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
@@ -455,6 +456,21 @@ astral-sh/uv#4450 has been open since 2024, labelled *compatibility*, and
 `uv venv` from a wrapped nixpkgs Python isolates itself from that Python's
 packages — so the third option won: marimo lives in a `python3.withPackages`
 environment, and nothing downloads an interpreter at all.
+
+nix-ld came back on 2026-10-22, for the work repos and their mise toolchains
+("Decisions, and why"); marimo's environment is unchanged and does not rely
+on it.
+
+**On NixOS, mise compiles tools such as node from source by default — even
+with nix-ld on.** It detects the distribution and sets `all_compile = true`,
+which it has since deprecated in favour of nix-ld (the setting's own warning
+says so; the default goes in mise 2027.8.0). node 24.22.0's `configure` does
+not even get that far here: it fails on Python 3.14 with "too many values to
+unpack" (2026-10-22). `programs.mise.globalConfig.settings.all_compile = false`
+in `home/max/core/dev.nix` makes mise download the upstream build, which
+nix-ld then runs. Of the work repos' tools, only node, pnpm, uv and bat are
+dynamically linked; crane, flux, helm, kustomize, gh and jq are static builds
+that need no loader at all.
 
 **A tool's Nix wrapper can have a closed environment, which fails only at run
 time.** The bare `marimo` package is wrapped with a fixed PYTHONPATH holding
@@ -914,10 +930,11 @@ Fleet Desktop is on, as it is in the VM.
 not yet.** `docs/inventory.md` records what the Ubuntu host has installed and
 what its shell history shows is actually used, and marks with ✓ what came
 over on 2026-10-01: the CLI tools, atuin and starship, DBeaver, and Harlequin
-in place of per-database clients. Decided besides: mise and sdkman give way
-to per-project flakes, and three host services stay behind. Still open: how
-to carry the Neovim config over, the shell aliases and functions, a few
-tools proposed but not added, and the rows marked "?".
+in place of per-database clients. Decided besides: sdkman gives way to
+per-project flakes, mise stays for the work repos that pin tools with it, and
+three host services stay behind. Still open: how to carry the Neovim config
+over, the shell aliases and functions, a few tools proposed but not added, and
+the rows marked "?".
 
 **Bind reachability is only partly checked.** The dead German binds were found
 by a hand-run audit, not by anything in the repo. niri rejects a bad keysym at

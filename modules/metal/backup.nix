@@ -227,6 +227,10 @@ in
         # in a bind mount under a backed-up path instead.
         "/home/*/.local/share/docker"
 
+        # mise's toolchains for the work repos: each one is a download away,
+        # pinned by the repo's mise.toml.
+        "/home/*/.local/share/mise"
+
         # Build output and dependency trees, all reproducible from a lockfile
         # that IS backed up.
         "**/node_modules"

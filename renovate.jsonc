@@ -64,8 +64,8 @@
   // first refresh for a week of nightly runs (2026-10-09 to 10-16). Rebuilt,
   // lock file maintenance runs `nix flake update` afresh, so the PR follows
   // nixpkgs and its closure-diff comment shows what merging would bring
-  // today — at most once per Renovate run, not once per push. As in
-  // ttmzero/rtp-backend, where it is set for every PR.
+  // today — at most once per Renovate run, not once per push. As in a work
+  // repo, where it is set for every PR.
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["at any time"],
