@@ -282,6 +282,37 @@
       # unchanged.
       tests = mkTests true;
 
+      # disko, with its test harness patched for nixpkgs without the scripted
+      # initrd (gone 2026-10): makeDiskoTest still reads the removed
+      # boot.initrd.systemd.enable to decide how /tmp/secret.key reaches the
+      # initrd, and reading a removed option throws. The patch keeps the
+      # systemd branch. Only testLib is swapped; the module and everything
+      # the metal toplevel takes from disko stay the input's. Remove with
+      # docs/blocked.toml `disko-testlib-systemd-initrd`.
+      diskoForTests =
+        let
+          # Importing from this is import-from-derivation: a local build of a
+          # few seconds during evaluation, nothing fetched.
+          patched = pkgs.applyPatches {
+            name = "disko-tests-systemd-initrd";
+            src = inputs.disko;
+            patches = [ ./tests/disko-tests-systemd-initrd.patch ];
+          };
+          # As disko's flake.nix calls it, from our nixpkgs (disko follows it).
+          patchedLib = import "${patched}/lib" {
+            inherit lib;
+            makeTest = import "${nixpkgs}/nixos/tests/make-test-python.nix";
+            eval-config = import "${nixpkgs}/nixos/lib/eval-config.nix";
+            qemu-common = import "${nixpkgs}/nixos/lib/qemu-common.nix";
+          };
+        in
+        inputs.disko
+        // {
+          lib = inputs.disko.lib // {
+            inherit (patchedLib) testLib;
+          };
+        };
+
       # Everything that runs on any machine. Named once here so the `checks`
       # Everything that runs on any machine, in three groups because `ci`
       # builds them in that order, cheapest first. A formatting typo should
@@ -400,7 +431,8 @@
         # boots. See ./tests/disk.nix for why that is a separate claim.
         metal-boots = import ./tests/disk.nix {
           inherit pkgs;
-          inherit (inputs) disko preservation;
+          inherit (inputs) preservation;
+          disko = diskoForTests;
         };
 
         # install-maxnix, the installer USB's script (hosts/installer): its
@@ -409,7 +441,8 @@
         # ./tests/install.nix for what it leaves to install day.
         metal-install = import ./tests/install.nix {
           inherit pkgs mkInstallMaxnix;
-          inherit (inputs) disko preservation sops-nix;
+          inherit (inputs) preservation sops-nix;
+          disko = diskoForTests;
         };
 
         # The installer USB's system builds: the image is this plus a

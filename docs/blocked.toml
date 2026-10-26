@@ -158,3 +158,19 @@ check = { nix = '''
     evidence = "typepy ${p.typepy.version}; relaxed in sqliteschema and simplesqlite: ${if ok then "yes" else "no"}";
   }
 ''' }
+
+[[entry]]
+id = "disko-testlib-systemd-initrd"
+title = "Use disko's makeDiskoTest unpatched"
+upstream = "nix-community/disko lib/tests.nix reads boot.initrd.systemd.enable, which nixpkgs removed with the scripted initrd (2026-10)"
+workaround = "flake.nix: metal-boots and metal-install take testLib from diskoForTests, a disko copy with tests/disko-tests-systemd-initrd.patch applied"
+then = "Delete diskoForTests and the patch; pass inputs.disko to tests/disk.nix and tests/install.nix again"
+# The pinned disko, not upstream's: merged is not the same as in flake.lock.
+check = { command = '''
+  src=$(nix eval --impure --raw --expr '(builtins.getFlake (toString ./.)).inputs.disko.outPath') || exit 2
+  [ -f "$src/lib/tests.nix" ] || exit 2
+  if grep -q 'initrd\.systemd\.enable' "$src/lib/tests.nix"; then
+    echo "pinned disko's lib/tests.nix still reads boot.initrd.systemd.enable"; exit 1
+  fi
+  echo "pinned disko's lib/tests.nix no longer reads boot.initrd.systemd.enable"; exit 0
+''' }
