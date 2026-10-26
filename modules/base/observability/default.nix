@@ -602,8 +602,14 @@ in
       enable = true;
       package = alloy;
       configPath = alloyConfigChecked;
-      # Alloy otherwise reports which components are in use to Grafana Labs.
-      extraFlags = [ "--disable-reporting" ];
+      extraFlags = [
+        # Alloy otherwise reports which components are in use to Grafana Labs.
+        "--disable-reporting"
+        # Since 1.21, pprof on also gives the Beyla child a pprof listener of
+        # its own, on every interface (BEYLA_PROFILE_PORT takes no address).
+        # Nothing here profiles Alloy.
+        "--server.http.enable-pprof=false"
+      ];
     };
 
     # Started after its sinks, so stopped before them. Unordered, shutdown
@@ -642,14 +648,30 @@ in
     # traffic. Loading an agent into someone's JVM is a different order of
     # intrusion from watching it from the kernel, so it logs "unable to
     # inject OBI java agent" and does not.
-    systemd.services.alloy.serviceConfig.AmbientCapabilities = [
-      "CAP_BPF"
-      "CAP_PERFMON"
-      "CAP_SYS_PTRACE"
-      "CAP_DAC_READ_SEARCH"
-      "CAP_CHECKPOINT_RESTORE"
-      "CAP_NET_RAW"
-    ];
+    #
+    # The bounding set is the same list, and Alloy needs it since 1.21: Beyla
+    # runs as a child there, and Alloy raises as ambient for it every cap on
+    # its own list that is already inheritable, without checking it is also
+    # permitted. systemd leaves cap_sys_admin and cap_setpcap inheritable
+    # beyond what AmbientCapabilities grants (measured in a test VM,
+    # systemd 262, 2026-10-26), so raising cap_sys_admin failed with EPERM
+    # and Beyla never started. Bounding the set to the six clears the extra
+    # inheritable bits.
+    systemd.services.alloy.serviceConfig =
+      let
+        caps = [
+          "CAP_BPF"
+          "CAP_PERFMON"
+          "CAP_SYS_PTRACE"
+          "CAP_DAC_READ_SEARCH"
+          "CAP_CHECKPOINT_RESTORE"
+          "CAP_NET_RAW"
+        ];
+      in
+      {
+        AmbientCapabilities = caps;
+        CapabilityBoundingSet = caps;
+      };
 
     services.tempo = {
       enable = true;
