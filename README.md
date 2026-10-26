@@ -614,7 +614,7 @@ and the WSL host), a check of the ThinkPad's login stacks, and the suites for on
 | `secrets` | sops-nix decrypts a post-quantum age key at activation, root-only and in memory, and Fleet and the backup get their values from it | 4 |
 | `fleet` | orbit starts with its secret, tries the configured server, keeps retrying without crashing, and stops promptly | 4 |
 | `containers` | rootless Docker is max's, runs a Docker Hub image under compose with its storage on `/home`, and a published port stays behind the firewall until opened | 7 |
-| `observability` | metrics, logs, events and traces reach their stores; Grafana, its datasources, dashboards and mcp-grafana work; data survives a restart; nothing listens beyond loopback | 18 |
+| `observability` | metrics, logs, events and traces reach their stores; Grafana, its datasources, dashboards and mcp-grafana work; data survives a restart; nothing listens beyond loopback but the Beyla child's metrics port (Alloy 1.21), which the firewall keeps in | 19 |
 
 `ci` builds the static checks, then the metal stage, then the portable desktop
 suites, each stage one `nix build`. The metal stage runs its suites in

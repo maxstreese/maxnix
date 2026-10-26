@@ -158,3 +158,37 @@ check = { nix = '''
     evidence = "typepy ${p.typepy.version}; relaxed in sqliteschema and simplesqlite: ${if ok then "yes" else "no"}";
   }
 ''' }
+
+[[entry]]
+id = "disko-testlib-systemd-initrd"
+title = "Use disko's makeDiskoTest unpatched"
+upstream = "nix-community/disko lib/tests.nix reads boot.initrd.systemd.enable, which nixpkgs removed with the scripted initrd (2026-10)"
+workaround = "flake.nix: metal-boots and metal-install take testLib from diskoForTests, a disko copy with tests/disko-tests-systemd-initrd.patch applied"
+then = "Delete diskoForTests and the patch; pass inputs.disko to tests/disk.nix and tests/install.nix again"
+# The pinned disko, not upstream's: merged is not the same as in flake.lock.
+check = { command = '''
+  src=$(nix eval --impure --raw --expr '(builtins.getFlake (toString ./.)).inputs.disko.outPath') || exit 2
+  [ -f "$src/lib/tests.nix" ] || exit 2
+  if grep -q 'initrd\.systemd\.enable' "$src/lib/tests.nix"; then
+    echo "pinned disko's lib/tests.nix still reads boot.initrd.systemd.enable"; exit 1
+  fi
+  echo "pinned disko's lib/tests.nix no longer reads boot.initrd.systemd.enable"; exit 0
+''' }
+
+[[entry]]
+id = "beyla-metrics-loopback"
+title = "Bind the Beyla child's metrics endpoint to loopback"
+upstream = "grafana/alloy since 1.21 runs Beyla as a child whose prometheus_export gets a port and no address, so it listens on every interface; Beyla has no address option for it"
+workaround = "tests/observability.nix: that one listener is exempt from the loopback check and checked unreachable behind devbox's firewall; README tests table says so"
+then = "Pass the address (or drop the exemption once Alloy does), make the loopback check strict again, and turn devbox's firewall back off"
+# Alloy's generated Beyla config, in the pinned grafana-alloy: an address or
+# host key next to the port means it can be told.
+check = { command = '''
+  src=$(nix build --no-link --print-out-paths .#nixosConfigurations.t14s.pkgs.grafana-alloy.src 2>/dev/null) || exit 2
+  f=$src/internal/component/beyla/ebpf/internal/config/config.go
+  [ -f "$f" ] || { echo "no $f; Alloy's Beyla integration moved, look by hand"; exit 2; }
+  if sed -n '/^func (m Metrics) Convert/,/^}/p' "$f" | grep -qE '"(address|host|listen_address)"'; then
+    echo "pinned Alloy passes an address to Beyla's prometheus_export"; exit 0
+  fi
+  echo "pinned Alloy passes Beyla's prometheus_export a port only"; exit 1
+''' }

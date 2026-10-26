@@ -17,10 +17,12 @@
 #            the deployed ones when the clone's directory goes.
 #   outside  a second machine, probing every port.
 #
-# The exposure check runs with the firewall OFF. Loopback binding is the
-# security model in that module, and with the firewall on a service listening
-# everywhere would pass unnoticed. A deliberately exposed listener is the
-# control that shows the probe can see an open port at all.
+# The exposure check runs with machine's firewall OFF. Loopback binding is
+# the security model in that module, and with the firewall on a service
+# listening everywhere would pass unnoticed. A deliberately exposed listener
+# is the control that shows the probe can see an open port at all. The one
+# exception, the Beyla child's metrics port (Alloy 1.21), is checked on
+# devbox instead, whose firewall is on as the machine's is.
 #
 # HOW TO RUN:
 #   nix build .#checks.x86_64-linux.observability
@@ -53,21 +55,27 @@ in
 
   nodes.machine = stack;
 
-  nodes.devbox = {
-    imports = [ stack ];
-    maxnix.dev = {
-      liveConfig = true;
-      clonePath = "/var/lib/test-clone";
+  nodes.devbox =
+    { lib, ... }:
+    {
+      imports = [ stack ];
+      # On, unlike machine: the one listener beyond loopback (the Beyla
+      # child's) is checked unreachable here, behind the firewall the
+      # machine has.
+      networking.firewall.enable = lib.mkForce true;
+      maxnix.dev = {
+        liveConfig = true;
+        clonePath = "/var/lib/test-clone";
+      };
+      # A clone without a dashboards directory, as a guest clone from before
+      # they existed is.
+      systemd.tmpfiles.rules = [ "d /var/lib/test-clone/modules/base/observability 0755 root root -" ];
     };
-    # A clone without a dashboards directory, as a guest clone from before
-    # they existed is.
-    systemd.tmpfiles.rules = [ "d /var/lib/test-clone/modules/base/observability 0755 root root -" ];
-  };
 
   nodes.outside = { pkgs, ... }: { environment.systemPackages = [ pkgs.netcat ]; };
 
   testScript = ''
-    import json, time, urllib.parse
+    import json, re, time, urllib.parse
 
     grafana = "http://localhost:3000"
 
@@ -363,13 +371,41 @@ in
         wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 3'",
              "the deployed dashboards again", devbox)
 
+    def beyond_loopback(node):
+        # Listeners beyond loopback, split into the Beyla child's and the
+        # rest. Matched by parent, not name: it runs from a memfd.
+        alloy = node.succeed("systemctl show alloy -p MainPID --value").strip()
+        exposed, beyla = [], []
+        for line in node.succeed("ss -Htlnp").splitlines():
+            local = line.split()[3]
+            if local.startswith("127.0.0.1:") or local.startswith("[::1]:"):
+                continue
+            pids = re.findall(r"pid=(\d+)", line)
+            parents = {node.succeed(f"awk '/^PPid:/ {{print $2}}' /proc/{p}/status").strip() for p in pids}
+            (beyla if parents == {alloy} else exposed).append(local)
+        return exposed, beyla
+
     with subtest("everything listens on loopback only"):
-        listeners = machine.succeed("ss -Htln | awk '{print $4}'").split()
-        exposed = [l for l in listeners if not (l.startswith("127.0.0.1:") or l.startswith("[::1]:"))]
+        # One exception: since Alloy 1.21, Beyla runs as Alloy's child and
+        # serves the metrics Alloy scrapes from it on a random port of every
+        # interface; Beyla's prometheus_export takes a port and no address.
+        # The firewall is what keeps that one in, checked on devbox in the
+        # next subtest. docs/blocked.toml `beyla-metrics-loopback`.
+        exposed, beyla = beyond_loopback(machine)
         assert not exposed, f"listening beyond loopback: {exposed}"
+        assert len(beyla) <= 1, f"more than the Beyla child's metrics beyond loopback: {beyla}"
         outside.wait_for_unit("multi-user.target")
         for port in [3000, 3100, 3200, 4317, 4318, 4417, 7946, 9090, 9095, 9096, 12345]:
             outside.fail(f"nc -z -w 3 machine {port}")
+
+    with subtest("and the Beyla child's port is behind the firewall"):
+        # devbox has its firewall on, as the machine does. Its Beyla child is
+        # listening beyond loopback (asserted, so this cannot pass on a port
+        # that is simply closed) and outside still cannot reach it.
+        exposed, beyla = beyond_loopback(devbox)
+        assert not exposed, f"devbox listening beyond loopback: {exposed}"
+        assert len(beyla) == 1, f"expected the Beyla child's one listener on devbox: {beyla}"
+        outside.fail(f"nc -z -w 3 devbox {beyla[0].rsplit(':', 1)[1]}")
 
     with subtest("and the probe does see a port that is open"):
         # The control: with the firewall off, a listener on every interface
