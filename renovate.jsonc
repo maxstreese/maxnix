@@ -58,19 +58,22 @@
   // "at any time" because the workflow's daily cron is the one place that
   // decides when Renovate runs. lockFileMaintenance otherwise falls back to
   // its own default of Monday mornings, even with no schedule set here.
-  //
-  // "behind-base-branch" because otherwise an open lock PR never moves: the
-  // default rebuilds a branch only when it conflicts, and PR #14 sat at its
-  // first refresh for a week of nightly runs (2026-10-09 to 10-16). Rebuilt,
-  // lock file maintenance runs `nix flake update` afresh, so the PR follows
-  // nixpkgs and its closure-diff comment shows what merging would bring
-  // today — at most once per Renovate run, not once per push. As in a work
-  // repo, where it is set for every PR.
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["at any time"],
-    "rebaseWhen": "behind-base-branch"
+    "schedule": ["at any time"]
   },
+
+  // Every PR is rebuilt once it falls behind main, not only when it
+  // conflicts. The default ("auto") rebases on a mere lag only with automerge
+  // or a branch protection rule requiring up-to-date branches, and this
+  // repository has neither, so an open PR never moves: lock PR #14 sat at its
+  // first refresh for a week of nightly runs (2026-10-09 to 10-16), and the
+  // Harlequin bump in PR #32 stayed on a main without the #33 lock refresh
+  // (2026-10-28). Rebuilt, a PR's CI and closure-diff comment show what
+  // merging would bring today, and lock file maintenance runs `nix flake
+  // update` afresh — at most once per Renovate run, not once per push. Set
+  // for every PR in a work repo, too.
+  "rebaseWhen": "behind-base-branch",
 
   // No Dependency Dashboard. Runs are started by the workflow — nightly, or
   // by hand with `gh workflow run renovate.yml` — and the PRs themselves are
@@ -124,7 +127,16 @@
       // bump never waits on the big one, and a breakage points at one of
       // them. The update types are listed so the lock refresh is not swept
       // into this group.
+      //
+      // The topic and extra are pinned so the PR is "Update dependencies"
+      // however many updates it holds. Renovate otherwise titles a group with
+      // a single update as if ungrouped ("Update dependency harlequin_mysql to
+      // v1.5.0", PR #32) and only switches to the group name from two on, so
+      // the same branch kept changing name. What is in it is in the PR body's
+      // table either way.
       "description": "All version bumps in one PR",
+      "commitMessageTopic": "dependencies",
+      "commitMessageExtra": "",
       "matchUpdateTypes": [
         "major",
         "minor",
