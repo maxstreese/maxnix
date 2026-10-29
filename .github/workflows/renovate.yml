@@ -22,6 +22,11 @@ on:
   # (2026-10-02) produced no run at all.
   schedule:
     - cron: "17 2 * * *"
+  # After every push to main, so open PRs are rebuilt on it right away
+  # (renovate.jsonc rebases them once behind) instead of the next night.
+  # Renovate itself never pushes to main, so this does not loop.
+  push:
+    branches: [main]
   # By hand: gh workflow run renovate.yml -f log-level=debug
   workflow_dispatch:
     inputs:
