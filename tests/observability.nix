@@ -99,11 +99,11 @@ in
             f"-d '{json.dumps(body)}' http://127.0.0.1:4318/v1/{path}"
         )
 
-    def wait(cmd, what, node=machine):
+    def wait(cmd, what, node=machine, timeout=120):
         # A short timeout and the evidence on failure, instead of the
         # driver's 15 silent minutes.
         try:
-            node.wait_until_succeeds(cmd, timeout=120)
+            node.wait_until_succeeds(cmd, timeout=timeout)
         except Exception:
             print(node.execute("curl -fsS http://127.0.0.1:12345/api/v0/web/components | jq -c '.[] | {id: .localID, health: .health}'")[1])
             print(node.execute("journalctl -u alloy -n 40 --no-pager | grep -v collector")[1])
@@ -124,12 +124,19 @@ in
              "params": {"name": tool, "arguments": arguments}},
         ]
         machine.succeed("cat > /tmp/mcp.in <<'EOF'\n" + "\n".join(map(json.dumps, requests)) + "\nEOF")
+        # stdin stays open until the answer is out: mcp-grafana stops at
+        # EOF, and a fixed sleep before it lost the answer on a slow runner
+        # (2026-10-29).
         out = machine.succeed(
-            "(cat /tmp/mcp.in; sleep 5) | runuser -u max -- env"
+            "rm -f /tmp/mcp.out; (cat /tmp/mcp.in; for i in $(seq 60); do"
+            " grep -q '\"id\": *2[,}]' /tmp/mcp.out 2>/dev/null && break; sleep 1; done)"
+            " | runuser -u max -- env"
             f" GRAFANA_URL={grafana}"
             " GRAFANA_SERVICE_ACCOUNT_TOKEN_FILE=/var/lib/grafana-mcp/token"
-            " timeout 20 mcp-grafana --disable-write || true")
-        return next(json.loads(l) for l in out.splitlines() if '"id":2' in l.replace(" ", ""))
+            " timeout 70 mcp-grafana --disable-write > /tmp/mcp.out || true; cat /tmp/mcp.out")
+        answers = [json.loads(l) for l in out.splitlines() if '"id":2' in l.replace(" ", "")]
+        assert answers, f"no answer from mcp-grafana to {tool}: {out}"
+        return answers[0]
 
     def titles(node, auth=None):
         return sorted(d["title"] for d in get(node, f"{grafana}/api/search?tag=maxnix", auth))
@@ -235,6 +242,13 @@ in
         machine.succeed("systemd-run --unit=probe-server python3 -m http.server 8090"
                         " --bind 127.0.0.1 --directory /tmp")
         machine.wait_for_open_port(8090)
+        # Attaching is Beyla's own pace (a minute and more on a slow runner,
+        # with dhcpcd ahead in the queue); the requests are counted after.
+        wait("journalctl -u alloy --no-pager | grep 'instrumenting process' | grep -q python3",
+             "Beyla to attach to the python server", timeout=300)
+        # Not to itself: that stalled discovery for minutes (see the module).
+        out = machine.execute("journalctl -u alloy --no-pager | grep 'instrumenting process' | grep memfd:beyla")[1]
+        assert not out, f"Beyla instruments itself: {out}"
         found = ("curl -fsS -G http://127.0.0.1:9090/api/v1/query --data-urlencode "
                  "'query=http_server_request_duration_seconds_count"
                  "{service_name=~\"python.*\",http_response_status_code=\"404\"}'"

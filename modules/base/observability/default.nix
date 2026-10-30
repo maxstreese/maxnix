@@ -210,6 +210,16 @@ let
         exclude_instrument {
           exe_path = "*/gpx_*"
         }
+        // Nor Beyla itself. Since Alloy 1.21 it is a child listening on its
+        // metrics port, run from a memfd ("/memfd:beyla (deleted)"), which
+        // its default exclusion of *beyla misses. Instrumenting its own Go
+        // binary ends in a failed tracefs fallback (uprobe_events is root's)
+        // after up to 3.5 minutes on a slow CI runner, and discovery waits on
+        // it: a server started meanwhile went unseen until then, which made
+        // ../../../tests/observability.nix flaky (2026-10-25 to 10-29).
+        exclude_instrument {
+          exe_path = "/memfd:beyla*"
+        }
       }
 
       metrics {

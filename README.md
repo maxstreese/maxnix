@@ -322,6 +322,16 @@ not stop the kernel side from classifying packets as it — osqueryd's traffic
 kept arriving as Couchbase operations until a `filters` block dropped
 `db.system.name = couchbase`.
 
+**Since Alloy 1.21 Beyla instruments itself, and discovery waits on it.** The
+child runs as `/memfd:beyla (deleted)` and listens on its metrics port, so
+`open_ports` picks it up and its default exclusion (`*beyla`) misses the
+suffix. Attaching to its own Go binary fails over to tracefs
+(`uprobe_events` is root's) after up to 3.5 minutes on a CI runner, and
+servers started meanwhile go unseen until then. That made the
+`observability` suite pass or fail by runner speed from 2026-10-25 to
+2026-10-29, on unchanged code. An `exclude_instrument` for `/memfd:beyla*`
+fixes it, and the suite checks it.
+
 **`screendump` cannot capture a GL scanout** — `Error: no surface` — so the test
 driver's `machine.screenshot()` and `get_screen_text()` are unusable here. VNC
 readback works, which is what `tests/vnc.nix` does.
