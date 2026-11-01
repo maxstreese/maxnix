@@ -46,6 +46,13 @@
         secret = machine.succeed("cat /run/credentials/orbit.service/enroll-secret")
         assert secret == "not-a-real-secret", secret
 
+    with subtest("orbit runs the osqueryd it was given, not one it downloads"):
+        # Upstream's own NixOS mode since 1.63.0; before that, nixpkgs'
+        # patches did this and logged nothing like it. If the override in
+        # fleet.nix were lost, this is the line that would go missing.
+        machine.wait_until_succeeds("journalctl -u orbit.service | grep -q 'running with externally managed osqueryd: /nix/store/'")
+        machine.succeed("journalctl -u orbit.service | grep -q 'orbit version: 1.63.0'")
+
     with subtest("orbit tries the configured server, and osqueryd with it"):
         machine.wait_until_succeeds("journalctl -u orbit.service | grep -q 'enroll failed, retrying'")
         machine.succeed("journalctl -u orbit.service | grep -q 'tls_hostname=127.0.0.1:1'")
@@ -65,7 +72,8 @@
 
     with subtest("and stops promptly, so it does not hold up shutdown"):
         # It ignores SIGTERM while retrying; without TimeoutStopSec this took
-        # the full 90 s default, and so did every shutdown.
+        # the full 90 s default, and so did every shutdown. Still true of
+        # 1.63.0 (2026-11-01): it logs the signal, then systemd kills it at 5 s.
         import time
         t0 = time.time()
         machine.succeed("systemctl stop orbit.service")
