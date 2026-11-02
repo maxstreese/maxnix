@@ -98,22 +98,24 @@ then = "Once a Renovate release includes it, drop the first regex manager and ch
 check = { github-pr-merged = "renovatebot/renovate#45258" }
 
 [[entry]]
-id = "fleetd-1-63"
-title = "Run fleetd 1.63.0, the first release with NixOS support"
-upstream = "https://github.com/fleetdm/fleet/issues/52320"
-workaround = "modules/metal/fleet.nix: nixpkgs' fleet-orbit 1.55.0"
-then = "Override fleet-orbit and fleet-desktop to orbit-v1.63.0 with patches = [] and buildGo127Module, via services.orbit.orbitPackage and desktop.package; run tests/fleet.nix; update the NixOS-support note in fleet.nix"
-check = { all = [
-  { github-tag = "fleetdm/fleet orbit-v1.63.0" },
-  { github-release = "fleetdm/fleet fleet-v4.94.0" },
-] }
+id = "fleet-orbit-nixpkgs"
+title = "Use nixpkgs' fleet-orbit as is, without our 1.63.0 override"
+upstream = "nixpkgs pkgs/by-name/fl/fleet-orbit (1.55.0 with four NixOS patches as of 2026-11-01)"
+workaround = "modules/metal/fleet.nix: `orbit` and `desktop`, nixpkgs' packages overridden to orbit-v1.63.0 with patches = [] and buildGo127Module"
+then = "Drop the override and services.orbit.orbitPackage / desktop.package from fleet.nix; checks.fleet proves the externally managed osqueryd still runs"
+check = { nix = '''
+  pkgs: let v = pkgs.fleet-orbit.version; new = builtins.compareVersions v "1.63.0" >= 0; in {
+    unblocked = new;
+    evidence = "nixpkgs carries fleet-orbit ${v}";
+  }
+''' }
 
 [[entry]]
 id = "fleet-nix-flake"
 title = "Take fleetd from Fleet's own flake"
 upstream = "https://github.com/fleetdm/fleet/issues/54457"
-workaround = "nixpkgs' fleet-orbit, or our own override once fleetd-1-63 is done"
-then = "Add Fleet's flake as an input pinned to a release, and switch services.orbit to its services.fleetd"
+workaround = "modules/metal/fleet.nix: our own override of nixpkgs' fleet-orbit and fleet-desktop to orbit-v1.63.0"
+then = "Add Fleet's flake as an input pinned to a release, switch services.orbit to its services.fleetd, and drop the override in fleet.nix"
 check = { github-issue-closed = "fleetdm/fleet#54457" }
 
 [[entry]]

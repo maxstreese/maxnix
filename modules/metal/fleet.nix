@@ -28,20 +28,57 @@
 # ── What differs from the Ubuntu .deb ────────────────────────────────────
 #
 # The module turns off Orbit's self-update and its keystore. The agent's
-# version is therefore whatever the pinned nixpkgs carries and moves with
-# flake.lock, not when IT pushes one — the console may call it outdated.
+# version is therefore the one pinned below (`orbit`), not when IT pushes
+# one — the console may call it outdated.
 #
-# NixOS is not on Fleet's list of supported Linux distributions, and its
-# built-in disk-encryption and firewall checks name Debian/Ubuntu,
-# CentOS/Fedora and Arch. A LUKS root and the NixOS firewall may still report
-# as missing; that is a conversation with IT, not something to fix here.
+# NixOS support is upstream since fleetd 1.63.0 (fleetdm/fleet#52320): Orbit
+# runs an osqueryd and Fleet Desktop it is handed instead of downloading them,
+# and osquery's cryptsetup_status, nftables, lsblk and dconf_read tables find
+# their binaries on NixOS. Whether IT's console now reads the LUKS root and
+# the firewall correctly is first seen on metal; key escrow is still not
+# offered to NixOS hosts (fleet-luks-escrow in docs/blocked.toml).
 #
 # Orbit's state (the node key it enrolled with) lives in /var/lib/orbit and is
 # preserved in ./persistence.nix; without that, every boot would enroll a new
 # host. Its logs go to /var/log/orbit, which is already its own subvolume.
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.maxnix.fleet;
+
+  # fleetd 1.63.0, the first release with NixOS support upstream
+  # (fleetdm/fleet#52320; docs/blocked.toml had it as fleetd-1-63 until
+  # 2026-11-01). nixpkgs still carries 1.55.0 plus four patches of its own:
+  # osqueryd/desktop path overrides, an osquery log path, and NixOS shebangs
+  # for scripts. 1.63.0 has all four upstream and reads the module's
+  # NIX_ORBIT_* variables itself, so patches = []. Its go.mod asks for Go
+  # 1.27.3, nixpkgs' default go is 1.26. Drop this once nixpkgs catches up,
+  # or for Fleet's own flake (fleet-nix-flake in docs/blocked.toml).
+  fleetSrc = pkgs.fetchFromGitHub {
+    owner = "fleetdm";
+    repo = "fleet";
+    tag = "orbit-v1.63.0";
+    hash = "sha256-cKF1nE9kK22EfB0Ky+vp8QaBDYcZ00mwWNU9BJwWAx8=";
+  };
+  fleetVendorHash = "sha256-mnjllTf4m8Kirx0TKKWzr0haA/zwiZMWYEYRifVeFpQ=";
+
+  orbit = (pkgs.fleet-orbit.override { buildGoModule = pkgs.buildGo127Module; }).overrideAttrs {
+    version = "1.63.0";
+    src = fleetSrc;
+    vendorHash = fleetVendorHash;
+    patches = [ ];
+  };
+
+  desktop =
+    (pkgs.fleet-desktop.override {
+      buildGoModule = pkgs.buildGo127Module;
+      fleet-orbit = orbit;
+    }).overrideAttrs
+      { vendorHash = fleetVendorHash; };
 in
 {
   options.maxnix.fleet = {
@@ -113,7 +150,11 @@ in
       # missing Orbit fails to connect rather than reaching somewhere real.
       fleetUrl = if cfg.url != null then cfg.url else "https://fleet.invalid";
       inherit (cfg) enrollSecretPath;
-      desktop.enable = cfg.desktop;
+      orbitPackage = orbit;
+      desktop = {
+        enable = cfg.desktop;
+        package = desktop;
+      };
     };
 
     # Fleet Desktop is started in the user's session with `sudo -n -i -u …`,
