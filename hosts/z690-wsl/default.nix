@@ -26,6 +26,16 @@
   wsl.enable = true;
   wsl.defaultUser = "max";
 
+  # The GPU reaches WSL by paravirtualisation, not passthrough: the Windows
+  # NVIDIA driver puts its user-space half (libcuda, libd3d12, nvidia-smi)
+  # under /usr/lib/wsl/lib, and no Linux NVIDIA driver is installed. This
+  # links those into hardware.graphics, i.e. /run/opengl-driver/lib, where
+  # Nix-built CUDA and Mesa programs look. Wanted for GPU compute from Java
+  # (TornadoVM's PTX backend) on the RTX 3080 Ti; docs/desktop-pc.md
+  # section 3. Builds here; untested on the desktop until the image is
+  # imported there.
+  wsl.useWindowsDriver = true;
+
   # Pins the defaults this config was written against, per machine. Set once,
   # then leave alone.
   system.stateVersion = "26.11";
