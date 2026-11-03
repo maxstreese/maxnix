@@ -113,6 +113,28 @@ What WSL changes, to work through rather than assume:
   them is unknown.
 - **What does not apply**: disk, LUKS, impermanence, Secure Boot, greeter,
   backups of `/` (the distribution is one VHDX file on Windows), Fleet.
+- **Memory and cores**: WSL gives the guest half the host's RAM by default
+  (the 31 of 64 GB in section 2). The motive for using this machine at all is
+  the laptop running short of memory, so `%UserProfile%\.wslconfig` on
+  Windows should raise it (`[wsl2]` `memory=`, `processors=`, `swap=`) and
+  set `[experimental]` `autoMemoryReclaim=gradual`, so the VM hands page cache
+  back to Windows rather than keep it. That file is Windows' own and not in
+  this repo. Repos belong on the guest's own filesystem: `/mnt/c` goes through
+  9P and is much slower.
+- **GPU compute**: paravirtualised, not passed through. The Windows NVIDIA
+  driver exposes the card as `/dev/dxg` and puts its user-space libraries
+  (`libcuda`, `libd3d12`, `nvidia-smi`) under `/usr/lib/wsl/lib`. No Linux
+  NVIDIA driver is involved. `wsl.useWindowsDriver` (set in
+  `hosts/z690-wsl`, 2026-11-03) links those into `/run/opengl-driver/lib`.
+  The use in mind is TornadoVM for Java (finance work), and its backend
+  matters: PTX goes through the CUDA driver API, which WSL supports. OpenCL
+  on NVIDIA under WSL has historically been missing or limited, and
+  Microsoft's OpenCL-on-D3D12 offers only 1.2, so the OpenCL backend is
+  doubtful. SPIR-V/Level Zero is Intel-only. Nsight profiling is partial
+  under WSL. Open: a prebuilt JDK or TornadoVM SDK runs through nix-ld,
+  whose library path does not include `/run/opengl-driver/lib`. Whether it
+  finds `libcuda` without `LD_LIBRARY_PATH` is to be seen, and only then
+  added to `modules/base/nix-ld.nix` (nothing goes in there on speculation).
 
 ## 4. A facter report of the metal
 
@@ -210,4 +232,6 @@ boot.
   gets, the login password (NixOS-WSL's default for now: none, and sudo asks
   for none), 1Password's agent and signing bridged from Windows.
 - [ ] Import it on the desktop and boot it; see whether Beyla gets eBPF.
+- [ ] In the guest: `nvidia-smi`, then a TornadoVM sample on the PTX backend;
+  note whether `libcuda` is found without `LD_LIBRARY_PATH` (section 3).
 - [ ] A desktop host.
