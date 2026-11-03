@@ -635,6 +635,23 @@ add up to 17 GiB, its measured peaks to about 9.4 (2026-10-12, before
 `metal-install`); the numbers are in the comment above the flag in
 `flake.nix`.
 
+Every `runNixOSTest` suite goes through `runSuite` in `flake.nix`, which adds
+`tests/waits.nix`. That file times each driver wait (and the screen poll in
+`tests/vnc.nix`) and prints a line per wait. It appends each one to
+`waits.jsonl` in the output and, when the driver exits (failed runs too),
+prints a summary sorted by the share of its limit each wait used. A wait over
+half its limit is marked `TIGHT`. It also multiplies every explicit `timeout=`
+by one factor: 2 for the sandboxed tier GitHub builds, 1 for the GPU tier,
+which reads `MAXNIX_TIMEOUT_SCALE` instead. Waits left at the driver's
+15-minute default are not scaled. Added 2026-11-03, after timeouts that
+passed here failed on slower runners. The 2 is a guess until the summaries
+show the margins. The two disko suites build their scripts in
+`makeDiskoTest` and are not covered; they only wait at defaults. Rewind VM
+(rewindvm.dev), whose virtual clock would make guest timeouts independent of
+host speed, was looked at the same day and does not fit. It runs one command
+on one vCPU under its own init, with no devices and no nested KVM, and the
+limits here are on the host side, in the test driver.
+
 `metal` is the one check nothing else can stand in for. `packages.vm` builds
 the vmVariant's toplevel and the desktop suites build a third variant again —
 all of them get their disks and bootloader from `qemu-vm.nix`, so none of them

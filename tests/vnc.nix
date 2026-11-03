@@ -60,17 +60,20 @@
       """
       import time
 
-      deadline = time.time() + timeout
-      count = 0
-      while time.time() < deadline:
-          shot = vnc_capture(machine, name)
-          count = unique_colours(shot)
-          machine.log(f"{name}: {count} distinct colours")
-          if count >= minimum:
-              return shot, count
-          time.sleep(5)
-      raise AssertionError(
-          f"{name}: only {count} distinct colours after {timeout}s "
-          f"(wanted >= {minimum})"
-      )
+      # Scaled and timed like the driver's own waits (tests/waits.nix).
+      timeout = scaled(timeout)
+      with timed(machine.name, f"wait_for_rich_screen({name})", timeout):
+          deadline = time.time() + timeout
+          count = 0
+          while time.time() < deadline:
+              shot = vnc_capture(machine, name)
+              count = unique_colours(shot)
+              machine.log(f"{name}: {count} distinct colours")
+              if count >= minimum:
+                  return shot, count
+              time.sleep(5)
+          raise AssertionError(
+              f"{name}: only {count} distinct colours after {timeout:g}s "
+              f"(wanted >= {minimum})"
+          )
 ''

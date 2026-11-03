@@ -272,10 +272,36 @@
       # reach for when a GPU is actually present. Both are declared here, so
       # nothing is hidden behind a flag you cannot see.
       mkTests = gpu: {
-        desktop = pkgs.testers.runNixOSTest (import ./tests/desktop.nix { inherit hostModules gpu; });
+        desktop = runSuite (if gpu then 1 else sandboxTimeoutScale) (
+          import ./tests/desktop.nix { inherit hostModules gpu; }
+        );
 
-        niri = pkgs.testers.runNixOSTest (import ./tests/niri.nix { inherit hostModules gpu; });
+        niri = runSuite (if gpu then 1 else sandboxTimeoutScale) (
+          import ./tests/niri.nix { inherit hostModules gpu; }
+        );
       };
+
+      # Every runNixOSTest suite goes through this, which adds
+      # ./tests/waits.nix: each wait is timed (log line, $out/waits.jsonl,
+      # tightest-first summary) and each explicit timeout multiplied by
+      # `scale`.
+      runSuite =
+        scale: test:
+        pkgs.testers.runNixOSTest {
+          imports = [
+            test
+            (import ./tests/waits.nix { inherit scale; })
+          ];
+        };
+
+      # The scale for suites built as derivations: the sandboxed tier GitHub's
+      # runners build, slower than this host and uneven. 2 is a guess made
+      # 2026-11-03, before the timings existed, and costs nothing on a pass
+      # because the waits poll. Lower it once the summaries from GitHub's
+      # runs show the TIGHT marks staying clear at 1. The GPU tier only
+      # runs here, through the interactive driver, so it stays at 1 there
+      # and takes MAXNIX_TIMEOUT_SCALE from the environment.
+      sandboxTimeoutScale = 2;
 
       # The two instantiations. `tests` keeps its old meaning — the full,
       # GPU-requiring suites — so the runners and app names below are
@@ -451,19 +477,19 @@
 
         # The Fleet agent, switched on against a server that is not there.
         # See ./tests/fleet.nix for what that does and does not prove.
-        fleet = pkgs.testers.runNixOSTest ./tests/fleet.nix;
+        fleet = runSuite sandboxTimeoutScale ./tests/fleet.nix;
 
         # Rootless Docker running a Docker Hub image, and a second machine
         # checking its published port is behind the firewall.
-        containers = pkgs.testers.runNixOSTest ./tests/containers.nix;
+        containers = runSuite sandboxTimeoutScale ./tests/containers.nix;
 
         # The observability stack collecting, storing and serving, and nothing
         # of it reachable from a second machine with the firewall off.
-        observability = pkgs.testers.runNixOSTest ./tests/observability.nix;
+        observability = runSuite sandboxTimeoutScale ./tests/observability.nix;
 
         # sops-nix decrypting a post-quantum age key at activation, the way
         # the real keys in .sops.yaml will be used.
-        secrets = pkgs.testers.runNixOSTest (import ./tests/secrets.nix { inherit (inputs) sops-nix; });
+        secrets = runSuite sandboxTimeoutScale (import ./tests/secrets.nix { inherit (inputs) sops-nix; });
       };
 
       portableVmTests = mkTests false;
