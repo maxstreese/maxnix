@@ -149,6 +149,21 @@ What WSL changes, to work through rather than assume:
   this host import. Not yet checked: whether herdr has a Windows build that
   attaches to `herdr-core` in WSL, as VS Code and Zed do, which would make
   WSLg unnecessary for it.
+  First run (2026-11-06, herdr-desktop 0.1.10, on the desktop's Ubuntu
+  26.04 WSL distro with Nix installed, not yet the NixOS-WSL guest): plain
+  `nix run nixpkgs#herdr-desktop` panics with "Failed to create surface for
+  any enabled backend", because a Nix binary on Ubuntu has no
+  `/run/opengl-driver` and finds no GL or Vulkan driver at all. Through
+  nixGL (`nixGLIntel` + `nixVulkanIntel`, its pinned Mesa 25.0.5) it opens
+  a window that renders sharp at Windows scaling and responds normally;
+  the process had Mesa's dzn loaded on WSL's `libd3d12`/`libdxcore` from
+  `/usr/lib/wsl/lib` (llvmpipe's `lvp` too, and wgpu doesn't log which
+  adapter it took). So WSLg carries it; what the guest adds is
+  `/run/opengl-driver` via `hardware.graphics`, which should stand in for
+  nixGL there. Clipboard and links not yet tried. Side effect to know: on
+  first start herdr turns on linger for the user and starts `herdr-core`
+  as transient `systemd-run --user` units (`hc-serve-*`), which outlive
+  the window.
 
 ## 4. A facter report of the metal
 
@@ -250,4 +265,6 @@ boot.
   note whether `libcuda` is found without `LD_LIBRARY_PATH` (section 3).
 - [ ] In the guest: `nix run nixpkgs#herdr-desktop` through WSLg; decides
   whether GUI apps get a layer of their own for this host (section 3).
+  Renders on the Ubuntu distro through nixGL; still to do in the guest
+  itself, plus clipboard and links.
 - [ ] A desktop host.
