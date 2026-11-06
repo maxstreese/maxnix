@@ -10,7 +10,7 @@
   options.maxnix.dev = {
     clonePath = lib.mkOption {
       type = lib.types.str;
-      default = "/home/max/Repositories/github.com/maxstreese/maxnix";
+      default = "/home/max/repos/github.com/maxstreese/maxnix";
       description = ''
         Absolute path to the working clone inside this machine.
 

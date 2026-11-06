@@ -47,7 +47,7 @@ git like any other pair.
 
 Two ways to iterate on the running machine, both faster than a test run:
 
-- **From inside.** Clone the repo to `~/Repositories/github.com/maxstreese/maxnix`
+- **From inside.** Clone the repo to `~/repos/github.com/maxstreese/maxnix`
   (on the `/home` disk, so it survives a root reset), edit there or run
   `claude` in it, then `rebuild` — ~30 s, no reboot. niri reloads
   its config on the spot, DMS restarts with the activation, and DMS's own
