@@ -135,6 +135,20 @@ What WSL changes, to work through rather than assume:
   whose library path does not include `/run/opengl-driver/lib`. Whether it
   finds `libcuda` without `LD_LIBRARY_PATH` is to be seen, and only then
   added to `modules/base/nix-ld.nix` (nothing goes in there on speculation).
+- **GUI apps through WSLg** (noted 2026-11-06): the host has no desktop role,
+  so `home/max/desktop` and every app in it stay off WSL; only the TUIs in
+  `home/max/core` come along. That makes WSL the weaker place for work
+  that has a desktop app, today herdr-desktop next to the `herdr` TUI.
+  WSLg should draw such apps as Windows windows, but herdr-desktop is GPUI
+  on wgpu, Vulkan with an OpenGL fallback, and in WSL both go through
+  Mesa's d3d12 layer (Vulkan as the experimental dozen driver). So try it
+  before building anything: `nix run nixpkgs#herdr-desktop` in the guest,
+  noting whether it renders, at what scaling, and whether clipboard and
+  links reach Windows. If it holds up, GUI apps that do not need niri move
+  out of `home/max/desktop/apps.nix` into a layer both the desktop role and
+  this host import. Not yet checked: whether herdr has a Windows build that
+  attaches to `herdr-core` in WSL, as VS Code and Zed do, which would make
+  WSLg unnecessary for it.
 
 ## 4. A facter report of the metal
 
@@ -234,4 +248,6 @@ boot.
 - [ ] Import it on the desktop and boot it; see whether Beyla gets eBPF.
 - [ ] In the guest: `nvidia-smi`, then a TornadoVM sample on the PTX backend;
   note whether `libcuda` is found without `LD_LIBRARY_PATH` (section 3).
+- [ ] In the guest: `nix run nixpkgs#herdr-desktop` through WSLg; decides
+  whether GUI apps get a layer of their own for this host (section 3).
 - [ ] A desktop host.
