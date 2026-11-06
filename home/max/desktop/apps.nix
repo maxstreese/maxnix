@@ -29,6 +29,12 @@
     # lost. The package alone is what is wanted.
     discord
 
+    # herdr's desktop app: persistent terminals and coding agents in a
+    # window. The CLI is in ../core/dev.nix so WSL has it too; this half
+    # needs a graphical session, hence the desktop layer. Free, so no
+    # allow-list entry.
+    herdr-desktop
+
     # No account needed for these two; they sit here as the other desktop
     # applications.
     obs-studio
