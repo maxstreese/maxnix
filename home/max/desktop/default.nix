@@ -10,7 +10,6 @@
     ./firefox.nix
     ./ghostty.nix
     ./apps.nix
-    ./onepassword.nix
   ];
 
   # The launcher the niri config spawns, and the clipboard tools. The

@@ -117,14 +117,15 @@ hosts/t14s/                the ThinkPad: base + desktop + metal, and what is onl
   configuration.nix          hostname, network, Twingate, wooting, zram, which features are on
   laptop.nix                 the laptop services its hardware report asks for
   vm.nix                     build-vm specifics: window, disk images, sshd, `rebuild`
-hosts/z690-wsl/                   NixOS under WSL on the Windows desktop: base + NixOS-WSL
+hosts/z690-wsl/                   NixOS under WSL on the Windows desktop: base + gui + NixOS-WSL
 modules/                     roles a host is composed from (`roles` in flake.nix)
   base/default.nix           every machine: user, locale, keyboard, Nix settings, Home Manager
   base/containers.nix        rootless Docker, with DOCKER_HOST for the whole session
   base/dev.nix               where the clone lives, and the live-config switch
   base/login-limits.nix      pam_faillock in every stack that takes the login password
   base/observability/        metrics, logs, traces, Grafana; its dashboards/ as JSON
-  desktop/{default,niri,greeter,lock-screen,onepassword,gpu-check,steam}.nix  niri and what it needs
+  desktop/{default,niri,greeter,lock-screen,onepassword-firefox,gpu-check,steam}.nix  niri and what it needs; imports gui
+  gui/{default,onepassword}.nix  GUI apps that need a display but not niri; desktop role and z690-wsl
   metal/disk.nix             bootloader, and the layout wired into NixOS
   metal/disk-layout.nix      the LUKS2/btrfs layout as data, shared with its test
   metal/persistence.nix      the wiped root, and what survives it on /persist
@@ -133,7 +134,8 @@ modules/                     roles a host is composed from (`roles` in flake.nix
   vm/qemu-guest.nix          virtual hardware, shared by build-vm and test nodes
 home/max/core/               user layer, every machine: shell, git, dev, harlequin, claude
 home/max/desktop/            user layer, with the desktop role: niri, dms, quickshell,
-                             ghostty, firefox, apps, onepassword (ssh agent, signing)
+                             ghostty, firefox, apps
+home/max/gui/                user layer, with the gui role: onepassword (ssh agent, signing)
 home/max/{quickshell,dms-state}/  the QML and DMS state those two files deploy
 tests/{desktop,niri,vnc}.nix                     integration tests
 tests/disk.nix               formats, installs and boots the real disk layout
@@ -159,7 +161,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | channel | `nixpkgs-unstable`, also on the future host | these three packages move fast; stable would evaluate old versions. Decided 2026-09-17 to keep it |
 | Home Manager | as a NixOS module | one `nix build`, one generation, no separate `home-manager switch` |
 | compositor | niri only | decided 2026-10-18, reversing "both, for good". Two compositors were two configs that diverged wherever they were not generated from one list (niri's own window-management binds, layout, gaps, animation), a second desktop suite, a static check and a Lua port to follow upstream's churn. niri was already the greeter's compositor and the autologin session, and is validated at build time. Hyprland's config, suite and findings are in git history before this decision. Open for the desktop PC: Hyprland was further along on HDR and VRR (`docs/desktop-pc.md`), so niri's support is to check against that monitor |
-| repo structure | hosts composed from roles: `modules/base`, `modules/desktop`, `modules/metal`, plus `hosts/<name>` | decided 2026-10-18, so a second machine (`docs/desktop-pc.md`) can take part of the machine rather than all of it. Roles import modules that define options; the host switches them on. Secrets stay with the host: which sops files and key a machine uses is its own. The user layer splits the same way: `home/max/core` comes with base, `home/max/desktop` with the desktop role, each role allowing its half's unfree packages. Hosts so far: `t14s` (base, desktop, metal) and `z690-wsl` (base, NixOS-WSL), the second only built by CI, since no NixOS test can boot WSL. Done as a refactor checked by store path: every one stayed the same except where expected — the order of the system's package list (its `sw` tree came out identical), comments inside test scripts, and the dashboards' path in the clone, which moved with observability into `modules/base` |
+| repo structure | hosts composed from roles: `modules/base`, `modules/desktop`, `modules/metal`, plus `hosts/<name>` | decided 2026-10-18, so a second machine (`docs/desktop-pc.md`) can take part of the machine rather than all of it. Roles import modules that define options; the host switches them on. Secrets stay with the host: which sops files and key a machine uses is its own. The user layer splits the same way: `home/max/core` comes with base, `home/max/desktop` with the desktop role, each role allowing its half's unfree packages. Hosts so far: `t14s` (base, desktop, metal) and `z690-wsl` (base, NixOS-WSL), the second only built by CI, since no NixOS test can boot WSL. Done as a refactor checked by store path: every one stayed the same except where expected — the order of the system's package list (its `sw` tree came out identical), comments inside test scripts, and the dashboards' path in the clone, which moved with observability into `modules/base`. A fourth role, `modules/gui` (with `home/max/gui`), split off the desktop role 2026-11-06 for GUI apps that need a display but not niri, starting with 1Password: the desktop role imports it, `z690-wsl` names it, so the WSL host gets the app, `op`, the SSH agent and signing from the ThinkPad's own modules under WSLg instead of a bridge to the Windows app. Metal's toplevel kept its store path; Firefox's allowed-browsers file stayed in the desktop role with Firefox |
 | machine names | by hardware: `t14s` (the ThinkPad), `z690-wsl` (WSL on the Windows desktop), `z690` (that desktop on its own metal, when it gets a host); `maxnix` names the project — the repo, the `maxnix.*` options, Grafana's folder, the Drive backup folders, the VMs' password | decided 2026-10-19, when a second host made `maxnix` stop saying which machine. Hostname, `nixosConfigurations` name and `hosts/` directory are always the same word: the VM's `rebuild` and `nixos-rebuild --flake .` on metal pick the configuration by hostname. Renamed before metal's install day, so no machine's history, Fleet record from hardware or Secure Boot enrollment carries the old name; the VM's Fleet entry shows the new hostname from its next deploy |
 | VM disks | root is disposable, `/home` is its own image, host `/nix/store` shared over virtiofs | root can be deleted to reset the machine without losing a single login; the VM is a variant of the machine, not the artifact |
 | repo in the guest | its own clone, no host share | the share was the fast loop and a hole in the boundary at once, and virtiofs broke it twice over (see findings); git syncs two machines, and the host deploys over ssh — the same model metal will use |

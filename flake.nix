@@ -123,6 +123,10 @@
           ./modules/desktop
           inputs.dank-greeter.nixosModules.default
         ];
+        # GUI apps that need a display but not niri (1Password so far). The
+        # desktop role imports it itself; a host without the desktop role
+        # names it, as z690-wsl does for WSLg.
+        gui = [ ./modules/gui ];
         metal = [
           ./modules/metal
           inputs.disko.nixosModules.disko
@@ -168,6 +172,7 @@
         inherit system;
         modules = mkHost [
           "base"
+          "gui"
           "wsl"
         ] ./hosts/z690-wsl;
       };

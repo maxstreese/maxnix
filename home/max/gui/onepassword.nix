@@ -16,7 +16,7 @@
 #
 # ── op, the CLI ───────────────────────────────────────────────────────────
 #
-# Installed system-wide by ../../../modules/desktop/onepassword.nix. With "Integrate
+# Installed system-wide by ../../../modules/gui/onepassword.nix. With "Integrate
 # with 1Password CLI" switched on in the same Developer settings, `op` unlocks
 # through the app instead of prompting for the account password, and
 #   op read "op://Vault/Item/field"

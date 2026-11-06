@@ -8,7 +8,8 @@
     ./greeter.nix
     ./lock-screen.nix
     ./niri.nix
-    ./onepassword.nix
+    ../gui
+    ./onepassword-firefox.nix
     ./gpu-check.nix
     ./steam.nix
     ./screen-recording.nix

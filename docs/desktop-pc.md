@@ -104,9 +104,18 @@ What WSL changes, to work through rather than assume:
 
 - **sops**: the guest needs its own age key, placed by hand once, and a
   recipient in `.sops.yaml` — as metal's is.
-- **1Password**: the Windows app holds the vault. Its SSH agent reaches the
-  guest through `npiperelay` on the agent's named pipe, and the CLI as
-  `op.exe` through interop; the Linux desktop app has nothing to do there.
+- **1Password** (decided 2026-11-06): the Linux app runs in the guest, from
+  the same modules as on the ThinkPad, now in a `gui` role the desktop role
+  imports and `z690-wsl` names; WSLg draws its window, and a user service
+  starts it in the background so the agent socket and `op` exist from the
+  first shell. Considered first and dropped: bridging to the Windows app
+  (its SSH agent through `npiperelay` on the named pipe or Windows'
+  `ssh.exe`, the CLI as `op.exe` through interop). That rests on a CLI and
+  settings installed by hand on Windows that nothing in the repo describes,
+  which is the kind of dependency maxnix exists to avoid. The price: a
+  second sign-in, and unlocking with the account password, since the guest
+  runs no polkit agent for system authentication. Untested until run in the
+  guest.
 - **Rootless Docker**: should work with systemd on; untested.
 - **Observability**: Prometheus, Loki, Tempo and Grafana are ordinary
   services. Beyla needs eBPF and BTF from the WSL kernel; whether it gets
@@ -259,7 +268,11 @@ boot.
 - [x] `hosts/z690-wsl`, repo side: builds (`checks.z690-wsl`), image from
   `sudo nix run .#z690-wsl-tarball`. Open there: its age key and which secrets it
   gets, the login password (NixOS-WSL's default for now: none, and sudo asks
-  for none), 1Password's agent and signing bridged from Windows.
+  for none).
+- [x] 1Password in the guest, repo side (`modules/gui`, 2026-11-06): builds.
+- [ ] In the guest: the app starts under WSLg (`systemctl --user status
+  onepassword`), sign in, switch on the SSH agent and CLI integration; then
+  `op whoami`, `ssh -T git@github.com` and a signed commit.
 - [ ] Import it on the desktop and boot it; see whether Beyla gets eBPF.
 - [ ] In the guest: `nvidia-smi`, then a TornadoVM sample on the PTX backend;
   note whether `libcuda` is found without `LD_LIBRARY_PATH` (section 3).

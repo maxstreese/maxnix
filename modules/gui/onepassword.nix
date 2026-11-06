@@ -25,16 +25,6 @@
 #                             these users; without it the app can only unlock
 #                             with the account password.
 #
-# ── The NixOS wrinkle: allowed browsers ──────────────────────────────────
-#
-# BrowserSupport only answers browsers whose *executable name* it recognises.
-# nixpkgs' Firefox is a shell wrapper that execs `.firefox-wrapped` (a symlink
-# to lib/firefox/firefox), and 1Password sees that name, not "firefox". The
-# escape hatch 1Password provides is /etc/1password/custom_allowed_browsers,
-# one name per line; it insists the file be root-owned and not writable by
-# others, hence the explicit mode. Forget this and the extension silently
-# never connects to the app.
-#
 # ── Unfree ────────────────────────────────────────────────────────────────
 #
 # Both packages carry a proprietary licence and nixpkgs refuses them unless
@@ -55,12 +45,5 @@
   programs._1password-gui = {
     enable = true;
     polkitPolicyOwners = [ config.users.users.max.name ];
-  };
-
-  environment.etc."1password/custom_allowed_browsers" = {
-    text = ''
-      .firefox-wrapped
-    '';
-    mode = "0755";
   };
 }

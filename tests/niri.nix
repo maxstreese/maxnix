@@ -27,7 +27,7 @@ in
 
   # The framework hands every node a prebuilt, read-only pkgs, and then any
   # module touching nixpkgs.* fails with "defined multiple times". This
-  # machine's modules do touch it — modules/desktop/onepassword.nix adds to
+  # machine's modules do touch it — modules/gui/onepassword.nix adds to
   # nixpkgs.config.allowUnfreePackages — so let the node build its own pkgs
   # from those options instead, exactly as `nix run .#vm` does. Costs one
   # extra nixpkgs evaluation per test; buys a node that cannot diverge from
