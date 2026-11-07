@@ -6,5 +6,6 @@
 {
   imports = [
     ./onepassword.nix
+    ./herdr.nix
   ];
 }

@@ -137,7 +137,7 @@ modules/                     roles a host is composed from (`roles` in flake.nix
 home/max/core/               user layer, every machine: shell, git, dev, harlequin, claude
 home/max/desktop/            user layer, with the desktop role: niri, dms, quickshell,
                              ghostty, firefox, apps
-home/max/gui/                user layer, with the gui role: onepassword (ssh agent, signing)
+home/max/gui/                user layer, with the gui role: onepassword (ssh agent, signing), herdr-desktop
 home/max/{quickshell,dms-state}/  the QML and DMS state those two files deploy
 tests/{desktop,niri,vnc}.nix                     integration tests
 tests/disk.nix               formats, installs and boots the real disk layout

@@ -180,9 +180,9 @@ What WSL changes, to work through rather than assume:
   Mesa's d3d12 layer (Vulkan as the experimental dozen driver). So try it
   before building anything: `nix run nixpkgs#herdr-desktop` in the guest,
   noting whether it renders, at what scaling, and whether clipboard and
-  links reach Windows. If it holds up, GUI apps that do not need niri move
-  out of `home/max/desktop/apps.nix` into a layer both the desktop role and
-  this host import. Not yet checked: whether herdr has a Windows build that
+  links reach Windows. It held up (below), and it moved from
+  `home/max/desktop/apps.nix` into `home/max/gui/herdr.nix` (2026-11-07),
+  the layer both the desktop role and this host import. Not yet checked: whether herdr has a Windows build that
   attaches to `herdr-core` in WSL, as VS Code and Zed do, which would make
   WSLg unnecessary for it.
   First run (2026-11-06, herdr-desktop 0.1.10, on the desktop's Ubuntu
@@ -334,6 +334,6 @@ boot.
 - [x] In the guest: `nix run nixpkgs#herdr-desktop` through WSLg; decides
   whether GUI apps get a layer of their own for this host (section 3).
   Opens, draws on the GPU, clipboard, scaling and links all fine
-  (2026-11-07, section 3). The layer exists since (`modules/gui`);
-  herdr-desktop itself is not in it yet.
+  (2026-11-07, section 3). Now installed from `home/max/gui/herdr.nix`
+  on both machines.
 - [ ] A desktop host.
