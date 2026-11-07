@@ -114,7 +114,7 @@ in
 
     def mcp(tool, arguments):
         # One tool call to mcp-grafana over stdio, as max, with the issued
-        # token: the way Claude Code runs it.
+        # token: the way Claude Code runs it, write tools included.
         requests = [
             {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
                 "protocolVersion": "2025-06-18", "capabilities": {},
@@ -133,7 +133,7 @@ in
             " | runuser -u max -- env"
             f" GRAFANA_URL={grafana}"
             " GRAFANA_SERVICE_ACCOUNT_TOKEN_FILE=/var/lib/grafana-mcp/token"
-            " timeout 70 mcp-grafana --disable-write > /tmp/mcp.out || true; cat /tmp/mcp.out")
+            " timeout 70 mcp-grafana > /tmp/mcp.out || true; cat /tmp/mcp.out")
         answers = [json.loads(l) for l in out.splitlines() if '"id":2' in l.replace(" ", "")]
         assert answers, f"no answer from mcp-grafana to {tool}: {out}"
         return answers[0]
@@ -306,6 +306,21 @@ in
         assert mode == "600 max", mode
         text = json.dumps(mcp("list_datasources", {}))
         assert all(ds in text for ds in ["prometheus", "loki", "tempo"]), text
+
+    with subtest("mcp-grafana builds dashboards, and cannot touch the repo's"):
+        # Editor: the agent makes a dashboard to iterate on in Grafana...
+        reply = mcp("update_dashboard", {"dashboard": {"uid": "agent-made", "title": "Agent Made", "panels": []}})
+        assert not reply.get("result", {}).get("isError"), reply
+        # Anonymous, the way you browse, and by uid: search lists a new
+        # dashboard only seconds later (its index lags, measured 2026-11-08),
+        # while the dashboard itself is readable at once.
+        machine.succeed(f"curl -fsS {grafana}/api/dashboards/uid/agent-made | jq -e '.dashboard.title == \"Agent Made\"'")
+        # ...but a provisioned one stays the repo's (allowUiUpdates = false).
+        reply = mcp("update_dashboard", {"dashboard": {"uid": "maxnix-host", "title": "Overwritten", "panels": []}, "overwrite": True})
+        assert reply.get("result", {}).get("isError") or "error" in reply, reply
+        title = machine.succeed(f"curl -fsS {grafana}/api/dashboards/uid/maxnix-host | jq -r .dashboard.title").strip()
+        assert title and title != "Overwritten", title
+        machine.succeed(f"curl -fsS -u {admin} -X DELETE {grafana}/api/dashboards/uid/agent-made")
 
     with subtest("a token that stopped working is replaced"):
         machine.succeed("echo garbage > /var/lib/grafana-mcp/token")

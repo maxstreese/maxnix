@@ -54,7 +54,10 @@ let
     inherit (pkgs.claude-code) meta;
   };
 
-  # mcp-grafana against the local Grafana, read-only. A separate server from
+  # mcp-grafana against the local Grafana, with its write tools: the token
+  # is an Editor's, so the agent can build dashboards to iterate on before
+  # grafana-capture puts them in the repo (modules/base/observability,
+  # grafana-mcp-token, for why Editor and not more). A separate server from
   # any other Grafana MCP already configured (a work one, say), named
   # grafana-local. Its token is issued by the machine and readable only by
   # this user; see grafana-mcp-token in modules/base/observability.
@@ -66,7 +69,7 @@ let
       # modules/base/observability).
       export GRAFANA_URL=http://localhost:3000
       export GRAFANA_SERVICE_ACCOUNT_TOKEN_FILE=${observability.mcpTokenFile}
-      exec mcp-grafana --disable-write "$@"
+      exec mcp-grafana "$@"
     '';
   };
 in

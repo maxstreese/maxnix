@@ -923,14 +923,21 @@ in
       '';
     };
 
-    # A Viewer service account for mcp-grafana, and a token for it. Grafana
+    # An Editor service account for mcp-grafana, and a token for it. Grafana
     # provisioning cannot create either, so this does, through the API, after
     # every Grafana start. The token lives in /var/lib/grafana-mcp, which is
     # NOT persisted: a fresh boot just makes a new one and removes the old,
     # so no token outlives the machine state that issued it.
     #
-    # Viewer because mcp-grafana runs with --disable-write anyway (see
-    # home/max/core/claude.nix), and a reader is all an agent analysing data needs.
+    # Editor, not Viewer (2026-11-08): the agent builds dashboards with you
+    # in Grafana itself, you look and it changes them, and only a finished
+    # one goes into the repo through grafana-capture. Editor covers
+    # dashboards, folders, Explore and alerting; the dashboards provisioned
+    # from ./dashboards stay read-only to it (allowUiUpdates = false), which
+    # the test checks. Not Admin: this token sits where Claude Code reads it,
+    # and Admin would add users, tokens, datasources and plugins, none of
+    # which dashboard work needs. The role is set on every run, so an
+    # account created earlier as Viewer is raised in place.
     systemd.services.grafana-mcp-token = {
       description = "Issue a Grafana service-account token for mcp-grafana";
       after = [
@@ -967,6 +974,14 @@ in
           sleep 1
         done
 
+        id=$(api "$url/api/serviceaccounts/search?query=mcp-grafana" \
+          | jq -r '.serviceAccounts[] | select(.name == "mcp-grafana") | .id')
+        if [ -z "$id" ]; then
+          id=$(api -X POST "$url/api/serviceaccounts" \
+            -d '{"name":"mcp-grafana","role":"Editor"}' | jq -r .id)
+        fi
+        api -X PATCH "$url/api/serviceaccounts/$id" -d '{"role":"Editor"}' >/dev/null
+
         # A token that still works is kept. "Works" means Grafana says who it
         # is: with anonymous access on, a dead token is not refused, it is
         # quietly treated as an anonymous Viewer, so any request that merely
@@ -974,13 +989,6 @@ in
         if [ -s "$token" ] && curl -fsS -H "Authorization: Bearer $(cat "$token")" \
             "$url/api/user" 2>/dev/null | jq -e '.login | test("mcp-grafana")' >/dev/null; then
           exit 0
-        fi
-
-        id=$(api "$url/api/serviceaccounts/search?query=mcp-grafana" \
-          | jq -r '.serviceAccounts[] | select(.name == "mcp-grafana") | .id')
-        if [ -z "$id" ]; then
-          id=$(api -X POST "$url/api/serviceaccounts" \
-            -d '{"name":"mcp-grafana","role":"Viewer"}' | jq -r .id)
         fi
 
         # One live token at a time.
