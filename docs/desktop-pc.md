@@ -127,10 +127,16 @@ What WSL changes, to work through rather than assume:
   SSH clone had no key before 1Password's agent exists, so the first clone
   is over HTTPS. Interop stays on for now; switching it off is a separate
   security decision.
-- **Rootless Docker**: should work with systemd on; untested.
-- **Observability**: Prometheus, Loki, Tempo and Grafana are ordinary
-  services. Beyla needs eBPF and BTF from the WSL kernel; whether it gets
-  them is unknown.
+- **Rootless Docker**: works (2026-11-07, first boot on the desktop:
+  the user service is active, `docker info` reports 29.9.2 with the
+  `rootless` security option).
+- **Observability**: Prometheus, Loki, Tempo, Grafana and Alloy run as
+  ordinary services, and Beyla (a component inside Alloy, not a unit of its
+  own) gets eBPF and BTF from the WSL kernel: `/sys/kernel/btf/vmlinux`
+  exists and `beyla_network_flow_bytes_total` had 20 series on the first
+  boot (2026-11-07). Grafana is reachable from the Windows browser at
+  `http://localhost:3000`: WSL forwards Windows' localhost to the guest's,
+  even for a listener on 127.0.0.1 only.
 - **What does not apply**: disk, LUKS, impermanence, Secure Boot, greeter,
   backups of `/` (the distribution is one VHDX file on Windows), Fleet.
 - **Memory and cores**: WSL gives the guest half the host's RAM by default
@@ -140,7 +146,8 @@ What WSL changes, to work through rather than assume:
   set `[experimental]` `autoMemoryReclaim=gradual`, so the VM hands page cache
   back to Windows rather than keep it. That file is Windows' own and not in
   this repo. Repos belong on the guest's own filesystem: `/mnt/c` goes through
-  9P and is much slower.
+  9P and is much slower. Set 2026-11-07 to `memory=56GB`, `swap=16GB` and
+  gradual reclaim; the guest sees 54 GB and all 24 threads.
 - **GPU compute**: paravirtualised, not passed through. The Windows NVIDIA
   driver exposes the card as `/dev/dxg` and puts its user-space libraries
   (`libcuda`, `libd3d12`, `nvidia-smi`) under `/usr/lib/wsl/lib`. No Linux
@@ -151,10 +158,14 @@ What WSL changes, to work through rather than assume:
   on NVIDIA under WSL has historically been missing or limited, and
   Microsoft's OpenCL-on-D3D12 offers only 1.2, so the OpenCL backend is
   doubtful. SPIR-V/Level Zero is Intel-only. Nsight profiling is partial
-  under WSL. Open: a prebuilt JDK or TornadoVM SDK runs through nix-ld,
-  whose library path does not include `/run/opengl-driver/lib`. Whether it
-  finds `libcuda` without `LD_LIBRARY_PATH` is to be seen, and only then
-  added to `modules/base/nix-ld.nix` (nothing goes in there on speculation).
+  under WSL. Foreign binaries, the driver's own `nvidia-smi` among them,
+  load through nix-ld, whose library path did not include the driver:
+  `nvidia-smi` failed to find `libnvidia-ml.so` on the first boot
+  (2026-11-07) and ran with `/usr/lib/wsl/lib` appended to
+  `NIX_LD_LIBRARY_PATH`, which `hosts/z690-wsl/windows.nix` now does for
+  this host only, not in `modules/base/nix-ld.nix`. It shows the
+  RTX 3080 Ti, driver 621.14, 12 GB. A prebuilt JDK or TornadoVM SDK should
+  find `libcuda` the same way; not yet tried.
 - **GUI apps through WSLg** (noted 2026-11-06): the host has no desktop role,
   so `home/max/desktop` and every app in it stay off WSL; only the TUIs in
   `home/max/core` come along. That makes WSL the weaker place for work
@@ -269,7 +280,8 @@ boot.
 
 ## Still to decide
 
-- [ ] Install Nix in WSL; run `nix run .#vm-headless` and the portable checks.
+- [ ] Run `nix run .#vm-headless` and the portable checks in the guest
+  (`/dev/kvm` is `0666` and `renderD128` exists, so both should start).
 - [ ] Go through the game library on anti-cheat and ProtonDB.
 - [ ] Settle the engine.
 - [ ] Take the facter report from a stick (section 4).
@@ -281,14 +293,21 @@ boot.
   gets, the login password (NixOS-WSL's default for now: none, and sudo asks
   for none).
 - [x] 1Password in the guest, repo side (`modules/gui`, 2026-11-06): builds.
-- [ ] In the guest: the app starts under WSLg (`systemctl --user status
+- [x] In the guest: the app starts under WSLg (`systemctl --user status
   onepassword`), sign in, switch on the SSH agent and CLI integration; then
-  `op whoami`, `ssh -T git@github.com` and a signed commit.
+  `op`, `ssh -T git@github.com` and a signed commit. All work (2026-11-07;
+  each program's first use waits on an approval prompt in the app). `op
+  whoami` alone answers "account is not signed in" under app integration,
+  while `op vault list` and the rest go through.
 - [x] In the guest: `xdg-open https://github.com` and `gh auth login` open
   the Windows browser (`hosts/z690-wsl/windows.nix`; works, 2026-11-07).
-- [ ] Import it on the desktop and boot it; see whether Beyla gets eBPF.
-- [ ] In the guest: `nvidia-smi`, then a TornadoVM sample on the PTX backend;
-  note whether `libcuda` is found without `LD_LIBRARY_PATH` (section 3).
+- [x] Import it on the desktop and boot it; see whether Beyla gets eBPF:
+  booted 2026-11-07, Beyla gets it (section 3), no failed units, rootless
+  Docker works.
+- [x] In the guest: `nvidia-smi` (works once nix-ld's path includes the
+  driver, `hosts/z690-wsl/windows.nix`, 2026-11-07).
+- [ ] In the guest: a TornadoVM sample on the PTX backend; note whether
+  `libcuda` is found without `LD_LIBRARY_PATH` (section 3).
 - [ ] In the guest: `nix run nixpkgs#herdr-desktop` through WSLg; decides
   whether GUI apps get a layer of their own for this host (section 3).
   Renders on the Ubuntu distro through nixGL; still to do in the guest

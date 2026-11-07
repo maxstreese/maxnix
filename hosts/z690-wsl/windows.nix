@@ -72,9 +72,23 @@ in
   # links those into hardware.graphics, i.e. /run/opengl-driver/lib, where
   # Nix-built CUDA and Mesa programs look. Wanted for GPU compute from Java
   # (TornadoVM's PTX backend) on the RTX 3080 Ti; docs/desktop-pc.md
-  # section 3. Builds here; untested on the desktop until the image is
-  # imported there.
+  # section 3. Linked and present in the guest (2026-11-07).
   wsl.useWindowsDriver = true;
+
+  # The driver's own binaries (nvidia-smi above all) are generic-Linux ELFs
+  # that load through nix-ld (../../modules/base/nix-ld.nix), and nix-ld's
+  # library path does not include the driver's directory: nvidia-smi failed
+  # with "couldn't find libnvidia-ml.so" (2026-11-07) and ran once
+  # /usr/lib/wsl/lib was appended. A wrapper on PATH would not do, since
+  # NixOS-WSL puts /usr/lib/wsl/lib ahead of the Nix profiles. This is also
+  # the path a prebuilt JDK or TornadoVM SDK finds libcuda by. The driver's
+  # directory rather than /run/opengl-driver/lib, so foreign binaries get the
+  # Windows driver's libraries and not Mesa's too. mkForce because the option
+  # is a single string the nix-ld module sets; its value is restated first.
+  environment.sessionVariables.NIX_LD_LIBRARY_PATH = lib.mkForce [
+    "/run/current-system/sw/share/nix-ld/lib"
+    "/usr/lib/wsl/lib"
+  ];
 
   # Links open in the browser already on the Windows desktop, rather than a
   # second one under WSLg with its own sign-ins (docs/desktop-pc.md,
