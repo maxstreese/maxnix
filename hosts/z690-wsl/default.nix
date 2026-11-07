@@ -41,6 +41,19 @@
   # /etc/nixos/configuration.nix and two channel subscriptions, which that
   # module replaces and removes on first activation.
 
+  # A cursor theme, for this host only. Nothing installs one here (no
+  # desktop role), so GUI apps under WSLg found no 'left_ptr' and logged it
+  # on every pointer change (herdr-desktop, 2026-11-07). Adwaita, as GTK's
+  # own default; x11.enable sets XCURSOR_THEME and XCURSOR_SIZE for the
+  # session, which X11 and Wayland clients both read.
+  home-manager.users.max.home.pointerCursor = {
+    enable = true;
+    package = pkgs.adwaita-icon-theme;
+    name = "Adwaita";
+    size = 24;
+    x11.enable = true;
+  };
+
   # max's password from sops (./secrets.nix). On since 2026-11-07, once the
   # host's key was restored and the hash was in ./secrets.yaml.
   maxnix.loginPassword.fromSops = true;
@@ -57,9 +70,9 @@
   # the restart rather than an ordering this user unit cannot express
   # against a system mount.
   #
-  # Untested until run on the desktop (docs/desktop-pc.md, section 3):
-  # written 2026-11-06 from an Ubuntu distro on the same machine, where it
-  # only builds.
+  # Works on the desktop (2026-11-07, docs/desktop-pc.md section 3): the app
+  # comes up under WSLg, and its SSH agent, `op` and commit signing are
+  # there from the first shell.
   home-manager.users.max.systemd.user.services.onepassword = {
     Unit.Description = "1Password, in the background, for its SSH agent and op";
     Service = {

@@ -20,11 +20,13 @@
 #               rundll32.exe, part of every Windows install, and nothing
 #               about which browser it is.
 #
-# All but WSLg go through interop, Windows binaries launched from the guest,
-# which therefore stays on. Turning it off (wsl.wslConf.interop.enabled =
-# false) would close the path by which anything in the guest can run code as
-# max on Windows; that is a separate decision, still open, and would take the
-# URL opener with it.
+# Only the URL opener goes through interop, Windows binaries launched from
+# the guest; WSLg and the GPU driver are Linux-side (a socket, and libraries
+# that talk to /dev/dxg). Interop stays on (decided 2026-11-07, README
+# "Decisions, and why"): turning it off (wsl.wslConf.interop.enabled = false)
+# would close the path by which anything in the guest can run code as max on
+# Windows, but Windows Terminal and the Windows browser stay in daily use
+# either way, and it would take the URL opener with it.
 {
   config,
   lib,

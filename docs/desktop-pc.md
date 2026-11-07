@@ -125,8 +125,8 @@ What WSL changes, to work through rather than assume:
   work in the guest). The
   first boot is what raised it: `gh auth login` found no browser, and an
   SSH clone had no key before 1Password's agent exists, so the first clone
-  is over HTTPS. Interop stays on for now; switching it off is a separate
-  security decision.
+  is over HTTPS. Interop stays on (decided 2026-11-07, README "Decisions,
+  and why").
 - **Rootless Docker**: works (2026-11-07, first boot on the desktop:
   the user service is active, `docker info` reports 29.9.2 with the
   `rootless` security option).
@@ -338,8 +338,10 @@ boot.
   Docker works.
 - [x] In the guest: `nvidia-smi` (works once `/usr/lib/wsl/lib` is on the
   library path, `hosts/z690-wsl/windows.nix`, 2026-11-07).
-- [ ] In the guest: a TornadoVM sample on the PTX backend; note whether
-  `libcuda` is found without `LD_LIBRARY_PATH` (section 3).
+- [ ] In the guest: a TornadoVM sample on the PTX backend, on the
+  RTX 3080 Ti. `libcuda` should be found through the session's
+  `LD_LIBRARY_PATH` (section 3); whether TornadoVM's JDK finds and uses it
+  is what is left to see.
 - [x] In the guest: `nix run nixpkgs#herdr-desktop` through WSLg; decides
   whether GUI apps get a layer of their own for this host (section 3).
   Opens, draws on the GPU, clipboard, scaling and links all fine
