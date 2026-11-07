@@ -204,8 +204,10 @@ What WSL changes, to work through rather than assume:
   its log, harmless: Mesa's EGL finding no DRM device (it draws through
   Vulkan), no xdg-desktop-portal on D-Bus (`zbus … ServiceUnknown`; would
   matter if herdr opened links only through the portal), and no cursor
-  theme in the guest (`left_ptr`). Clipboard, links and scaling not yet
-  noted. Side effect to know: on
+  theme in the guest (`left_ptr`). Clipboard works both ways with Windows
+  apps, it renders sharp at Windows' scaling, and a URL clicked in one of
+  its terminal panes opens in the Windows browser (2026-11-07), so herdr
+  reaches `open-in-windows` without the portal. Side effect to know: on
   first start herdr turns on linger for the user and starts `herdr-core`
   as transient `systemd-run --user` units (`hc-serve-*`), which outlive
   the window.
@@ -329,8 +331,9 @@ boot.
   library path, `hosts/z690-wsl/windows.nix`, 2026-11-07).
 - [ ] In the guest: a TornadoVM sample on the PTX backend; note whether
   `libcuda` is found without `LD_LIBRARY_PATH` (section 3).
-- [ ] In the guest: `nix run nixpkgs#herdr-desktop` through WSLg; decides
+- [x] In the guest: `nix run nixpkgs#herdr-desktop` through WSLg; decides
   whether GUI apps get a layer of their own for this host (section 3).
-  Opens in the guest and draws on the GPU (2026-11-07, section 3); still
-  to note: clipboard, links, scaling.
+  Opens, draws on the GPU, clipboard, scaling and links all fine
+  (2026-11-07, section 3). The layer exists since (`modules/gui`);
+  herdr-desktop itself is not in it yet.
 - [ ] A desktop host.
