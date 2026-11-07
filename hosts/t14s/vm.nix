@@ -130,6 +130,12 @@
       # and so are the suites, which build hostModules and never this variant.
       maxnix.dev.liveConfig = true;
 
+      # No /etc/nixos link to the clone (../../modules/base/rebuild.nix): a
+      # bare `nixos-rebuild` here would build nixosConfigurations.t14s, the
+      # metal system, not this variant. `rebuild` above is the way in; the
+      # bare command now fails instead.
+      maxnix.dev.etcNixosLink = false;
+
       # ── SSH into the running VM ──────────────────────────────────────────
       #
       # The host-side way to drive the VM you are actually using: run

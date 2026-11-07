@@ -13,6 +13,7 @@
     ./login-limits.nix
     ./nix-ld.nix
     ./observability
+    ./rebuild.nix
   ];
 
   time.timeZone = "Europe/Berlin";

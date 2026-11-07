@@ -137,6 +137,15 @@ What WSL changes, to work through rather than assume:
   boot (2026-11-07). Grafana is reachable from the Windows browser at
   `http://localhost:3000`: WSL forwards Windows' localhost to the guest's,
   even for a listener on 127.0.0.1 only.
+- **Rebuilding** (2026-11-07): from the flake only. The image ships a
+  stock `/etc/nixos/configuration.nix` and two channel subscriptions, which
+  a bare `sudo nixos-rebuild switch` would have built after a channel
+  update, replacing maxnix with the stock system. Every host now turns
+  channels off and makes `/etc/nixos` a symlink to the clone
+  (`modules/base/rebuild.nix`, README "Decisions, and why"), both through
+  tmpfiles so a fresh import converges on first activation; the bare
+  command builds `/etc/nixos#z690-wsl`, working tree included, the same
+  system as `--flake ~/maxnix#z690-wsl`.
 - **What does not apply**: disk, LUKS, impermanence, Secure Boot, greeter,
   backups of `/` (the distribution is one VHDX file on Windows), Fleet.
 - **Memory and cores**: WSL gives the guest half the host's RAM by default

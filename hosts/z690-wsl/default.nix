@@ -36,6 +36,11 @@
   wsl.enable = true;
   wsl.defaultUser = "max";
 
+  # Rebuilt from the flake only (../../modules/base/rebuild.nix). This host
+  # is where that came from: the NixOS-WSL image ships a stock
+  # /etc/nixos/configuration.nix and two channel subscriptions, which that
+  # module replaces and removes on first activation.
+
   # max's password from sops (./secrets.nix). On since 2026-11-07, once the
   # host's key was restored and the hash was in ./secrets.yaml.
   maxnix.loginPassword.fromSops = true;
