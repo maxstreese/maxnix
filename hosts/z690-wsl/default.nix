@@ -25,22 +25,17 @@
 # commits work as there. Unlocking differs: this host enables no polkit and
 # runs no polkit agent, so "unlock with system authentication" is not
 # offered and the app asks for the account password.
+#
+# What it takes from Windows — WSLg, the GPU driver, a URL opener — is all in
+# ./windows.nix, with the rule that decides what may go there.
 { config, ... }:
 {
+  imports = [ ./windows.nix ];
+
   networking.hostName = "z690-wsl";
 
   wsl.enable = true;
   wsl.defaultUser = "max";
-
-  # The GPU reaches WSL by paravirtualisation, not passthrough: the Windows
-  # NVIDIA driver puts its user-space half (libcuda, libd3d12, nvidia-smi)
-  # under /usr/lib/wsl/lib, and no Linux NVIDIA driver is installed. This
-  # links those into hardware.graphics, i.e. /run/opengl-driver/lib, where
-  # Nix-built CUDA and Mesa programs look. Wanted for GPU compute from Java
-  # (TornadoVM's PTX backend) on the RTX 3080 Ti; docs/desktop-pc.md
-  # section 3. Builds here; untested on the desktop until the image is
-  # imported there.
-  wsl.useWindowsDriver = true;
 
   # The 1Password app, started with the user's systemd instance and kept in
   # the background (--silent: no window until asked for), so the SSH agent
