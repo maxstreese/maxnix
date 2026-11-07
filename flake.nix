@@ -783,6 +783,53 @@
           '';
         };
 
+      # nix run .#z690-wsl-restore-key
+      #
+      # vm-restore-key's counterpart for the WSL host, run inside that guest
+      # itself (hosts/z690-wsl/secrets.nix): the key goes from `op read`
+      # through a pipe into a root-only file, lands in /run first so a failed
+      # read leaves the old key alone, and is then checked against `z690-wsl`
+      # in .sops.yaml. The item is "MaxNix SOPS z690-wsl"; `op` is the guest's
+      # own, signed in through the app.
+      z690WslRestoreKey =
+        let
+          key = z690Wsl.config.sops.age.keyFile;
+          install = pkgs.writeShellScript "install-sops-key" ''
+            set -eu
+            umask 077
+            t=$(mktemp -p /run)
+            trap 'rm -f "$t"' EXIT
+            cat > "$t"
+            [ -s "$t" ] || { echo "nothing received; ${key} left as it was" >&2; exit 1; }
+            install -D -m 600 -o root -g root "$t" ${key}
+          '';
+        in
+        pkgs.writeShellApplication {
+          name = "z690-wsl-restore-key";
+          runtimeInputs = [
+            pkgs.age
+            pkgs.gnused
+          ];
+          text = ''
+            [ "$(cat /proc/sys/kernel/hostname)" = z690-wsl ] \
+              || { echo "run this inside the z690-wsl guest" >&2; exit 1; }
+            want=$(sed -n 's/^  - &z690-wsl //p' ${./.sops.yaml})
+            [ -n "$want" ] || { echo "no z690-wsl key in .sops.yaml yet" >&2; exit 1; }
+
+            echo "reading the z690-wsl key from 1Password..." >&2
+            op read --account my.1password.com op://uxobupcysqhat566ymgikx46fm/bf73juves3uhcrg7eratqzu7ue/notesPlain \
+              | sudo ${install}
+
+            got=$(sudo age-keygen -y ${key})
+            if [ "$got" = "$want" ]; then
+              echo "restored: ${key} matches z690-wsl in .sops.yaml" >&2
+            else
+              echo "MISMATCH: ${key} is not the z690-wsl key in .sops.yaml" >&2
+              exit 1
+            fi
+          '';
+        };
+
       # The admin key's command, shared by the dev shell and secret-set so the
       # two cannot drift apart. See the dev shell for why a command.
       sopsAgeKeyCmd = "op read --account my.1password.com op://uxobupcysqhat566ymgikx46fm/fsgcalkkn3guvyu6uf3blufipa/notesPlain";
@@ -794,6 +841,11 @@
       # terminal, where 1Password can prompt:
       #
       #   nix run .#secret-set -- restic-password "op://<vault>/<item>/password"
+      #
+      # With `--host z690-wsl` first, into hosts/z690-wsl/secrets.yaml instead,
+      # by what that host declares. Its names are read with
+      # maxnix.loginPassword.fromSops forced on, since the host keeps it off
+      # until this command has set the hash it declares.
       #
       # What the hand-written `op read | jq -R . | sops set` in
       # hosts/t14s/secrets.nix did, with its gaps closed:
@@ -834,8 +886,30 @@
               clashes == [ ]
             ) "secret-set: metal and the VM read ${toString clashes} from different files";
             vmFiles // metalFiles;
-          declared = builtins.attrNames files;
           hashed = builtins.attrNames (lib.filterAttrs (_: s: s.neededForUsers) t14s.config.sops.secrets);
+
+          z690WslSecrets =
+            (z690Wsl.extendModules {
+              modules = [ { maxnix.loginPassword.fromSops = lib.mkForce true; } ];
+            }).config.sops.secrets;
+          z690WslFiles = lib.mapAttrs (
+            _: s: "hosts/z690-wsl/${baseNameOf (toString s.sopsFile)}"
+          ) z690WslSecrets;
+
+          # One shell `case` per host: its names, its hashed names, and the
+          # file each name lives in.
+          hostCase = host: files: hashed: ''
+            ${host})
+              declared=${lib.escapeShellArg (lib.concatStringsSep " " (builtins.attrNames files))}
+              hashed=${lib.escapeShellArg (lib.concatStringsSep " " hashed)}
+              fileOf() {
+                case "$1" in
+                  ${lib.concatStrings (lib.mapAttrsToList (n: f: "${n}) echo ${f} ;;
+      ") files)}
+                esac
+              }
+              ;;
+          '';
         in
         pkgs.writeShellApplication {
           name = "secret-set";
@@ -846,12 +920,26 @@
           ];
           text = ''
             export SOPS_AGE_KEY_CMD=${lib.escapeShellArg sopsAgeKeyCmd}
-            declared=${lib.escapeShellArg (lib.concatStringsSep " " declared)}
-            hashed=${lib.escapeShellArg (lib.concatStringsSep " " hashed)}
+
+            host=t14s
+            if [ "''${1:-}" = --host ]; then
+              host=''${2:-}
+              shift 2 || true
+            fi
+            case "$host" in
+              ${hostCase "t14s" files hashed}
+              ${hostCase "z690-wsl" z690WslFiles (
+                builtins.attrNames (lib.filterAttrs (_: s: s.neededForUsers) z690WslSecrets)
+              )}
+              *)
+                echo "unknown host $host; known: t14s z690-wsl" >&2
+                exit 2
+                ;;
+            esac
 
             if [ $# -ne 2 ]; then
-              echo "usage: secret-set <name> <op-reference>" >&2
-              echo "names: $declared" >&2
+              echo "usage: secret-set [--host t14s|z690-wsl] <name> <op-reference>" >&2
+              echo "names for $host: $declared" >&2
               exit 2
             fi
             name=$1 ref=$2
@@ -859,13 +947,11 @@
             case " $declared " in
               *" $name "*) ;;
               *)
-                echo "$name is not a secret the machine declares; declare it in hosts/t14s/secrets.nix first" >&2
+                echo "$name is not a secret $host declares; declare it in hosts/$host/secrets.nix first" >&2
                 exit 1
                 ;;
             esac
-            case "$name" in
-              ${lib.concatStrings (lib.mapAttrsToList (n: f: "${n}) file=${f} ;;\n  ") files)}
-            esac
+            file=$(fileOf "$name")
             [ -f "$file" ] || { echo "no $file here; run this from the repo root" >&2; exit 1; }
 
             echo "reading $name from 1Password..." >&2
@@ -1611,6 +1697,10 @@
         secret-set = {
           type = "app";
           program = lib.getExe secretSet;
+        };
+        z690-wsl-restore-key = {
+          type = "app";
+          program = lib.getExe z690WslRestoreKey;
         };
         ci = {
           type = "app";

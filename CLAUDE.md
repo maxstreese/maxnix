@@ -23,7 +23,7 @@ nix run .#test-niri              # full (GPU) suite for desktop or niri; `-- --i
 nix build .#ci                   # shellchecks the ci runner itself without running it
 nix run .#blocked                # which workarounds in docs/blocked.toml upstream has unblocked
 nix run .#closure-diff -- <rev>  # nvd diff of metal at <rev> and the working tree (what CI comments on Renovate's lock PR)
-nix run .#secret-set -- <name> <op-ref>  # one value from 1Password into hosts/t14s/secrets.yaml (user's own terminal: 1Password prompts)
+nix run .#secret-set -- <name> <op-ref>  # one value from 1Password into hosts/t14s/secrets.yaml (user's own terminal: 1Password prompts); `--host z690-wsl` first for the WSL host's file
 ```
 
 VM loop: `nix run .#vm` (window), `.#vm-headless` (VNC on 127.0.0.1:5909), `.#vm-deploy` (build on host, activate in running VM, no reboot), `.#vm-ssh -- <cmd>` (imports the graphical session's `WAYLAND_DISPLAY`/`NIRI_SOCKET`, so e.g. `niri msg outputs`, `dms ipc …`, `dms screenshot all --stdout --no-clipboard > shot.png` just work; there is no grim in the guest). Inside the guest: `rebuild` (~30 s). `qs-dev` runs `home/max/quickshell/` live; `dms-capture` / `dms-restore` move DMS theming state between `~/.config/dms` and `home/max/dms-state`. Guest login: `max` / `maxnix`.

@@ -289,9 +289,15 @@ boot.
 - [x] Split the roles (section 3): done 2026-10-18 (README, "Decisions, and
   why"), `home/max` into core and desktop with it.
 - [x] `hosts/z690-wsl`, repo side: builds (`checks.z690-wsl`), image from
-  `sudo nix run .#z690-wsl-tarball`. Open there: its age key and which secrets it
-  gets, the login password (NixOS-WSL's default for now: none, and sudo asks
-  for none).
+  `sudo nix run .#z690-wsl-tarball`.
+- [x] Its secrets and login password (`hosts/z690-wsl/secrets.nix`, decided
+  2026-11-07): its own sops file and key ("MaxNix SOPS z690-wsl", restored
+  with `z690-wsl-restore-key`), a password not metal's ("MaxNix Login
+  z690-wsl", set with `secret-set --host z690-wsl`), polkit and MATE's agent
+  so 1Password can unlock with it. Live 2026-11-07: max's shadow entry is
+  the hash from sops.
+- [ ] Switch on "Unlock using system authentication" in 1Password
+  (Settings → Security) and unlock with the login password.
 - [x] 1Password in the guest, repo side (`modules/gui`, 2026-11-06): builds.
 - [x] In the guest: the app starts under WSLg (`systemctl --user status
   onepassword`), sign in, switch on the SSH agent and CLI integration; then

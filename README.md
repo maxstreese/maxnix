@@ -35,6 +35,7 @@ nix run .#vm-headless                  # no window; VNC on 127.0.0.1:5909 so som
 nix run .#vm-deploy                    # build here, activate in the running VM, no reboot
 nix run .#vm-ssh -- niri msg outputs   # run a command in the running VM (or open a shell with no args)
 nix run .#vm-restore-key               # put the VM's sops key back from 1Password after a full reset
+nix run .#z690-wsl-restore-key         # the same for the WSL host's key, run inside that guest
 nix run .#test-desktop                 # boot, greeter, sessions, GPU
 nix run .#test-niri                    # niri: IPC, output, layout, shell, render
 nix run .#test-vm-starts               # the runner above actually starts (opens a window for 8s)
@@ -171,7 +172,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | modifier key | Super, as upstream | QEMU's keyboard grab makes Mutter inhibit its shortcuts for the window; `scripts/vm-keys` covers the two things the grab cannot: the overlay key, and GNOME's remembered permission |
 | shell | DankMaterialShell now, own Quickshell later | a usable desktop today; DMS's QML is a worked example to learn from |
 | greeter | Dank Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
-| login passwords | metal: a yescrypt hash from sops (`login-password`) for `max` and root, users immutable; every VM: plaintext `maxnix` | decided 2026-09-17 as plaintext everywhere, changed 2026-10-13 for metal after measuring that the wiped root undid every `passwd` (Findings). Immutable users make the declared hash win at every activation, so `passwd` lasts only until the next one, and changing the password is a sops edit and a rebuild — the price of one a wipe cannot reset. Root shares the hash so the emergency shell still opens. The VMs hold no metal key and keep `maxnix`, which `vm-ssh` logs in with |
+| login passwords | metal: a yescrypt hash from sops (`login-password`) for `max` and root, users immutable; every VM: plaintext `maxnix` | decided 2026-09-17 as plaintext everywhere, changed 2026-10-13 for metal after measuring that the wiped root undid every `passwd` (Findings). Immutable users make the declared hash win at every activation, so `passwd` lasts only until the next one, and changing the password is a sops edit and a rebuild — the price of one a wipe cannot reset. Root shares the hash so the emergency shell still opens. The VMs hold no metal key and keep `maxnix`, which `vm-ssh` logs in with. `z690-wsl` (2026-11-07): a hash of its own, not metal's, from that host's own sops file and key, users immutable, root without one (`wsl -u root` needs none); it is what 1Password's system-authentication unlock asks for through polkit there. Not metal's because the WSL guest is the weaker place, reachable as root from Windows, so a password typed there should open nothing on the ThinkPad |
 | networking | NetworkManager; networks joined in the UI (DMS's widget, `nmcli`) and preserved, not declared from sops | decided 2026-10-14. A laptop meets new networks all the time, and a rebuild per café would make the declarative way unusable; the profiles survive the wiped root on `/persist`, which the backup covers. sops-declared profiles can join them later for fixed networks, better once metal's secrets are out of the VM key's reach. `max` is in `networkmanager`, so saving a network asks for no password |
 | swap | zram (compressed RAM), no swap on disk, so no hibernation for now | decided 2026-10-15. zram absorbs memory spikes for one line of config. Whether hibernation resumes reliably on this ThinkPad's AMD graphics, and whether lanzaboote's Secure Boot leaves the kernel willing to hibernate, shows only on the hardware; a swapfile in its own btrfs subvolume adds it later without repartitioning, with suspend-then-hibernate for a lid closed for days |
 | power profiles | power-profiles-daemon, not TLP or tuned | decided 2026-10-14. DMS's power widget reads `org.freedesktop.UPower.PowerProfiles`, the interface power-profiles-daemon provides; TLP conflicts with it and DMS does not talk to it. Which driver it uses on this Ryzen shows only on the hardware (`powerprofilesctl`) |
@@ -1005,12 +1006,14 @@ Google Drive, rendered into an `rclone.conf` template — shared, since
 metal's snapshots from the VM is the restic password that encrypts them.
 
 `nix run .#secret-set -- <name> <op-reference>` puts one value from 1Password
-into whichever of the two files the machine reads it from: only names the machine declares, nothing written if
+into whichever of the two files the machine reads it from (with `--host
+z690-wsl` first, into the WSL host's own `hosts/z690-wsl/secrets.yaml`): only names the machine declares, nothing written if
 1Password returns nothing, login passwords hashed with yescrypt on the way,
 and read back to check.
 
 `nix run .#vm-restore-key` puts the VM's key back from 1Password and checks
-it against `.sops.yaml`. The dev shell sets `SOPS_AGE_KEY_CMD` to the admin item, so `sops` in
+it against `.sops.yaml`; `nix run .#z690-wsl-restore-key` does the same for
+the WSL host's key, from inside that guest. The dev shell sets `SOPS_AGE_KEY_CMD` to the admin item, so `sops` in
 `nix develop` — or under direnv — fetches it from 1Password on its own.
 The LUKS passphrase can never be a sops secret, because the machine key sits
 on the disk that passphrase unlocks.

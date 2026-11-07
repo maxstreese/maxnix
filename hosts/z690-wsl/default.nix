@@ -7,14 +7,10 @@
 # Built here as `nix build .#checks.x86_64-linux.z690-wsl`; imported on Windows
 # from `sudo nix run .#z690-wsl-tarball` (a nixos.wsl file) with `wsl --import`.
 #
-# Deliberately still open (docs/desktop-pc.md, "Still to decide"):
-#
-#   secrets    none yet. The guest needs an age key of its own and a
-#              recipient in ../../.sops.yaml before anything is encrypted to
-#              it; until then it declares no sops secrets at all.
-#   password   NixOS-WSL's default: max has no password and sudo asks for
-#              none (security.sudo.wheelNeedsPassword = mkDefault false in
-#              its wsl-distro.nix). Windows' own login is the gate.
+# Secrets and max's login password are in ./secrets.nix: a sops file and key
+# of this host's own, and a password that is not metal's. sudo asks for none
+# (security.sudo.wheelNeedsPassword = mkDefault false in NixOS-WSL's
+# wsl-distro.nix); Windows' own login is the gate.
 #
 # 1Password comes from the GUI layer (../../modules/gui), the same modules as
 # on the ThinkPad: the Linux app runs in this guest and WSLg draws its window,
@@ -22,20 +18,27 @@
 # rest on a CLI and settings installed by hand on Windows, which nothing here
 # describes). Once signed in, with "Use the SSH agent" and "Integrate with
 # 1Password CLI" switched on in Settings → Developer, `op`, ssh and signed
-# commits work as there. Unlocking differs: this host enables no polkit and
-# runs no polkit agent, so "unlock with system authentication" is not
-# offered and the app asks for the account password.
+# commits work as there. "Unlock with system authentication" asks for max's
+# login password through polkit and the agent below, as on the ThinkPad.
+# After an app restart the account password is still needed once.
 #
 # What it takes from Windows — WSLg, the GPU driver, a URL opener — is all in
 # ./windows.nix, with the rule that decides what may go there.
-{ config, ... }:
+{ config, pkgs, ... }:
 {
-  imports = [ ./windows.nix ];
+  imports = [
+    ./windows.nix
+    ./secrets.nix
+  ];
 
   networking.hostName = "z690-wsl";
 
   wsl.enable = true;
   wsl.defaultUser = "max";
+
+  # max's password from sops (./secrets.nix). On since 2026-11-07, once the
+  # host's key was restored and the hash was in ./secrets.yaml.
+  maxnix.loginPassword.fromSops = true;
 
   # The 1Password app, started with the user's systemd instance and kept in
   # the background (--silent: no window until asked for), so the SSH agent
@@ -56,6 +59,32 @@
     Unit.Description = "1Password, in the background, for its SSH agent and op";
     Service = {
       ExecStart = "${config.programs._1password-gui.package}/bin/1password --silent";
+      Environment = [ "DISPLAY=:0" ];
+      Restart = "on-failure";
+      RestartSec = 5;
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
+
+  # "Unlock with system authentication" for 1Password, as on the ThinkPad:
+  # the app asks polkit, whose policy for it (polkitPolicyOwners in
+  # ../../modules/gui/onepassword.nix) admits max, and an authentication
+  # agent asks for max's login password (./secrets.nix). On the ThinkPad the
+  # desktop role turns polkit on and the shell draws the prompt; here neither
+  # exists, so both are named. pam_faillock already covers polkit-1
+  # (../../modules/base/login-limits.nix).
+  security.polkit.enable = true;
+
+  # The agent, as a user service like 1Password's above and for the same
+  # reasons (no session to start it, WSLg's X server at :0). It has to run in
+  # the same logind session as the app it answers for: WSL gives max a login
+  # session per terminal and one for the user manager (class "manager"), and
+  # both services live in the latter. MATE's agent rather than polkit-gnome:
+  # GTK, small, and still released (polkit-gnome's last was 2011).
+  home-manager.users.max.systemd.user.services.polkit-agent = {
+    Unit.Description = "polkit authentication agent, drawn through WSLg";
+    Service = {
+      ExecStart = "${pkgs.mate-polkit}/libexec/polkit-mate-authentication-agent-1";
       Environment = [ "DISPLAY=:0" ];
       Restart = "on-failure";
       RestartSec = 5;
