@@ -291,9 +291,9 @@ boot.
 - [x] `hosts/z690-wsl`, repo side: builds (`checks.z690-wsl`), image from
   `sudo nix run .#z690-wsl-tarball`.
 - [x] Its secrets and login password (`hosts/z690-wsl/secrets.nix`, decided
-  2026-11-07): its own sops file and key ("MaxNix SOPS z690-wsl", restored
-  with `z690-wsl-restore-key`), a password not metal's ("MaxNix Login
-  z690-wsl", set with `secret-set --host z690-wsl`), polkit and MATE's agent
+  2026-11-07): its own sops file and key (restored with
+  `z690-wsl-restore-key`), a password not metal's (set with `secret-set
+  --host z690-wsl`), polkit and MATE's agent
   so 1Password can unlock with it. Live 2026-11-07: max's shadow entry is
   the hash from sops.
 - [ ] Switch on "Unlock using system authentication" in 1Password

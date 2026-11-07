@@ -7,8 +7,8 @@
 # opens nothing else and its login password is not metal's (decided
 # 2026-11-07, README "Decisions, and why").
 #
-# The key follows the ThinkPad's rule: generated once, kept in 1Password
-# ("MaxNix SOPS z690-wsl"), restored onto the guest, never generated here:
+# The key follows the ThinkPad's rule: generated once, kept in 1Password,
+# restored onto the guest, never generated here:
 #
 #   nix run .#z690-wsl-restore-key
 #
@@ -21,7 +21,8 @@
 # What 1Password's "unlock with system authentication" asks for, through
 # polkit and the agent in ./default.nix. Stored as a yescrypt hash, set with
 #
-#   nix run .#secret-set -- --host z690-wsl login-password "op://<vault>/<item>/password"
+#   nix run .#secret-set -- --host z690-wsl login-password \
+#     op://uxobupcysqhat566ymgikx46fm/2eyd5at2rb5lhnmg535epqjxzq/password
 #
 # Behind a switch (maxnix.loginPassword.fromSops, in ./default.nix), on only
 # once the key is on the guest and the hash is in the file: declared earlier,

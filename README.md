@@ -1107,8 +1107,7 @@ Before the day:
    `hosts/t14s/secrets-metal.yaml`. The login password kept its value
    through the split (decided 2026-10-15): its earlier hash stays in git
    history, readable with the VM's key, but a yescrypt hash of a long
-   random password is not worth attacking offline. Note each item's secret
-   reference (`op://…`; the item's menu has "Copy Secret Reference").
+   random password is not worth attacking offline.
 2. Back up whatever on Ubuntu is in no other place: the install erases the
    whole disk.
 3. Rehearse steps 5–9 in `nix run .#installer-vm` (window; `--no-stick
@@ -1130,7 +1129,7 @@ On the day:
    `eval $(op signin)`. In that order because install-maxnix runs as root
    and `op` keeps its sign-in per user and shell: signed in as `nixos`,
    root's `op` would not see it.
-8. `install-maxnix --luks "op://Private/MaxNix Login Password/password" --sops-key op://<…metal key…>`.
+8. `install-maxnix --luks op://uxobupcysqhat566ymgikx46fm/z26gdcpznhbgxktpdsffrgh5lu/password --sops-key op://uxobupcysqhat566ymgikx46fm/qvls72inmhuw3op62wyhhudayy/notesPlain`.
    It checks UEFI and the disk, shows the disk's size and model, reads both
    secrets, refuses a sops key that is not `metal` in `.sops.yaml`, asks you
    to type `erase`, partitions, puts the key on `/persist` and runs

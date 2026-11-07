@@ -77,17 +77,17 @@
 # yescrypt by itself, for every secret declared neededForUsers, so the same
 # command does it:
 #
-#   nix run .#secret-set -- login-password "op://<vault>/<item>/password"
+#   nix run .#secret-set -- login-password op://uxobupcysqhat566ymgikx46fm/z26gdcpznhbgxktpdsffrgh5lu/password
 #
 # Fleet's two are `fleet-url` and `fleet-enroll-secret`. The backup's come
 # from 1Password items `nix run .#backup` reads too, one restic password per
 # machine:
 #
-#   restic-password             MaxNix Backup Restic Repository Password VM     password
-#   restic-password-metal       MaxNix Backup Restic Repository Password Metal  password
-#   rclone-drive-client-id      MaxNix Backup Google OAuth Client  client_id
-#   rclone-drive-client-secret  MaxNix Backup Google OAuth Client  client_secret
-#   rclone-drive-token          MaxNix Backup Google OAuth Client  token
+#   restic-password             op://uxobupcysqhat566ymgikx46fm/3mgylwhm4eziob5ka5v2vv4o24/password
+#   restic-password-metal       op://uxobupcysqhat566ymgikx46fm/remrafourzg634zb6a33fn2hoa/password
+#   rclone-drive-client-id      op://uxobupcysqhat566ymgikx46fm/vzuc267xgjsigg4luhczyeml6q/client_id
+#   rclone-drive-client-secret  op://uxobupcysqhat566ymgikx46fm/vzuc267xgjsigg4luhczyeml6q/client_secret
+#   rclone-drive-token          op://uxobupcysqhat566ymgikx46fm/vzuc267xgjsigg4luhczyeml6q/token
 #
 # ── What can never live here ─────────────────────────────────────────────
 #

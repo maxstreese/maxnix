@@ -789,8 +789,7 @@
       # itself (hosts/z690-wsl/secrets.nix): the key goes from `op read`
       # through a pipe into a root-only file, lands in /run first so a failed
       # read leaves the old key alone, and is then checked against `z690-wsl`
-      # in .sops.yaml. The item is "MaxNix SOPS z690-wsl"; `op` is the guest's
-      # own, signed in through the app.
+      # in .sops.yaml. `op` is the guest's own, signed in through the app.
       z690WslRestoreKey =
         let
           key = z690Wsl.config.sops.age.keyFile;
@@ -840,7 +839,7 @@
       # secrets-metal.yaml for metal's own, from the repo root and your own
       # terminal, where 1Password can prompt:
       #
-      #   nix run .#secret-set -- restic-password "op://<vault>/<item>/password"
+      #   nix run .#secret-set -- restic-password op://uxobupcysqhat566ymgikx46fm/3mgylwhm4eziob5ka5v2vv4o24/password
       #
       # With `--host z690-wsl` first, into hosts/z690-wsl/secrets.yaml instead,
       # by what that host declares. Its names are read with
@@ -1382,7 +1381,7 @@
       #
       #      nix run .#install -- \
       #        --disk-encryption-keys /tmp/secret.key \
-      #          <(op read --no-newline "op://<vault>/<item>/password") \
+      #          <(op read --no-newline op://uxobupcysqhat566ymgikx46fm/z26gdcpznhbgxktpdsffrgh5lu/password) \
       #        root@<target>
       #
       #    and set maxnix.disk.passwordFile = "/tmp/secret.key" so disko
