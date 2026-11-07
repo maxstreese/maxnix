@@ -296,8 +296,9 @@ boot.
   --host z690-wsl`), polkit and MATE's agent
   so 1Password can unlock with it. Live 2026-11-07: max's shadow entry is
   the hash from sops.
-- [ ] Switch on "Unlock using system authentication" in 1Password
-  (Settings → Security) and unlock with the login password.
+- [x] Switch on "Unlock using system authentication" in 1Password
+  (Settings → Security) and unlock with the login password: works
+  (2026-11-07), the WSL login password unlocks it through MATE's agent.
 - [x] 1Password in the guest, repo side (`modules/gui`, 2026-11-06): builds.
 - [x] In the guest: the app starts under WSLg (`systemctl --user status
   onepassword`), sign in, switch on the SSH agent and CLI integration; then
