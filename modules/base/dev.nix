@@ -10,9 +10,15 @@
   options.maxnix.dev = {
     clonePath = lib.mkOption {
       type = lib.types.str;
-      default = "/home/max/repos/github.com/maxstreese/maxnix";
+      default = "/home/max/maxnix";
       description = ''
         Absolute path to the working clone inside this machine.
+
+        Named after the project, not the remote (2026-11-07): the system
+        itself reads this path, so it should not change if the repo moves
+        off GitHub or gains a mirror. Other repos keep the
+        ~/repos/<host>/<owner>/<repo> layout; this one is the exception
+        because the machine depends on it.
 
         The guest keeps its own clone rather than sharing the host's (see
         ../../hosts/t14s/vm.nix), and two things need to agree on where it is: `rebuild`,

@@ -47,11 +47,11 @@ git like any other pair.
 
 Two ways to iterate on the running machine, both faster than a test run:
 
-- **From inside.** Clone the repo to `~/repos/github.com/maxstreese/maxnix`
-  (on the `/home` disk, so it survives a root reset), edit there or run
-  `claude` in it, then `rebuild` — ~30 s, no reboot. niri reloads
-  its config on the spot, DMS restarts with the activation, and DMS's own
-  theme settings need no rebuild at all. Commit and push as on any machine.
+- **From inside.** Clone the repo to `~/maxnix` (on the `/home` disk, so it
+  survives a root reset), edit there or run `claude` in it, then `rebuild` —
+  ~30 s, no reboot. niri reloads its config on the spot, DMS restarts with
+  the activation, and DMS's own theme settings need no rebuild at all.
+  Commit and push as on any machine.
 - **Without a rebuild at all,** for the two things where 30 s per keystroke is
   not a loop. `qs-dev` runs `home/max/quickshell/` straight from the clone and
   reloads on save, so writing QML is edit-and-look; in the VM the generated
