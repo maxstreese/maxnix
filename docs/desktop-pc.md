@@ -121,7 +121,8 @@ What WSL changes, to work through rather than assume:
   credentials and dev tooling; interfaces Windows or WSL itself guarantees
   are allowed, each declared in `hosts/z690-wsl/windows.nix`. So far: WSLg,
   the GPU driver, and links opened in the default Windows browser through
-  `rundll32.exe` (as `BROWSER` and as xdg-open's http(s) handler). The
+  `rundll32.exe` (as `BROWSER` and as xdg-open's http(s) handler; both
+  work in the guest). The
   first boot is what raised it: `gh auth login` found no browser, and an
   SSH clone had no key before 1Password's agent exists, so the first clone
   is over HTTPS. Interop stays on for now; switching it off is a separate
@@ -283,8 +284,8 @@ boot.
 - [ ] In the guest: the app starts under WSLg (`systemctl --user status
   onepassword`), sign in, switch on the SSH agent and CLI integration; then
   `op whoami`, `ssh -T git@github.com` and a signed commit.
-- [ ] In the guest: `xdg-open https://github.com` and `gh auth login` open
-  the Windows browser (`hosts/z690-wsl/windows.nix`).
+- [x] In the guest: `xdg-open https://github.com` and `gh auth login` open
+  the Windows browser (`hosts/z690-wsl/windows.nix`; works, 2026-11-07).
 - [ ] Import it on the desktop and boot it; see whether Beyla gets eBPF.
 - [ ] In the guest: `nvidia-smi`, then a TornadoVM sample on the PTX backend;
   note whether `libcuda` is found without `LD_LIBRARY_PATH` (section 3).

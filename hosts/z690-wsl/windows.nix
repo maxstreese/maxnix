@@ -82,10 +82,9 @@ in
   # Claude Code and most CLI tools read, and xdg-open's handler for
   # http(s), which GUI apps such as 1Password go through. Without either,
   # `gh auth login` and Claude Code's sign-in found no browser at all
-  # (first boot, 2026-11-07).
-  #
-  # Untested until run in the guest: written from the Ubuntu distro on the
-  # same machine, where it only builds.
+  # (first boot, 2026-11-07). Both routes confirmed in the guest the same
+  # day: `xdg-open https://github.com` and `gh auth login` open the Windows
+  # browser.
   home-manager.users.max = {
     home.packages = [
       open-in-windows
