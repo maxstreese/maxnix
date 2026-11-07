@@ -500,6 +500,28 @@
       portableVmTests = mkTests false;
       portableChecks = portableVmTests // staticChecks // metalChecks;
 
+      # The VM's own start script, behind one line it cannot do itself.
+      # qemu-vm.nix resolves the root disk with `readlink -f
+      # ./.vm/maxnix.qcow2` before anything has created ./.vm, and on a fresh
+      # clone readlink fails, the path comes out empty and QEMU refuses
+      # `-drive file=` ("Must specify either driver or file"). The home disk
+      # helper (hosts/t14s/vm.nix) does create .vm, but later in the same
+      # script, so the second start always worked; that is why it went
+      # unnoticed until the first start in a new clone (2026-11-07, the WSL
+      # host). The directory is read off the config; an explicit
+      # NIX_DISK_IMAGE (test-vm-starts) is left alone.
+      vmRun =
+        let
+          diskDir = dirOf t14s.config.virtualisation.vmVariant.virtualisation.diskImage;
+        in
+        pkgs.writeShellApplication {
+          name = "maxnix-vm";
+          text = ''
+            [ -n "''${NIX_DISK_IMAGE:-}" ] || mkdir -p ${lib.escapeShellArg diskDir}
+            exec ${lib.getExe t14s.config.system.build.vm} "$@"
+          '';
+        };
+
       # nix run .#vm-headless
       #
       # The same VM, but rendering off-screen with a loopback VNC server
@@ -519,7 +541,7 @@
           echo "capture:  nix run nixpkgs#vncdotool -- -s localhost::5909 capture /tmp/shot.png" >&2
           # Prepended, so a QEMU_OPTS already in the environment still wins.
           export QEMU_OPTS="-display egl-headless -vnc 127.0.0.1:9 ''${QEMU_OPTS:-}"
-          exec ${lib.getExe t14s.config.system.build.vm} "$@"
+          exec ${lib.getExe vmRun} "$@"
         '';
       };
 
@@ -1618,9 +1640,8 @@
 
       # nix run .#vm      — or just `nix run .`
       #
-      # No wrapper needed: qemu-vm.nix already sets
-      #   meta.mainProgram = "run-${config.system.name}-vm"
-      # on this derivation, which is exactly what `nix run` resolves.
+      # vmRun above: qemu-vm.nix's start script, after creating ./.vm, which
+      # that script needs and does not make in time on a fresh clone.
       #
       # Run it from the repo root. `nix run .#vm` requires flake.nix in the
       # current directory anyway (Nix does not search upward), and that matches
@@ -1630,10 +1651,11 @@
       #
       # Unlike `nix build`, `nix run` leaves no `result` symlink and therefore
       # no GC root, so a garbage collection can force a rebuild. Use
-      # `nix build .#vm` when you want the closure pinned.
+      # `nix build .#vm` when you want the closure pinned; the wrapper
+      # references the VM, so its result pins all of it.
       packages.${system} = {
-        vm = t14s.config.system.build.vm;
-        default = t14s.config.system.build.vm;
+        vm = vmRun;
+        default = vmRun;
 
         # The script that writes nixos.wsl, the file `wsl --import` takes.
         # NixOS-WSL's own builder, run as root since it assembles a root

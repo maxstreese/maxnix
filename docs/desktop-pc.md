@@ -305,8 +305,18 @@ boot.
 
 ## Still to decide
 
-- [ ] Run `nix run .#vm-headless` and the portable checks in the guest
-  (`/dev/kvm` is `0666` and `renderD128` exists, so both should start).
+- [x] Run `nix run .#vm-headless` and the portable checks in the guest
+  (2026-11-07). The VM boots to the greeter; `nix run .#ci` passes static
+  checks, the installable systems and every portable suite, and both GPU
+  suites pass (desktop 12 subtests, niri 6) with the host drawing on the
+  RTX 3080 Ti through D3D12: `virgl (D3D12 (NVIDIA GeForce RTX 3080 Ti))`.
+  The GPU suites were run separately, from a shell with
+  `LD_LIBRARY_PATH=/usr/lib/wsl/lib`; from one without it QEMU drew on the
+  host's CPU (`virgl (LLVMPIPE …)`), and the greeter missed its 120 s.
+  `gpu-check` now fails on that (`modules/desktop/gpu-check.nix`). The
+  first `vm-headless` in the fresh clone also failed, with an empty disk
+  path, since `./.vm` did not exist yet; `.#vm` and `.#vm-headless` now
+  create it first (`vmRun` in `flake.nix`).
 - [ ] Go through the game library on anti-cheat and ProtonDB.
 - [ ] Settle the engine.
 - [ ] Take the facter report from a stick (section 4).

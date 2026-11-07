@@ -385,7 +385,9 @@ in
       with subtest("the guest has a GPU with working virgl"):
           gpu = machine.succeed("gpu-check")
           machine.log(gpu)
-          assert "virgl" in gpu.lower(), "no hardware acceleration:\n" + gpu
+          # The verdict, not just "virgl" anywhere: virgl drawn by llvmpipe
+          # on the host also says virgl (../modules/desktop/gpu-check.nix).
+          assert "OK: hardware-accelerated" in gpu, "no hardware acceleration:\n" + gpu
 
       with subtest("the greeter renders"):
           # Dank Greeter is a Quickshell UI hosted in niri, so this is a real

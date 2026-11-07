@@ -52,7 +52,21 @@ let
 
     echo
     echo "== verdict =="
-    if grep -qi virgl /tmp/eglinfo.txt 2>/dev/null; then
+    # virgl in the guest is half the answer: the renderer string names what
+    # draws on the host in brackets, "virgl (D3D12 (NVIDIA …))" or
+    # "virgl (LLVMPIPE (…))". The second is the host's CPU, and it passed
+    # here as OK until 2026-11-07, when QEMU on the WSL host was started
+    # without the Windows driver on its library path: the desktop suite then
+    # failed 120 s later on a half-drawn greeter, far from the cause.
+    host_sw=$(grep -iE 'renderer: *virgl \((llvmpipe|softpipe|swrast)' /tmp/eglinfo.txt 2>/dev/null | head -1)
+    if [ -n "$host_sw" ]; then
+      echo "  SOFTWARE RENDERING ON THE HOST. The guest has virgl, but the host"
+      echo "  draws it on the CPU:"
+      echo "    $host_sw"
+      echo "  QEMU found no GPU driver. Under WSL, /usr/lib/wsl/lib must be on"
+      echo "  LD_LIBRARY_PATH (hosts/z690-wsl/windows.nix; a shell from before it"
+      echo "  was set lacks it)."
+    elif grep -qi virgl /tmp/eglinfo.txt 2>/dev/null; then
       echo "  OK: hardware-accelerated via virglrenderer."
     elif grep -qiE 'llvmpipe|softpipe|swrast' /tmp/eglinfo.txt 2>/dev/null; then
       echo "  SOFTWARE RENDERING. The device works but gl=on is not taking effect."
