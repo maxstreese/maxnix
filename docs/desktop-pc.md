@@ -177,9 +177,13 @@ What WSL changes, to work through rather than assume:
   guest sets `LD_LIBRARY_PATH=/usr/lib/wsl/lib` for every session instead
   (`hosts/z690-wsl/windows.nix`). With it `vulkaninfo` lists "Microsoft
   Direct3D12 (NVIDIA GeForce RTX 3080 Ti)" (Dozen) ahead of llvmpipe, and
-  `nvidia-smi` shows the RTX 3080 Ti, driver 621.14, 12 GB. A prebuilt
-  JDK or TornadoVM SDK should find `libcuda` the same way; not yet
-  tried.
+  `nvidia-smi` shows the RTX 3080 Ti, driver 621.14, 12 GB. The CUDA
+  driver API works the same way (2026-11-07, by hand from a fresh login
+  shell, `cuInit` and friends through Python's ctypes): version 13.5, one
+  device, the RTX 3080 Ti with 12287 MiB, and a context created on it. That
+  is as far as this repo goes: TornadoVM itself, its JDK and its backend
+  belong to whichever repo uses it, which starts from a guest where
+  `libcuda` is found and the GPU initialises.
 - **GUI apps through WSLg** (noted 2026-11-06): the host has no desktop role,
   so `home/max/desktop` and every app in it stay off WSL; only the TUIs in
   `home/max/core` come along. That makes WSL the weaker place for work
@@ -348,10 +352,6 @@ boot.
   Docker works.
 - [x] In the guest: `nvidia-smi` (works once `/usr/lib/wsl/lib` is on the
   library path, `hosts/z690-wsl/windows.nix`, 2026-11-07).
-- [ ] In the guest: a TornadoVM sample on the PTX backend, on the
-  RTX 3080 Ti. `libcuda` should be found through the session's
-  `LD_LIBRARY_PATH` (section 3); whether TornadoVM's JDK finds and uses it
-  is what is left to see.
 - [x] In the guest: `nix run nixpkgs#herdr-desktop` through WSLg; decides
   whether GUI apps get a layer of their own for this host (section 3).
   Opens, draws on the GPU, clipboard, scaling and links all fine
