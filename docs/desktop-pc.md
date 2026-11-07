@@ -158,14 +158,19 @@ What WSL changes, to work through rather than assume:
   on NVIDIA under WSL has historically been missing or limited, and
   Microsoft's OpenCL-on-D3D12 offers only 1.2, so the OpenCL backend is
   doubtful. SPIR-V/Level Zero is Intel-only. Nsight profiling is partial
-  under WSL. Foreign binaries, the driver's own `nvidia-smi` among them,
-  load through nix-ld, whose library path did not include the driver:
-  `nvidia-smi` failed to find `libnvidia-ml.so` on the first boot
-  (2026-11-07) and ran with `/usr/lib/wsl/lib` appended to
-  `NIX_LD_LIBRARY_PATH`, which `hosts/z690-wsl/windows.nix` now does for
-  this host only, not in `modules/base/nix-ld.nix`. It shows the
-  RTX 3080 Ti, driver 621.14, 12 GB. A prebuilt JDK or TornadoVM SDK should
-  find `libcuda` the same way; not yet tried.
+  under WSL. Linking the libraries into `/run/opengl-driver/lib` is not
+  enough on its own: nothing searches there for them. On the first boot
+  (2026-11-07) `nvidia-smi`, a foreign binary going through nix-ld, could
+  not find `libnvidia-ml.so`, and Mesa's dzn, which loads `libd3d12.so` by
+  name, found no GPU, so Vulkan offered only llvmpipe and herdr-desktop
+  drew on the CPU. Ubuntu under WSL covers this with
+  `/etc/ld.so.conf.d/ld.wsl.conf`, which Nix's glibc does not read; the
+  guest sets `LD_LIBRARY_PATH=/usr/lib/wsl/lib` for every session instead
+  (`hosts/z690-wsl/windows.nix`). With it `vulkaninfo` lists "Microsoft
+  Direct3D12 (NVIDIA GeForce RTX 3080 Ti)" (Dozen) ahead of llvmpipe, and
+  `nvidia-smi` shows the RTX 3080 Ti, driver 621.14, 12 GB. A prebuilt
+  JDK or TornadoVM SDK should find `libcuda` the same way; not yet
+  tried.
 - **GUI apps through WSLg** (noted 2026-11-06): the host has no desktop role,
   so `home/max/desktop` and every app in it stay off WSL; only the TUIs in
   `home/max/core` come along. That makes WSL the weaker place for work
@@ -189,9 +194,18 @@ What WSL changes, to work through rather than assume:
   a window that renders sharp at Windows scaling and responds normally;
   the process had Mesa's dzn loaded on WSL's `libd3d12`/`libdxcore` from
   `/usr/lib/wsl/lib` (llvmpipe's `lvp` too, and wgpu doesn't log which
-  adapter it took). So WSLg carries it; what the guest adds is
-  `/run/opengl-driver` via `hardware.graphics`, which should stand in for
-  nixGL there. Clipboard and links not yet tried. Side effect to know: on
+  adapter it took). So WSLg carries it.
+  In the NixOS-WSL guest (2026-11-07, same version, from the pinned
+  nixpkgs) it opens without nixGL, but at first on the CPU: dzn and lvp
+  were loaded, no `libd3d12`, and Vulkan listed llvmpipe alone, because
+  nothing pointed dzn at `/usr/lib/wsl/lib` (section 3, GPU compute). With
+  `LD_LIBRARY_PATH` set it loads `libd3d12`, `libdxcore` and NVIDIA's
+  D3D12 driver (`libnvwgf2umx`), i.e. draws on the RTX 3080 Ti. Left in
+  its log, harmless: Mesa's EGL finding no DRM device (it draws through
+  Vulkan), no xdg-desktop-portal on D-Bus (`zbus … ServiceUnknown`; would
+  matter if herdr opened links only through the portal), and no cursor
+  theme in the guest (`left_ptr`). Clipboard, links and scaling not yet
+  noted. Side effect to know: on
   first start herdr turns on linger for the user and starts `herdr-core`
   as transient `systemd-run --user` units (`hc-serve-*`), which outlive
   the window.
@@ -311,12 +325,12 @@ boot.
 - [x] Import it on the desktop and boot it; see whether Beyla gets eBPF:
   booted 2026-11-07, Beyla gets it (section 3), no failed units, rootless
   Docker works.
-- [x] In the guest: `nvidia-smi` (works once nix-ld's path includes the
-  driver, `hosts/z690-wsl/windows.nix`, 2026-11-07).
+- [x] In the guest: `nvidia-smi` (works once `/usr/lib/wsl/lib` is on the
+  library path, `hosts/z690-wsl/windows.nix`, 2026-11-07).
 - [ ] In the guest: a TornadoVM sample on the PTX backend; note whether
   `libcuda` is found without `LD_LIBRARY_PATH` (section 3).
 - [ ] In the guest: `nix run nixpkgs#herdr-desktop` through WSLg; decides
   whether GUI apps get a layer of their own for this host (section 3).
-  Renders on the Ubuntu distro through nixGL; still to do in the guest
-  itself, plus clipboard and links.
+  Opens in the guest and draws on the GPU (2026-11-07, section 3); still
+  to note: clipboard, links, scaling.
 - [ ] A desktop host.

@@ -75,20 +75,21 @@ in
   # section 3. Linked and present in the guest (2026-11-07).
   wsl.useWindowsDriver = true;
 
-  # The driver's own binaries (nvidia-smi above all) are generic-Linux ELFs
-  # that load through nix-ld (../../modules/base/nix-ld.nix), and nix-ld's
-  # library path does not include the driver's directory: nvidia-smi failed
-  # with "couldn't find libnvidia-ml.so" (2026-11-07) and ran once
-  # /usr/lib/wsl/lib was appended. A wrapper on PATH would not do, since
-  # NixOS-WSL puts /usr/lib/wsl/lib ahead of the Nix profiles. This is also
-  # the path a prebuilt JDK or TornadoVM SDK finds libcuda by. The driver's
-  # directory rather than /run/opengl-driver/lib, so foreign binaries get the
-  # Windows driver's libraries and not Mesa's too. mkForce because the option
-  # is a single string the nix-ld module sets; its value is restated first.
-  environment.sessionVariables.NIX_LD_LIBRARY_PATH = lib.mkForce [
-    "/run/current-system/sw/share/nix-ld/lib"
-    "/usr/lib/wsl/lib"
-  ];
+  # Nothing finds those libraries by itself, though. Mesa's Vulkan driver
+  # for WSL (dzn) and its d3d12 GL driver load libd3d12.so by name at run
+  # time, and the driver's own binaries (nvidia-smi) are generic-Linux ELFs
+  # going through nix-ld; neither searches /run/opengl-driver/lib or
+  # /usr/lib/wsl/lib. Found 2026-11-07: Vulkan saw only llvmpipe, so
+  # herdr-desktop drew on the CPU, and nvidia-smi could not find
+  # libnvidia-ml.so. With /usr/lib/wsl/lib on the library path, vulkaninfo
+  # lists "Microsoft Direct3D12 (NVIDIA GeForce RTX 3080 Ti)" and nvidia-smi
+  # runs. Ubuntu under WSL gets the same from /etc/ld.so.conf.d/ld.wsl.conf,
+  # which Nix's glibc does not read; LD_LIBRARY_PATH is the equivalent, and
+  # nix-ld adds its own path to it, so one variable serves both. The
+  # directory holds the Windows driver's libraries only (libd3d12, libdxcore,
+  # libcuda, NVIDIA's own), not Mesa's, so it shadows nothing a program
+  # brings itself. Also the path a JDK or TornadoVM finds libcuda by.
+  environment.sessionVariables.LD_LIBRARY_PATH = [ "/usr/lib/wsl/lib" ];
 
   # Links open in the browser already on the Windows desktop, rather than a
   # second one under WSLg with its own sign-ins (docs/desktop-pc.md,
