@@ -185,7 +185,11 @@ in
     with subtest("host metrics reach Prometheus, pressure included"):
         wait("curl -fsS 'http://127.0.0.1:9090/api/v1/query?query=node_load1' | jq -e '.data.result | length > 0'",
              "node_load1 in Prometheus")
-        assert promql("node_pressure_memory_waiting_seconds_total"), "no PSI metrics"
+        # Waited for, not asserted: node_load1 comes from the 5 s CPU scrape,
+        # pressure from the 15 s one, so the first can land well before the
+        # second (failed that way once, 2026-11-08).
+        wait("curl -fsS 'http://127.0.0.1:9090/api/v1/query?query=node_pressure_memory_waiting_seconds_total'"
+             " | jq -e '.data.result | length > 0'", "PSI metrics in Prometheus")
 
     with subtest("a journald line reaches Loki, in its own stream"):
         machine.succeed("logger -t obs-probe probe-line-8152")
@@ -318,10 +322,14 @@ in
         for uid in ["prometheus", "loki", "tempo"]:
             health = get(machine, f"{grafana}/api/datasources/uid/{uid}/health", admin)
             assert health["status"] == "OK", (uid, health)
-        assert titles(machine, admin) == ["Claude Code", "Host", "Services"], titles(machine, admin)
+        assert titles(machine, admin) == ["Claude Code", "Services"], titles(machine, admin)
+        # And the established ones, pinned from grafana.com.
+        for uid, title in [("rYdddlPWk", "Node Exporter Full"), ("vlvPlrgnk", "Nvidia GPU Metrics")]:
+            d = get(machine, f"{grafana}/api/dashboards/uid/{uid}", admin)
+            assert d["dashboard"]["title"] == title and d["meta"]["provisioned"], (uid, d["meta"])
 
     with subtest("anonymous visitors can look, not change"):
-        assert titles(machine) == ["Claude Code", "Host", "Services"], titles(machine)
+        assert titles(machine) == ["Claude Code", "Services"], titles(machine)
         code = machine.succeed(
             f"curl -s -o /dev/null -w '%{{http_code}}' -H 'Content-Type: application/json'"
             f" -d '{{\"dashboard\":{{\"title\":\"nope\"}}}}' {grafana}/api/dashboards/db").strip()
@@ -363,9 +371,9 @@ in
         # while the dashboard itself is readable at once.
         machine.succeed(f"curl -fsS {grafana}/api/dashboards/uid/agent-made | jq -e '.dashboard.title == \"Agent Made\"'")
         # ...but a provisioned one stays the repo's (allowUiUpdates = false).
-        reply = mcp("update_dashboard", {"dashboard": {"uid": "maxnix-host", "title": "Overwritten", "panels": []}, "overwrite": True})
+        reply = mcp("update_dashboard", {"dashboard": {"uid": "maxnix-services", "title": "Overwritten", "panels": []}, "overwrite": True})
         assert reply.get("result", {}).get("isError") or "error" in reply, reply
-        title = machine.succeed(f"curl -fsS {grafana}/api/dashboards/uid/maxnix-host | jq -r .dashboard.title").strip()
+        title = machine.succeed(f"curl -fsS {grafana}/api/dashboards/uid/maxnix-services | jq -r .dashboard.title").strip()
         assert title and title != "Overwritten", title
         machine.succeed(f"curl -fsS -u {admin} -X DELETE {grafana}/api/dashboards/uid/agent-made")
 
@@ -424,7 +432,7 @@ in
 
     with subtest("live dashboards: the deployed ones while the clone has none"):
         devbox.wait_for_open_port(3000)
-        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 3'",
+        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 2'",
              "the deployed dashboards, with no directory in the clone", devbox)
 
     with subtest("live dashboards: the clone's, as soon as it has them, with no rebuild"):
@@ -432,19 +440,19 @@ in
         probe = {"uid": "live-probe", "title": "Live Probe", "tags": ["maxnix"], "panels": []}
         devbox.succeed(f"mkdir {clone} && cat > {clone}/live-probe.json <<'EOF'\n"
                        + json.dumps(probe) + "\nEOF")
-        # The clone wins outright: its one file, not the deployed three.
+        # The clone wins outright: its one file, not the deployed two.
         wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e '[.[].uid] == [\"live-probe\"]'",
              "the clone's directory to replace the deployed dashboards", devbox)
-        devbox.succeed(f"cp ${../modules/base/observability/dashboards}/host.json {clone}/")
+        devbox.succeed(f"cp ${../modules/base/observability/dashboards}/services.json {clone}/")
         wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 2'",
              "a new file in the clone to appear in Grafana", devbox)
         devbox.succeed(f"rm {clone}/live-probe.json")
-        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e '[.[].uid] == [\"maxnix-host\"]'",
+        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e '[.[].uid] == [\"maxnix-services\"]'",
              "a deleted file in the clone to vanish from Grafana", devbox)
 
     with subtest("live dashboards: back to the deployed ones when the clone's directory goes"):
         devbox.succeed(f"rm -r {clone}")
-        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 3'",
+        wait(f"curl -fsS '{grafana}/api/search?tag=maxnix' | jq -e 'length == 2'",
              "the deployed dashboards again", devbox)
 
     def beyond_loopback(node):

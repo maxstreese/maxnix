@@ -543,6 +543,40 @@ let
   liveDashboards = "${grafanaDir}/dashboards-live";
   dashboardDir = if dev.liveConfig then liveDashboards else ./dashboards;
 
+  # Established dashboards, alongside this repo's own (2026-11-08): taken
+  # from grafana.com at a pinned revision and hash rather than copied into
+  # ./dashboards, and provisioned read-only like the rest. Each uses
+  # datasource and label variables of its own, so nothing in them is
+  # rewritten. They replaced the repo's Host dashboard, which they cover:
+  #
+  #   Node Exporter Full (1860, rfmoz/grafana-dashboards, Apache-2.0): the
+  #     standard view of node_exporter's metrics, CPU to filesystems, plus
+  #     hardware: temperatures by chip, fans, cooling devices, power
+  #     supply. Under WSL the hardware rows stay empty (no hwmon sensors
+  #     reach the guest); on metal they fill. Pick job integrations/unix.
+  #   Nvidia GPU Metrics (14574, utkuozdemir/nvidia_gpu_exporter, MIT): the
+  #     exporter's own dashboard, for hosts with an NVIDIA GPU
+  #     (../../../hosts/z690-wsl/windows.nix). Job nvidia-gpu.
+  #
+  # A newer revision is a new URL and hash: the revision list is at
+  # https://grafana.com/grafana/dashboards/<id>/revisions.
+  upstreamDashboards = pkgs.linkFarm "grafana-upstream-dashboards" [
+    {
+      name = "node-exporter-full.json";
+      path = pkgs.fetchurl {
+        url = "https://grafana.com/api/dashboards/1860/revisions/46/download";
+        hash = "sha256-5Y3cXcU11MkB+U2pZIvD49Wue2946Y4YW86LKJlhzqM=";
+      };
+    }
+    {
+      name = "nvidia-gpu-metrics.json";
+      path = pkgs.fetchurl {
+        url = "https://grafana.com/api/dashboards/14574/revisions/18/download";
+        hash = "sha256-tuvm63s/svcc15DikhT94M5exnscMfQCehbqOBX7GGk=";
+      };
+    }
+  ];
+
   mcpTokenDir = "/var/lib/grafana-mcp";
 
   # grafana-capture [uid…] — write dashboards built in the UI into the clone.
@@ -960,6 +994,14 @@ in
             options.path = dashboardDir;
             # The source of truth is this repo; edits in the UI are for
             # experimenting and are not saved back.
+            allowUiUpdates = false;
+          }
+          {
+            # From grafana.com, pinned (upstreamDashboards above). Not part
+            # of the live loop: they are not edited here.
+            name = "upstream";
+            folder = "maxnix";
+            options.path = upstreamDashboards;
             allowUiUpdates = false;
           }
         ];
