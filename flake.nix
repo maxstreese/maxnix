@@ -490,7 +490,9 @@
 
         # The observability stack collecting, storing and serving, and nothing
         # of it reachable from a second machine with the firewall off.
-        observability = runSuite sandboxTimeoutScale ./tests/observability.nix;
+        observability = runSuite sandboxTimeoutScale (
+          import ./tests/observability.nix { inherit (inputs) sops-nix; }
+        );
 
         # sops-nix decrypting a post-quantum age key at activation, the way
         # the real keys in .sops.yaml will be used.

@@ -26,13 +26,35 @@
 #
 # HOW TO RUN:
 #   nix build .#checks.x86_64-linux.observability
+{ sops-nix, ... }:
+{ hostPkgs, ... }:
 let
+  # Grafana's admin password as the hosts get it: from a sops file. A key
+  # and a file made for the test, as ./secrets.nix makes its own.
+  grafanaSops =
+    hostPkgs.runCommand "grafana-sops-fixture"
+      {
+        nativeBuildInputs = [
+          hostPkgs.age
+          hostPkgs.sops
+        ];
+      }
+      ''
+        export HOME=$TMPDIR
+        mkdir $out
+        age-keygen -pq -o $out/key.txt 2>/dev/null
+        echo 'grafana-admin-password: from-sops-fixture' > plain.yaml
+        sops encrypt --age "$(age-keygen -y $out/key.txt)" plain.yaml > $out/secrets.yaml
+      '';
+
   stack =
     { pkgs, ... }:
     {
       imports = [
         ../modules/base/observability
         ../modules/base/dev.nix
+        # Declared by the module whether its sops path is on or not.
+        sops-nix.nixosModules.sops
       ];
       maxnix.observability.enable = true;
 
@@ -70,6 +92,17 @@ in
       # A clone without a dashboards directory, as a guest clone from before
       # they existed is.
       systemd.tmpfiles.rules = [ "d /var/lib/test-clone/modules/base/observability 0755 root root -" ];
+
+      # Grafana's admin password from sops, as on every host; machine keeps
+      # the generated one test nodes elsewhere use. The key is copied into
+      # place before sops-nix decrypts, as in ./secrets.nix.
+      maxnix.observability.grafanaAdminPasswordFromSops = true;
+      sops.defaultSopsFile = "${grafanaSops}/secrets.yaml";
+      sops.validateSopsFiles = false;
+      sops.age.keyFile = "/var/lib/sops-test/key.txt";
+      sops.age.sshKeyPaths = [ ];
+      system.activationScripts.sops-test-key = "install -D -m 600 ${grafanaSops}/key.txt /var/lib/sops-test/key.txt";
+      system.activationScripts.setupSecrets.deps = [ "sops-test-key" ];
     };
 
   nodes.outside = { pkgs, ... }: { environment.systemPackages = [ pkgs.netcat ]; };
@@ -293,6 +326,20 @@ in
             f"curl -s -o /dev/null -w '%{{http_code}}' -H 'Content-Type: application/json'"
             f" -d '{{\"dashboard\":{{\"title\":\"nope\"}}}}' {grafana}/api/dashboards/db").strip()
         assert code in ("401", "403"), f"anonymous save answered {code}"
+
+    with subtest("Grafana's admin password comes from sops, and is reapplied at every start"):
+        def login(node, password):
+            return node.execute(f"curl -fsS -u admin:{password} {grafana}/api/user | jq -e '.login == \"admin\"'")[0] == 0
+        devbox.wait_until_succeeds(f"curl -fsS -u admin:from-sops-fixture {grafana}/api/user")
+        devbox.fail("test -e /var/lib/grafana/admin-password")
+        mode = devbox.succeed("stat -L -c '%a %U' /run/secrets/grafana-admin-password").strip()
+        assert mode == "400 grafana", mode
+        # A changed value, as a new one from 1Password arrives through sops.
+        # The database exists by now, so only the reset at start applies it.
+        devbox.succeed("printf changed-in-1password > /run/secrets/grafana-admin-password")
+        devbox.succeed("systemctl restart grafana")
+        devbox.wait_until_succeeds(f"curl -fsS -u admin:changed-in-1password {grafana}/api/user")
+        assert not login(devbox, "from-sops-fixture"), "the old password still works"
 
     with subtest("only requests for localhost are answered (DNS rebinding)"):
         out = machine.succeed(

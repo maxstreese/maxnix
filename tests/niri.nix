@@ -98,6 +98,8 @@ in
       maxnix.fleet.enable = lib.mkForce false;
       maxnix.harlequin.profiles.enable = lib.mkForce false;
       maxnix.backup.enable = lib.mkForce false;
+      # No sops key on a test node: Grafana generates its password here.
+      maxnix.observability.grafanaAdminPasswordFromSops = lib.mkForce false;
     };
 
   # Two tiers, and the split is measured rather than guessed.

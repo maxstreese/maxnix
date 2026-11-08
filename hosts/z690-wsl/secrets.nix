@@ -50,6 +50,12 @@
       };
     }
 
+    {
+      # Grafana's admin password, the same 1Password item as every host's
+      # (../../modules/base/observability), decrypted from ./secrets.yaml.
+      maxnix.observability.grafanaAdminPasswordFromSops = true;
+    }
+
     (lib.mkIf config.maxnix.loginPassword.fromSops {
       # Before the users are set up, into /run/secrets-for-users.
       sops.secrets.login-password.neededForUsers = true;

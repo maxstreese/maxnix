@@ -54,12 +54,21 @@
 # ── Grafana: who can do what ─────────────────────────────────────────────
 #
 # Anonymous visitors are Viewers: browsing needs no login. Editing does — as
-# admin, with a password generated on this machine at first start and kept
-# root-only in /var/lib/grafana/admin-password (`sudo cat` it). Not sops:
-# Grafana applies admin_password only when it first creates its database, so
-# a value in sops would look like control over something it cannot change,
-# and the password guards nothing that outlives /var/lib/grafana anyway.
-# Decided 2026-10-08.
+# admin, with the password from 1Password ("MaxNix Grafana Admin", one for
+# every host), which `secret-set` puts into each host's sops file as
+# `grafana-admin-password` (maxnix.observability.grafanaAdminPasswordFromSops,
+# on for every host). Grafana applies admin_password only when it first
+# creates its database, so it is also reset to that value before every
+# start (grafana cli admin reset-admin-password): a value changed in
+# 1Password reaches a machine whose database already exists, and a reset
+# machine gets the same one back. Decrypted to /run/secrets, in memory,
+# readable by grafana; nothing about it on disk.
+#
+# Decided 2026-11-08, reversing 2026-10-08, when the password was generated
+# on the machine at first start and kept in /var/lib/grafana/admin-password,
+# and kept out of sops precisely because Grafana would not apply a later
+# value. The reset is what answers that. Test nodes, which hold no sops key,
+# still generate one into that file, as before.
 #
 # enforce_domain makes Grafana answer only requests addressed to `localhost`
 # and redirect everything else. Loopback stops other machines; this stops a
@@ -459,7 +468,25 @@ let
   '';
 
   grafanaDir = config.services.grafana.dataDir;
-  adminPasswordFile = "${grafanaDir}/admin-password";
+  fromSops = cfg.grafanaAdminPasswordFromSops;
+  adminPasswordFile =
+    if fromSops then
+      config.sops.secrets.grafana-admin-password.path
+    else
+      "${grafanaDir}/admin-password";
+
+  # Sets the admin password to the one from sops before Grafana starts, with
+  # the server's own homepath and config (read off its ExecStart, so the two
+  # cannot point at different databases). On a fresh database the CLI
+  # creates it first, admin_password included, and resets to the same value.
+  grafanaConfigFile = lib.last (
+    lib.splitString " " config.systemd.services.grafana.serviceConfig.ExecStart
+  );
+  resetAdminPassword = pkgs.writeShellScript "grafana-reset-admin-password" ''
+    exec ${lib.getExe config.services.grafana.package} cli \
+      --homepath ${grafanaDir} --config ${grafanaConfigFile} \
+      admin reset-admin-password --password-from-stdin < ${adminPasswordFile}
+  '';
 
   # See "Dashboards" above. The live copy is Grafana's own: the clone is
   # under /home/max, which the grafana user cannot read.
@@ -603,10 +630,27 @@ in
       default = "max";
       description = "The user who runs Claude Code, and so mcp-grafana, and gets to read its token.";
     };
+
+    grafanaAdminPasswordFromSops = lib.mkEnableOption ''
+      Grafana's admin password from the host's sops file
+      (`grafana-admin-password`, filled from 1Password with `secret-set`),
+      reset to it before every Grafana start. On for every host; off on test
+      nodes, which hold no sops key and generate one instead
+    '';
   };
 
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [ capture ];
+
+    sops.secrets = lib.mkIf fromSops {
+      grafana-admin-password = {
+        owner = "grafana";
+        restartUnits = [ "grafana.service" ];
+      };
+    };
+    systemd.services.grafana.serviceConfig.ExecStartPre = lib.mkIf fromSops (
+      lib.mkAfter [ "${resetAdminPassword}" ]
+    );
 
     services.alloy = {
       enable = true;
@@ -871,7 +915,10 @@ in
       serviceConfig.Type = "oneshot";
       script = ''
         install -d -o grafana -g grafana -m 0700 ${grafanaDir}
-        for f in ${adminPasswordFile} ${grafanaDir}/secret-key; do
+        # The admin password comes from sops where it can; a file left by the
+        # time it was generated here goes.
+        ${lib.optionalString fromSops "rm -f ${grafanaDir}/admin-password"}
+        for f in ${lib.optionalString (!fromSops) adminPasswordFile} ${grafanaDir}/secret-key; do
           if [ ! -s "$f" ]; then
             (umask 077; tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32 > "$f")
             chown grafana:grafana "$f"

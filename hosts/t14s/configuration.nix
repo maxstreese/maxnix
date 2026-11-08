@@ -55,6 +55,11 @@
   # VM's key cannot open (./secrets.nix).
   maxnix.secrets.metal.enable = true;
 
+  # Grafana's admin password from the shared sops file, the VM's and metal's
+  # alike (one 1Password item for every host;
+  # ../../modules/base/observability).
+  maxnix.observability.grafanaAdminPasswordFromSops = true;
+
   # What the machine's secrets are for, all from sops (./secrets.nix): Fleet,
   # enrolled with the employer's server as agreed with IT (2026-09-29), with
   # its tray app; Harlequin's connection profiles; and the nightly backup to
