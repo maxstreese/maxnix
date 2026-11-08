@@ -558,24 +558,20 @@ let
   #     exporter's own dashboard, for hosts with an NVIDIA GPU
   #     (../../../hosts/z690-wsl/windows.nix). Job nvidia-gpu.
   #
-  # A newer revision is a new URL and hash: the revision list is at
-  # https://grafana.com/grafana/dashboards/<id>/revisions.
-  upstreamDashboards = pkgs.linkFarm "grafana-upstream-dashboards" [
-    {
-      name = "node-exporter-full.json";
+  # Pinned in ./upstream-dashboards.json, grafana.com id → name, revision
+  # and hash. Renovate watches the revisions there (renovate.jsonc, the
+  # grafana-dashboards datasource) and opens a PR when one is newer;
+  # scripts/renovate-grafana-rehash then writes the new hash, by Renovate
+  # or by hand.
+  upstreamDashboards = pkgs.linkFarm "grafana-upstream-dashboards" (
+    lib.mapAttrsToList (id: pin: {
+      name = "${pin.name}.json";
       path = pkgs.fetchurl {
-        url = "https://grafana.com/api/dashboards/1860/revisions/46/download";
-        hash = "sha256-5Y3cXcU11MkB+U2pZIvD49Wue2946Y4YW86LKJlhzqM=";
+        url = "https://grafana.com/api/dashboards/${id}/revisions/${toString pin.revision}/download";
+        inherit (pin) hash;
       };
-    }
-    {
-      name = "nvidia-gpu-metrics.json";
-      path = pkgs.fetchurl {
-        url = "https://grafana.com/api/dashboards/14574/revisions/18/download";
-        hash = "sha256-tuvm63s/svcc15DikhT94M5exnscMfQCehbqOBX7GGk=";
-      };
-    }
-  ];
+    }) (builtins.fromJSON (builtins.readFile ./upstream-dashboards.json))
+  );
 
   mcpTokenDir = "/var/lib/grafana-mcp";
 

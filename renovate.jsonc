@@ -96,6 +96,18 @@
   //
   // Neither has an artifact step of its own — a regex manager only edits
   // text — which is what the postUpgradeTasks in packageRules supply.
+  // Grafana dashboards from grafana.com (modules/base/observability). Renovate
+  // has no datasource for them, so this one maps a dashboard's revision list
+  // onto versions: each revision is a whole number, published with a date.
+  "customDatasources": {
+    "grafana-dashboards": {
+      "defaultRegistryUrlTemplate": "https://grafana.com/api/dashboards/{{packageName}}/revisions",
+      "transformTemplates": [
+        "{ \"releases\": [ items.{ \"version\": $string(revision), \"releaseTimestamp\": createdAt } ] }"
+      ]
+    }
+  },
+
   "customManagers": [
     {
       "customType": "regex",
@@ -114,6 +126,16 @@
         "\"(?<depName>[A-Za-z0-9_.-]+)\":\\s*\\{[^}]*\"version\":\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": "Grafana dashboards pinned from grafana.com",
+      "managerFilePatterns": ["/(^|/)upstream-dashboards\\.json$/"],
+      "matchStrings": [
+        "\"(?<depName>\\d+)\":\\{[^}]*\"revision\":(?<currentValue>\\d+)"
+      ],
+      "datasourceTemplate": "custom.grafana-dashboards",
+      "versioningTemplate": "loose"
     }
   ],
 
@@ -202,6 +224,17 @@
       "postUpgradeTasks": {
         "commands": ["scripts/renovate-pypi-rehash"],
         "fileFilters": ["home/max/core/harlequin-adapters.json"],
+        "installTools": { "nix": {} },
+        "executionMode": "update"
+      }
+    },
+    {
+      // Likewise for a dashboard: the new revision is a new file.
+      "description": "Rehash after a Grafana dashboard bump",
+      "matchFileNames": ["modules/base/observability/upstream-dashboards.json"],
+      "postUpgradeTasks": {
+        "commands": ["scripts/renovate-grafana-rehash"],
+        "fileFilters": ["modules/base/observability/upstream-dashboards.json"],
         "installTools": { "nix": {} },
         "executionMode": "update"
       }

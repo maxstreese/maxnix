@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Recomputes the hashes in modules/base/observability/upstream-dashboards.json
+# from the revisions in it. Renovate runs this after bumping a revision there
+# (see the postUpgradeTasks in renovate.jsonc); by hand it is the same command.
+#
+# The sibling of scripts/renovate-pypi-rehash, and built the same way for
+# the same reason: the Renovate container has nix and little else, so the
+# fetch, the hash and the JSON are one `nix eval`.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+file=modules/base/observability/upstream-dashboards.json
+export NIX_CONFIG="extra-experimental-features = nix-command"
+
+# The expression is Nix, single-quoted so the shell leaves its ${…} alone.
+# shellcheck disable=SC2016
+nix eval --impure --json --expr '
+  let
+    pins = builtins.fromJSON (builtins.readFile ./'"$file"');
+    download = id: revision:
+      "https://grafana.com/api/dashboards/${id}/revisions/${toString revision}/download";
+  in
+  builtins.mapAttrs (id: pin: pin // {
+    hash = builtins.convertHash {
+      hash = builtins.hashFile "sha256" (builtins.fetchurl (download id pin.revision));
+      hashAlgo = "sha256";
+      toHashFormat = "sri";
+    };
+  }) pins
+' > "$file.new"
+mv "$file.new" "$file"
