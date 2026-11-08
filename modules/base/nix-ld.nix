@@ -54,18 +54,6 @@
       pango
       cairo
       alsa-lib
-
-      # build123d's OpenCascade bindings (cadquery-ocp, the -novtk wheel) in
-      # ~/repos/github.com/maxstreese/cad, a mise + uv repo. `import
-      # build123d` failed with "libGL.so.1: cannot open shared object file"
-      # (2026-11-08, z690-wsl): OCP.cpython-313-x86_64-linux-gnu.so and its
-      # bundled libTKOpenGl link it, and ldd over every .so in that venv
-      # found it the only library missing. With it, the repo's builds
-      # (`mise run build curtain-rail`, `… door-handles`) succeed. Linked,
-      # not used to draw: nothing renders, the viewer is a browser tab.
-      # libglvnd's libGL, which hands any real GL call to the driver in
-      # /run/opengl-driver.
-      libGL
     ];
   };
 }
