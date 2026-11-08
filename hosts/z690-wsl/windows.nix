@@ -93,6 +93,22 @@ in
   # brings itself. Also the path a JDK or TornadoVM finds libcuda by.
   environment.sessionVariables.LD_LIBRARY_PATH = [ "/usr/lib/wsl/lib" ];
 
+  # GPU metrics for Prometheus, from the driver's own nvidia-smi: utilisation,
+  # memory, temperature, power, clocks, fan, performance state. Under WSL it
+  # reports all of them (2026-11-08); DCGM, NVIDIA's other route, does not
+  # support WSL. The exporter runs nvidia-smi on every scrape, so it needs
+  # the same library path as a shell; a system service does not get session
+  # variables. /dev/dxg is open to everyone, so its dynamic user reaches the
+  # card. On loopback, like the rest of the stack, and scraped by Alloy
+  # (../../modules/base/observability, scrapeTargets).
+  services.prometheus.exporters.nvidia-gpu = {
+    enable = true;
+    listenAddress = "127.0.0.1";
+    settings."nvidia-smi-command" = "/usr/lib/wsl/lib/nvidia-smi";
+  };
+  systemd.services.prometheus-nvidia-gpu-exporter.environment.LD_LIBRARY_PATH = "/usr/lib/wsl/lib";
+  maxnix.observability.scrapeTargets.nvidia-gpu = "127.0.0.1:${toString config.services.prometheus.exporters.nvidia-gpu.port}";
+
   # Links open in the browser already on the Windows desktop, rather than a
   # second one under WSLg with its own sign-ins (docs/desktop-pc.md,
   # section 3). Two routes in, both to the same script: BROWSER, which gh,

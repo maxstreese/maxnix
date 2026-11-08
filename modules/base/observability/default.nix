@@ -167,7 +167,23 @@ let
       forward_to      = [prometheus.remote_write.local.receiver]
       scrape_interval = "60s"
     }
+    ${lib.optionalString (cfg.scrapeTargets != { }) ''
 
+      // Exporters a host adds for hardware only it has (scrapeTargets), at
+      // the host metrics' interval.
+      prometheus.scrape "host_extra" {
+        targets = [
+      ${
+        lib.concatStrings (
+          lib.mapAttrsToList (job: address: ''
+            {"__address__" = "${address}", "job" = "${job}"},
+          '') cfg.scrapeTargets
+        )
+      }  ]
+        forward_to      = [prometheus.remote_write.local.receiver]
+        scrape_interval = "15s"
+      }
+    ''}
     prometheus.remote_write "local" {
       endpoint {
         url = "${prometheusUrl}/api/v1/write"
@@ -629,6 +645,20 @@ in
       type = lib.types.str;
       default = "max";
       description = "The user who runs Claude Code, and so mcp-grafana, and gets to read its token.";
+    };
+
+    scrapeTargets = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      default = { };
+      example = {
+        nvidia-gpu = "127.0.0.1:9835";
+      };
+      description = ''
+        Further exporters on this machine for Alloy to scrape every 15 s, as
+        job name → host:port. For hardware only some hosts have, such as a
+        GPU (../../../hosts/z690-wsl/windows.nix); each exporter listens on
+        loopback like the rest of the stack.
+      '';
     };
 
     grafanaAdminPasswordFromSops = lib.mkEnableOption ''
