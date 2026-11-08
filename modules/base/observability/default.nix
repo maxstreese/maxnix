@@ -149,10 +149,40 @@ let
       enable_collectors = ["systemd", "processes", "pressure"]
     }
 
+    // CPU every 5 s, the rest every 15 s (2026-11-08). Load moves in seconds,
+    // and 5 s shows what 15 s averages away; for the other ~1500 host series
+    // it would only triple the disk over two years' retention. Two scrapes of
+    // the same exporter, each keeping the other's complement, so no series is
+    // written twice; up and scrape_* come from the 15 s one alone.
     prometheus.scrape "host" {
       targets         = prometheus.exporter.unix.host.targets
-      forward_to      = [prometheus.remote_write.local.receiver]
+      forward_to      = [prometheus.relabel.host_rest.receiver]
       scrape_interval = "15s"
+    }
+    prometheus.relabel "host_rest" {
+      forward_to = [prometheus.remote_write.local.receiver]
+      rule {
+        source_labels = ["__name__"]
+        regex         = "node_cpu_seconds_total|node_load(1|5|15)|node_pressure_cpu_waiting_seconds_total|node_procs_(running|blocked)"
+        action        = "drop"
+      }
+    }
+
+    prometheus.scrape "host_cpu" {
+      targets         = prometheus.exporter.unix.host.targets
+      forward_to      = [prometheus.relabel.host_cpu.receiver]
+      scrape_interval = "5s"
+      // The default (10 s) may not exceed the interval: Alloy then refuses
+      // the whole config at start, and only then (2026-11-08).
+      scrape_timeout  = "4s"
+    }
+    prometheus.relabel "host_cpu" {
+      forward_to = [prometheus.remote_write.local.receiver]
+      rule {
+        source_labels = ["__name__"]
+        regex         = "node_cpu_seconds_total|node_load(1|5|15)|node_pressure_cpu_waiting_seconds_total|node_procs_(running|blocked)"
+        action        = "keep"
+      }
     }
 
     // The stack watching itself, so "why is Loki slow" has data too.
@@ -169,8 +199,9 @@ let
     }
     ${lib.optionalString (cfg.scrapeTargets != { }) ''
 
-      // Exporters a host adds for hardware only it has (scrapeTargets), at
-      // the host metrics' interval.
+      // Exporters a host adds for hardware only it has (scrapeTargets), every
+      // 5 s like the CPU: a GPU reports utilisation as a snapshot, so a
+      // burst between two scrapes is not seen at all.
       prometheus.scrape "host_extra" {
         targets = [
       ${
@@ -181,7 +212,8 @@ let
         )
       }  ]
         forward_to      = [prometheus.remote_write.local.receiver]
-        scrape_interval = "15s"
+        scrape_interval = "5s"
+        scrape_timeout  = "4s"
       }
     ''}
     prometheus.remote_write "local" {
@@ -654,7 +686,7 @@ in
         nvidia-gpu = "127.0.0.1:9835";
       };
       description = ''
-        Further exporters on this machine for Alloy to scrape every 15 s, as
+        Further exporters on this machine for Alloy to scrape every 5 s, as
         job name → host:port. For hardware only some hosts have, such as a
         GPU (../../../hosts/z690-wsl/windows.nix); each exporter listens on
         loopback like the rest of the stack.
