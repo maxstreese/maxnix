@@ -91,3 +91,10 @@ jobs:
           renovate-version: ${{ env.SELF_HOSTED_RENOVATE_VERSION }}
         env:
           LOG_LEVEL: ${{ inputs.log-level || 'info' }}
+          # Only the nightly run and one started by hand open new PRs. A run
+          # started by a push or by CI finishing is in Renovate's silent mode:
+          # it creates no branch, and still rebuilds and merges the PRs that
+          # are open. Without this, merging a lock refresh is a push, whose
+          # run opens the next refresh with whatever moved upstream in the
+          # hour of CI, and so on for as long as anything moves.
+          RENOVATE_MODE: ${{ (github.event_name == 'push' || github.event_name == 'workflow_run') && 'silent' || 'full' }}
