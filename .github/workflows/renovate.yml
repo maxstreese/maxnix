@@ -47,11 +47,6 @@ on:
         options: [info, debug]
         default: info
 
-# Two Renovate runs on the same repository would race for the same branches.
-concurrency:
-  group: renovate
-  cancel-in-progress: false
-
 # The job itself needs nothing from GITHUB_TOKEN beyond checking out; all
 # writes go through the App's token.
 permissions:
@@ -60,6 +55,13 @@ permissions:
 jobs:
   renovate:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # Two Renovate runs on the same repository would race for the same
+    # branches. On the job, not the workflow: there a run waiting its turn is
+    # replaced by any newer one, also one the `if` above then skips, so a
+    # skipped CI result could cancel the run a push had queued.
+    concurrency:
+      group: renovate
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
