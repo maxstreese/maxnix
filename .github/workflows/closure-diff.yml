@@ -8,8 +8,10 @@
 #
 # Only on that PR. The other Renovate PR lists its versions itself, and
 # every other PR changes the configuration, where the diff is better read
-# in the code. A job of its own beside `checks`: it informs, it does not
-# gate, and nothing waits for its two builds.
+# in the code. A job of its own beside `checks`, so a failure here is told
+# apart from one there. Renovate merges the PR only once this is green too
+# (renovate.jsonc: automerge waits for every check), so the comment is on the
+# PR before it lands.
 #
 # As in checks.yml, the knowledge is in the flake; this file gets a machine
 # ready, runs `nix run .#closure-diff`, and posts what it prints.

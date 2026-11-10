@@ -723,9 +723,12 @@ disabled, `lockFileMaintenance` is off and `config:recommended` does not turn
 it on, and either omission makes Renovate run happily while never touching
 `flake.lock`. `helpers:pinGitHubActionDigests` maintains the SHA pins and
 pins any action added later, so the policy is enforced rather than
-remembered. Nothing automerges: a green `checks / portable` says the machine
-builds, boots and has its software, and says nothing about what is on screen,
-so an update that breaks the greeter would pass. Renovate is a GitHub App and
+remembered. Every PR automerges once all its checks are green (since
+2026-11-10): `renovate.yml` also runs when CI finishes on a Renovate PR, and
+that run merges it. This is a known gap, not an oversight: a green
+`checks / portable` says the machine builds, boots and has its software, and
+says nothing about what is on screen, so an update that breaks the greeter is
+merged and found by the render suites on main. Renovate is a GitHub App and
 has to be installed on the repo by hand; until it is, that file does nothing.
 
 Its updates come as three PRs, grouped by how each is checked. "Lock file

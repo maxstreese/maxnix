@@ -72,7 +72,9 @@
   // (2026-10-28). Rebuilt, a PR's CI and closure-diff comment show what
   // merging would bring today, and lock file maintenance runs `nix flake
   // update` afresh — at most once per Renovate run, not once per push. Set
-  // for every PR in a work repo, too.
+  // for every PR in a work repo, too. With automerge (below) the default
+  // would now do the same; kept explicit so it does not hinge on that, and
+  // so what is merged was tested on the main it lands on.
   "rebaseWhen": "behind-base-branch",
 
   // No Dependency Dashboard. Runs are started by the workflow — nightly, or
@@ -253,10 +255,22 @@
     }
   ],
 
-  // No automerge anywhere, deliberately. A green `checks / portable` proves
-  // the machine builds, boots and has its software, and proves nothing about
-  // what is on screen — the GPU tier cannot run on a hosted runner. An update
-  // that breaks the greeter would pass CI. So every PR is read by a human and
-  // the render suites run locally before it lands.
-  "automerge": false
+  // Every PR is merged once all of its checks are green, Renovate's own
+  // included: a PR whose lock file could not be regenerated has a failing
+  // `renovate/artifacts` and stays open. The workflow starts a run whenever
+  // CI finishes on a Renovate PR, which is the run that merges it.
+  //
+  // What this gives up, knowingly (off until 2026-11-10 for this reason): a
+  // green `checks / portable` proves the machine builds, boots and has its
+  // software, and proves nothing about what is on screen — the GPU tier
+  // cannot run on a hosted runner. An update that breaks the greeter passes
+  // CI and is merged; the render suites then find it on main, locally.
+  "automerge": true,
+
+  // Renovate does the merging itself, on the run that finds the checks green:
+  // GitHub's own auto-merge needs a branch protection rule to wait on, and
+  // there is none. A merge commit, as the PRs merged by hand have been;
+  // left to choose, Renovate would rebase.
+  "platformAutomerge": false,
+  "automergeStrategy": "merge-commit"
 }
