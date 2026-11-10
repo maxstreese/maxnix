@@ -114,11 +114,11 @@
     "dms-plugins-hthienloc": {
       "flake": false,
       "locked": {
-        "lastModified": 1794109386,
-        "narHash": "sha256-3XwExExWvyQgbApEMOKXxEKckWJCRH74wQbLGhup0ms=",
+        "lastModified": 1794313314,
+        "narHash": "sha256-6ZlBW5fcIDzIWslHBb1AB3B93tyHLFGysnjIpRz5ymA=",
         "owner": "hthienloc",
         "repo": "dms-plugins",
-        "rev": "47fd82f6046dc03bd5ca323a3d7f6fd00431ce1c",
+        "rev": "f4d3f4e6ff1b42400ceb3e0f74970afa709c0f5a",
         "type": "github"
       },
       "original": {
