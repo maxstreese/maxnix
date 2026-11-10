@@ -5,7 +5,6 @@
 # where this layer is imported. Home Manager cannot declare it itself — with
 # useGlobalPkgs it borrows the system's nixpkgs config.
 {
-  config,
   lib,
   osConfig,
   pkgs,
@@ -59,7 +58,7 @@ let
   # grafana-capture puts them in the repo (modules/base/observability,
   # grafana-mcp-token, for why Editor and not more). A separate server from
   # any other Grafana MCP already configured (a work one, say), named
-  # grafana-local. Its token is issued by the machine and readable only by
+  # grafana-local (plugin:hm:grafana-local in Claude Code, see below). Its token is issued by the machine and readable only by
   # this user; see grafana-mcp-token in modules/base/observability.
   grafanaLocalMcp = pkgs.writeShellApplication {
     name = "grafana-local-mcp";
@@ -74,33 +73,50 @@ let
   };
 in
 {
-  # Registered with Claude Code at user scope, so it is there in every
-  # project. Claude Code keeps its MCP servers in ~/.claude.json, a file it
-  # rewrites constantly, so this cannot be a Home Manager-managed file; it is
-  # added through Claude's own CLI instead, once, and left alone after.
-  # Pointed at the profile's stable path, not a store path, so a rebuild does
-  # not leave it dangling.
-  home.activation.grafanaLocalMcp = lib.mkIf observability.enable (
-    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      # Checked by reading ~/.claude.json, not by asking `claude mcp get`:
-      # starting claude takes seconds, and this runs in home-manager-max,
-      # which login waits for — it put 2.5 s on every boot (2026-10-09).
-      # claude itself only runs when the server is actually missing,
-      # bounded so one that tries the network offline cannot hang it.
-      if ! ${pkgs.jq}/bin/jq -e '.mcpServers["grafana-local"]' "$HOME/.claude.json" >/dev/null 2>&1; then
-        run ${pkgs.coreutils}/bin/timeout 30 ${pkgs.claude-code}/bin/claude mcp add --scope user grafana-local \
-          -- ${config.home.profileDirectory}/bin/grafana-local-mcp \
-          || warnEcho "could not register the grafana-local MCP server with Claude Code"
-      fi
-    ''
-  );
+  # Through Home Manager's programs.claude-code since 2026-11-10, so MCP
+  # servers, settings, skills and the rest of ~/.claude can be declared here.
+  programs.claude-code = {
+    enable = true;
 
-  home.packages = lib.optional observability.enable grafanaLocalMcp ++ [
     # Claude Code, the `claude` CLI. First run: `claude` opens the browser
     # for OAuth against the same Claude account as the web app. The resulting
     # token is kept in ~/.claude, since Linux gets no keychain integration.
     # An API key via `op read` works too, if that is ever preferred.
     # Wrapped to send telemetry when the observability stack is on (above).
-    (if observability.enable then claudeWithTelemetry else pkgs.claude-code)
-  ];
+    package = if observability.enable then claudeWithTelemetry else pkgs.claude-code;
+
+    # ~/.claude/settings.json stays a writable file that `settings` (none
+    # declared yet) is merged into on activation, rather than a read-only
+    # store symlink: /config and "always allow" on a permission prompt write
+    # there. Declared keys win, arrays whole (a declared permissions.allow
+    # drops what Claude added since); a key no longer declared stays in the
+    # file until deleted by hand.
+    mutableSettings = true;
+
+    # Not in ~/.claude.json, which Claude Code rewrites constantly: the
+    # module writes these into a plugin of its own, named `hm`, in the store
+    # and linked into ~/.claude/skills. So the server shows up as
+    # plugin:hm:grafana-local and its tools as mcp__plugin_hm_grafana-local__*,
+    # in every project, and a rebuild changes or removes it.
+    mcpServers = lib.mkIf observability.enable {
+      grafana-local.command = lib.getExe grafanaLocalMcp;
+    };
+  };
+
+  # Until 2026-11-10 the server was registered once through `claude mcp add
+  # --scope user`, which left an entry in ~/.claude.json pointing at
+  # ~/.nix-profile/bin/grafana-local-mcp. That path is gone now, so the entry
+  # would show as a second, failing grafana-local. Removed here, once; delete
+  # this block when the VM and z690-wsl have both activated past it.
+  home.activation.grafanaLocalMcpLegacy = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    # Checked by reading ~/.claude.json, not by asking `claude mcp get`:
+    # starting claude takes seconds, and this runs in home-manager-max,
+    # which login waits for — it put 2.5 s on every boot (2026-10-09).
+    # claude itself only runs when the entry is actually there, bounded so
+    # one that tries the network offline cannot hang it.
+    if ${pkgs.jq}/bin/jq -e '.mcpServers["grafana-local"]' "$HOME/.claude.json" >/dev/null 2>&1; then
+      run ${pkgs.coreutils}/bin/timeout 30 ${pkgs.claude-code}/bin/claude mcp remove --scope user grafana-local \
+        || warnEcho "could not remove the old grafana-local MCP server from ~/.claude.json"
+    fi
+  '';
 }
