@@ -139,6 +139,15 @@ in
             node.wait_until_succeeds(cmd, timeout=timeout)
         except Exception:
             print(node.execute("curl -fsS http://127.0.0.1:12345/api/v0/web/components | jq -c '.[] | {id: .localID, health: .health}'")[1])
+            # Whether the host scrapes get their samples at all, and how long
+            # one takes: node_load1 never arrived in two CI runs on the
+            # slowest runners (2026-11-08, 11-10) with every component
+            # healthy and nothing logged, which a scrape running past its
+            # timeout would look like. Alloy's view of the two targets, then
+            # what Prometheus has from the 15 s scrape.
+            for scrape in ["host_cpu", "host"]:
+                print(node.execute(f"curl -fsS http://127.0.0.1:12345/api/v0/web/components/prometheus.scrape.{scrape} | jq -c '.debugInfo'")[1])
+            print(node.execute("curl -fsS 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query={__name__=~\"up|scrape_duration_seconds|scrape_samples_scraped\"}' | jq -c '.data.result'")[1])
             print(node.execute("journalctl -u alloy -n 40 --no-pager | grep -v collector")[1])
             print(node.execute("journalctl -u loki -u grafana-dashboards-live -n 30 --no-pager")[1])
             print(node.execute("curl -fsS 'http://localhost:3000/api/search?tag=maxnix' | jq -c '[.[] | {uid, title}]'; ls -la /var/lib/grafana/dashboards-live")[1])
@@ -415,8 +424,16 @@ in
         took = time.time() - t0
         assert took < 20, f"restarting tempo took {took:.0f} s"
         machine.wait_for_open_port(3100)
+        # Over a range, not as an instant query: the metric is one sample,
+        # written when the subtest above sent it, and an instant query looks
+        # back five minutes and no further. On a slow runner the restart
+        # comes later than that, and the sample is then stored and never
+        # found: three CI runs waited out the full limit here with 322 to
+        # 438 s between sample and restart, while the passing ones had 135
+        # to 205 s and found it in a second (2026-11-08 to 11-10). No
+        # timeout fixes that.
         wait("curl -fsS 'http://127.0.0.1:9090/api/v1/query' --data-urlencode"
-             " 'query={__name__=~\"claude_code_cost_usage.*\"}' | jq -e '.data.result | length > 0'",
+             " 'query=last_over_time({__name__=~\"claude_code_cost_usage.*\"}[1h])' | jq -e '.data.result | length > 0'",
              "the metric after a restart")
         wait("curl -fsS -G http://127.0.0.1:3100/loki/api/v1/query_range"
              " --data-urlencode 'query={service_name=\"claude-code\"} | session_id=\"test-session-4711\"'"
