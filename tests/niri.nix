@@ -21,6 +21,65 @@
 let
   # niri's IPC socket, which the driver's bare root shell has to be pointed at.
   niriSocket = "NIRI_SOCKET=$(ls /run/user/1000/niri.wayland-*.sock | head -1)";
+
+  # The weekly firmware check (../hosts/t14s/firmware-check.nix), built around
+  # stand-ins: a fwupdmgr that answers `get-updates` with the given text and
+  # exit status, and a notify-send that writes its arguments to
+  # /tmp/notified. The guest has no firmware devices and no LVFS, and what
+  # the script can get wrong is how it reads fwupdmgr.
+  firmwareCheckWith =
+    { answer, status }:
+    hostPkgs.callPackage ../hosts/t14s/firmware-check.nix {
+      fwupd = hostPkgs.writeShellScriptBin "fwupdmgr" ''
+        case "$1" in
+          refresh) exit 2 ;;
+          get-updates) cat ${hostPkgs.writeText "fwupdmgr-answer" answer}; exit ${toString status} ;;
+        esac
+      '';
+      libnotify = hostPkgs.writeShellScriptBin "notify-send" ''
+        printf '%s\n' "$@" > /tmp/notified
+      '';
+    };
+  # The shape of `fwupdmgr get-updates --json` (fwupd 2.0, 2026-11-10): one
+  # device with releases, newest first, and one without.
+  firmwareCheck = {
+    updates = firmwareCheckWith {
+      status = 0;
+      answer = builtins.toJSON {
+        Devices = [
+          {
+            Name = "System Firmware";
+            Version = "0.1.18";
+            Releases = [
+              { Version = "0.1.37"; }
+              { Version = "0.1.36"; }
+            ];
+          }
+          {
+            Name = "UEFI dbx";
+            Version = "20230501";
+          }
+        ];
+      };
+    };
+    # What fwupdmgr does when no device has one: says so and exits 2.
+    none = firmwareCheckWith {
+      status = 2;
+      answer = "No updates available";
+    };
+    # A device list in which nothing has a release.
+    noReleases = firmwareCheckWith {
+      status = 0;
+      answer = builtins.toJSON {
+        Devices = [
+          {
+            Name = "UEFI dbx";
+            Version = "20230501";
+          }
+        ];
+      };
+    };
+  };
 in
 {
   name = "maxnix-niri";
@@ -86,6 +145,10 @@ in
         user = "max";
       };
 
+      # The firmware check's test builds, in the guest's store and not on
+      # PATH.
+      virtualisation.additionalPaths = lib.attrValues firmwareCheck;
+
       # The test framework gives root a hashedPasswordFile for its backdoor
       # console, which collides with the initialPassword our host config sets
       # and emits a precedence warning. The file wins either way; drop ours so
@@ -143,6 +206,26 @@ in
           assert "German" in layout, (
               "niri is not on the configured layout:\n" + layout
           )
+
+      with subtest("max's session checks for firmware updates weekly, and notifies only when there are any"):
+          # ../hosts/t14s/laptop.nix. The timer, in max's session: a user
+          # unit, so it is asked of his manager and not the system's.
+          machine.succeed(
+              "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user is-active firmware-check.timer'"
+          )
+          # The script, around stand-ins (see firmwareCheckWith above). With
+          # an update: one notification, naming the device and both versions,
+          # and not the device that has none.
+          machine.succeed("rm -f /tmp/notified; ${firmwareCheck.updates}/bin/firmware-check")
+          notified = machine.succeed("cat /tmp/notified")
+          assert "System Firmware: 0.1.18 → 0.1.37" in notified, notified
+          assert "UEFI dbx" not in notified, notified
+          assert "fwupdmgr update" in notified, notified
+          # Without: fwupdmgr's exit 2, and a device list with no release.
+          # Both succeed and say nothing.
+          for build in ["${firmwareCheck.none}", "${firmwareCheck.noReleases}"]:
+              machine.succeed(f"rm -f /tmp/notified; {build}/bin/firmware-check")
+              machine.fail("test -e /tmp/notified")
     ''
     + lib.optionalString gpu ''
 

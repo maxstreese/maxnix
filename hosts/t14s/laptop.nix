@@ -1,14 +1,19 @@
 # What a laptop runs beside the desktop: real-time audio, battery and power
-# profiles, firmware updates — and the state of each that must survive the
-# wiped root. Bluetooth itself needs nothing here: nixpkgs' facter modules
-# turn it on from the hardware report (./facter.json), which found the
-# T14s's controller.
+# profiles, firmware updates and the weekly check for them — and the state of
+# each that must survive the wiped root. Bluetooth itself needs nothing here:
+# nixpkgs' facter modules turn it on from the hardware report (./facter.json),
+# which found the T14s's controller.
 #
 # On every VM too. DMS's battery and power widgets read these over D-Bus, and
 # in the VM they then find a service with nothing to report rather than none
 # at all — which is also what tests/desktop.nix checks. Bluetooth stays
 # metal-only: the VMs have no controller and no hardware report.
-{ ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 {
   # Real-time scheduling for PipeWire. Without it every session's PipeWire
   # logs "mod.rt: RTKit error: org.freedesktop.DBus.Error.ServiceUnknown" and
@@ -34,4 +39,34 @@
   # (../../modules/metal/persistence.nix) — on the wiped root, fwupd would forget it had one
   # pending across exactly the reboot that applies it.
   services.fwupd.enable = true;
+
+  # fwupd installs nothing by itself and says nothing either: unasked, a
+  # firmware update goes unnoticed for years. So once a week max's session
+  # asks it and, when there are updates, shows a notification naming them
+  # (./firmware-check.nix). Only that. Flashing stays `fwupdmgr update` and a
+  # reboot by hand: it cannot be rolled back, so it is not something a timer
+  # does.
+  #
+  # A user unit, for max alone, because the notification goes to the session's
+  # own bus; reading from fwupd needs no root. Persistent, so a week the
+  # laptop was off at the scheduled time is caught up at the next login.
+  home-manager.users.max.systemd.user = {
+    services.firmware-check = {
+      Unit.Description = "Check for firmware updates and notify";
+      Service = {
+        Type = "oneshot";
+        ExecStart = lib.getExe (
+          pkgs.callPackage ./firmware-check.nix { fwupd = config.services.fwupd.package; }
+        );
+      };
+    };
+    timers.firmware-check = {
+      Unit.Description = "Check for firmware updates weekly";
+      Timer = {
+        OnCalendar = "weekly";
+        Persistent = true;
+      };
+      Install.WantedBy = [ "timers.target" ];
+    };
+  };
 }

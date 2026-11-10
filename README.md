@@ -1162,7 +1162,11 @@ After:
     runs by themselves — check both.
 12. What only the hardware shows: brightness (`acpi_backlight=native` if it
     does not work), suspend, `powerprofilesctl`, `fwupdmgr get-updates`,
-    and whether hibernation is worth adding (see the swap decision).
+    and whether hibernation is worth adding (see the swap decision). Also
+    the weekly firmware check (`hosts/t14s/laptop.nix`), which the VM can
+    only run against stand-ins: `systemctl --user start firmware-check`
+    should end in a notification that stays, or in "no firmware updates" in
+    `journalctl --user -u firmware-check`.
 
 **The install path has run end to end, in the VM (2026-10-16).**
 `nix run .#installer-vm` boots the real installer image as a USB stick under
