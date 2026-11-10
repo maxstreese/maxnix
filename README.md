@@ -728,10 +728,14 @@ builds, boots and has its software, and says nothing about what is on screen,
 so an update that breaks the greeter would pass. Renovate is a GitHub App and
 has to be installed on the repo by hand; until it is, that file does nothing.
 
-Its updates come as two PRs, and always will: lock file maintenance is never
-grouped with other updates (Renovate's documentation, 2026-10-16), and the
-config keeps it apart on purpose anyway. The version-bump PR lists its
-versions; the lock PR says only "All locks refreshed", because inputs that
+Its updates come as three PRs, grouped by how each is checked. "Lock file
+maintenance" is never grouped with other updates (Renovate's documentation,
+2026-10-16), and the config keeps it apart on purpose anyway. "Update
+dependencies" holds every version bump of something the machine is built
+from. "Update CI" holds everything pinned in a workflow file (action SHAs,
+Renovate's own image) and comes on Mondays only, because Renovate alone
+releases several times a day and nothing in the pipeline needs to be that
+current. The version-bump PRs list their versions; the lock PR says only "All locks refreshed", because inputs that
 follow a branch have no version, and no setting changes that. So
 `.github/workflows/closure-diff.yml` comments on that PR with what it means
 for the machine: `nix run .#closure-diff -- <base>` builds metal at the base

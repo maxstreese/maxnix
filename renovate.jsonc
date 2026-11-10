@@ -173,20 +173,32 @@
       "groupName": "dependencies"
     },
     {
+      // Everything pinned in a workflow file: action SHAs, Renovate's own
+      // image, any other tool version. None of it can change what the machine
+      // is built from, only the pipeline, so it is read differently from a
+      // version bump and need not be current to the day. Matched by file so a
+      // pin added later is covered whichever manager finds it (the image comes
+      // from a regex manager, not github-actions).
+      //
       // Renovate releases on every merged fix or feature, 3 to 13 times a day
       // (2026-10-08 to 10-21), so with the nightly run the pin in
-      // .github/workflows/renovate.yml moved almost every night. Nothing about
-      // the bot needs to be that current; Mondays only (Europe/Berlin, which
-      // the 02:17 UTC run always falls on).
+      // .github/workflows/renovate.yml moved almost every night; Mondays only
+      // (Europe/Berlin, which the 02:17 UTC run always falls on).
       //
       // Its own group because a schedule cannot be set per update inside one:
       // a branch takes its config from whichever upgrade sorts first, so in
       // "dependencies" this would either hold back every other bump or be
       // ignored. updateNotScheduled false so an open PR also waits for
       // Monday, instead of following each new release until then.
-      "description": "Renovate's own image weekly, in its own PR",
-      "matchDepNames": ["ghcr.io/renovatebot/renovate"],
-      "groupName": "renovate",
+      //
+      // The topic is set because the rule above pins it to "dependencies" for
+      // every update type: the image alone, in a group then named "renovate",
+      // came out as a second "Update dependencies" beside the action bump in
+      // the first (PRs #56 and #57, 2026-11-09). This one is "Update CI".
+      "description": "Workflow pins weekly, in their own PR",
+      "matchFileNames": [".github/workflows/**"],
+      "groupName": "ci",
+      "commitMessageTopic": "CI",
       "schedule": ["* * * * 1"],
       "updateNotScheduled": false
     },
