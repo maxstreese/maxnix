@@ -437,6 +437,39 @@ the host kept its old content in the guest until caches were dropped, and
 a mount, `cache=mmap` for git) has neither problem and was verified, then
 dropped along with the share itself.
 
+**Nothing in the VM may walk the whole store, and the garbage collector does.**
+The guest's `/nix/store` is an overlay over the host's entire store, and
+unprivileged virtiofsd holds one fd per file the guest has looked up, capped at
+the host's hard limit (524,288; its start-up warnings about that limit and
+about file handles are expected and say exactly this). The collector treats
+every store entry the guest's database does not know as garbage, which is
+nearly all of the host's. On 2026-11-12 the persistent Monday timer caught up
+ten seconds into a boot, deleted 14,834 paths in under three minutes and died
+with "Too many open files"; virtiofsd logged "No more file descriptors
+available to the guest" in the same second and the session came up grey,
+because nothing in the store could be opened any more. On the host, 514,698 of
+the daemon's 523,682 fds were under store paths outside the VM's own closure
+(`ls -l /proc/<virtiofsd>/fd`, grouped by store path, shows what was walked).
+Nothing is lost: the share is read-only and the overlay's upper layer is a
+tmpfs, so a reboot undoes it. `hosts/t14s/vm.nix` switches off `nix.gc` in the
+VM next to `nix.optimise`, which was off already for the same reason. What
+remains is `min-free` in `modules/vm/qemu-guest.nix`: a collection the daemon
+starts by itself under 1 GiB free would do the same walk.
+
+**A VM on virtiofs cannot suspend, and trying breaks its display.** The kernel
+refuses to suspend a virtio-fs device ("virtio-fs: suspend/resume not yet
+supported", `-EOPNOTSUPP`), so `systemctl suspend` fails for as long as the
+store is shared that way. The failure is not clean: on 2026-11-12 DMS's idle
+timer (`acSuspendTimeout`, 600 s) requested it, both the deep and the s2idle
+attempt were refused, and virtio-gpu never completed another commit (a kworker
+stuck in `drm_atomic_helper_wait_for_fences`, screenshots hung) while ssh and
+every service carried on. Only restarting the VM brought the screen back. It
+was the first suspend attempt in 40 recorded boots: the VM had never before
+sat logged in and idle for ten minutes. `hosts/t14s/vm.nix` now disables the
+sleep verbs in `systemd.sleep.settings`, so logind refuses the request before
+the kernel freezes anything; the idle timer is left alone, since on metal
+suspend is the point.
+
 **The VM runner has no pre-start hook, but drive paths are shell-expanded.**
 `qemu-vm.nix` creates only the root image, and its `emptyDiskImages` live in a
 per-run temp directory. A persistent second disk therefore creates itself: its
