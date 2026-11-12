@@ -13,10 +13,12 @@
 #                      first boot, from where ../hosts/t14s/secrets.nix
 #                      reads it
 #
-# --no-install skips the script's last step, `nixos-install --flake
-# …#t14s`: NixOS's own installer command, building the whole machine, which
-# a sandbox cannot do offline. The harness installs its own test system
-# instead. So this proves the steps that are install-maxnix's — checks,
+# --no-install skips the script's last step, `nixos-install --system
+# <the machine>`: NixOS's own installer command, copying the whole machine
+# from the stick's store, 22 GiB these nodes would have to carry. The
+# harness installs its own test system instead, and the script is built
+# here without a system (null). So this proves the steps that are
+# install-maxnix's — checks,
 # secrets, disko, key — and leaves the one command it delegates.
 #
 # The key is a throwaway, made at build time, as in ./secrets.nix; its
@@ -49,8 +51,8 @@ let
   args = "--luks-file /tmp/secret.key --sops-key-file /tmp/age.key --no-install";
   # install-maxnix as the flake builds it, for the harness's empty disk, and
   # for one that is not there.
-  forDisk = mkInstallMaxnix "/dev/vdb";
-  forNoDisk = mkInstallMaxnix "/dev/nope";
+  forDisk = mkInstallMaxnix "/dev/vdb" null;
+  forNoDisk = mkInstallMaxnix "/dev/nope" null;
 in
 disko.lib.testLib.makeDiskoTest {
   inherit pkgs;

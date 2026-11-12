@@ -659,7 +659,7 @@ and the WSL host), a check of the ThinkPad's login stacks, and the suites for on
 | `metal` | the machine as it would be *installed* builds | — |
 | `z690-wsl` | the WSL host (`hosts/z690-wsl`) builds; nothing in CI can boot a WSL distribution, so its boot is checked on the desktop | — |
 | `metal-boots` | that layout partitions, formats and boots | disko's own script |
-| `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk and puts the key on `/persist`, and the system booted from it decrypts with that key. Leaves only `nixos-install --flake …#t14s` to the day | disko's own script, plus the script's |
+| `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk and puts the key on `/persist`, and the system booted from it decrypts with that key. Leaves only `nixos-install --system <the machine>`, a copy from the stick, to the day | disko's own script, plus the script's |
 | `installer` | the installer USB's system builds; the image is that plus a squashfs, left to `nix build .#installer-iso` | — |
 | `metal-auth` | metal's built `sudoers` asks `wheel` for a password, and each of its five password stacks has pam_faillock in place: before the first line that can let someone in, after the last password check, with its config file | — |
 | `secrets` | sops-nix decrypts a post-quantum age key at activation, root-only and in memory, and Fleet and the backup get their values from it | 4 |
@@ -1160,6 +1160,9 @@ Before the day:
    build and write the stick from the same commit:
    `nix build .#installer-iso`, then
    `sudo dd if=result/iso/*.iso of=/dev/<stick> bs=4M status=progress oflag=sync`.
+   The image carries the machine, built (below), so the stick is that
+   commit's machine: build it last, after the final change to the lock or
+   the config.
 4. In the firmware (F1 at power-on): turn **Secure Boot off** — expected to
    be needed, since the stick is not signed for the factory keys; check on
    the day — and set Config → Power → Sleep State to "Linux".
@@ -1176,7 +1179,8 @@ On the day:
    It checks UEFI and the disk, shows the disk's size and model, reads both
    secrets, refuses a sops key that is not `metal` in `.sops.yaml`, asks you
    to type `erase`, partitions, puts the key on `/persist` and runs
-   `nixos-install`. `checks.metal-install` runs all of that but the last
+   `nixos-install --system` on the machine the stick carries, which copies
+   it to the disk and fetches nothing. `checks.metal-install` runs all of that but the last
    step against a virtual disk.
 9. Reboot, take the stick out, type the LUKS passphrase: the niri session
    starts by itself. The login password is for the lock screen and sudo.
@@ -1217,6 +1221,28 @@ copy of this repo evaluated the machine to the same store path as the host.
 What a VM cannot show is left to the hardware (steps 4, 12). Two things the
 run taught: `sudo -i` has to come before `op` signs in (step 7), and the
 VM needs a GL GPU, as niri draws nothing without one.
+
+**The stick carries the machine, and the install needs no upstream
+(2026-11-12).** Until then `install-maxnix` ended in `nixos-install --flake`,
+which on the day would have fetched the flake's inputs from GitHub and
+Codeberg, 1913 of the closure's 2168 store paths from cache.nixos.org, and
+the other 255 (4.5 GiB: Chrome, Slack, Spotify, Discord, 1Password, Claude
+Code, wootility, Twingate, Steam, Fleet, and what is built here) from their
+vendors or by building — each path checked against the cache that day. All
+of it after the disk is erased, on the only machine. Now the installer's
+script names the built toplevel, so the image's store holds its closure
+(22.6 GiB unpacked) and the last step is `nixos-install --system`, a copy.
+The image is 9.4 GB and builds in 5 minutes with zstd at level 6; at
+nixpkgs' level 19 the squashfs was still compressing after 25 minutes and
+was cancelled. Tried in `installer-vm --offline`, where the guest has no
+interface but `lo`, with a throwaway passphrase and key (`--luks-file`,
+`--sops-key-file`, `--recipient`): partitioned and installed in about seven
+minutes from an image file on the host's NVMe — a real stick will be slower
+— and the disk then booted through bootvine's passphrase prompt into niri
+with DMS. sops could not decrypt with the throwaway key, as it should not.
+1Password's servers are the one upstream still needed on the day, for the
+two secrets. What changed with it: the stick installs the commit it was
+built from, not whatever the repo is by then.
 
 No decision is left open before the day. The last, Secure Boot's keys, was
 made 2026-10-16: Microsoft's stay beside the machine's. Removing them would

@@ -24,7 +24,16 @@
 #               would have meant an unpinned build over Wi-Fi
 #   5. key      onto /persist/sops/age.key, where ../maxnix/secrets.nix reads
 #               it, before the first boot needs it
-#   6. install  nixos-install --flake <this repo>#t14s
+#   6. install  nixos-install --system <the machine, built>: the toplevel
+#               the flake built for nixosConfigurations.t14s, which is on the
+#               stick with its whole closure because this script names it
+#               (decided 2026-11-12). Nothing is evaluated, fetched or built
+#               here: it is copied from the stick's store to the disk. With
+#               --flake, as it was until then, this step needed GitHub and
+#               Codeberg for the flake's inputs, cache.nixos.org for 1913 of
+#               the closure's 2168 paths and a dozen vendors' download
+#               servers for the rest (measured that day) — all after step 4
+#               had erased the only machine there is
 #
 # checks.metal-install runs 1 to 5 against a virtual disk with --no-install,
 # then installs a small test system itself and boots it. Step 6 is NixOS's
@@ -33,13 +42,15 @@
 # disk and diskoScript come together from the flake's mkInstallMaxnix: the
 # ThinkPad's M.2 slot for the installer, a virtual disk for the test. The
 # script reads the passphrase from workDir, which is why that is fixed.
+# `toplevel` is the system to install, or null where step 6 never runs: the
+# test's script must not drag the machine's 22 GiB into its nodes.
 {
   pkgs,
   disk,
   diskoScript,
   workDir,
-  flake,
   metalRecipient,
+  toplevel ? null,
 }:
 pkgs.writeShellApplication {
   name = "install-maxnix";
@@ -124,8 +135,15 @@ pkgs.writeShellApplication {
 
     # ── 6. install ─────────────────────────────────────────────────────
     if [ "$install" = 1 ]; then
-      nixos-install --no-root-passwd --no-channel-copy --flake "${flake}#t14s"
-      echo "installed. Reboot, remove the USB stick, and type the LUKS passphrase." >&2
+      ${
+        if toplevel == null then
+          ''die "this build of install-maxnix carries no system to install; only --no-install works"''
+        else
+          ''
+            nixos-install --no-root-passwd --no-channel-copy --system ${toplevel}
+            echo "installed. Reboot, remove the USB stick, and type the LUKS passphrase." >&2
+          ''
+      }
     fi
   '';
 }

@@ -233,8 +233,12 @@
       # module (system.build.destroyFormatMount, what its test harness runs).
       # Nothing is evaluated or built on the installer. The passphrase file is
       # where the script puts it, in a tmpfs.
+      #
+      # `toplevel` is the built machine the script's last step installs, or
+      # null for the test, which stops before that step and whose nodes
+      # would otherwise carry the machine's whole closure.
       mkInstallMaxnix =
-        disk:
+        disk: toplevel:
         let
           workDir = "/run/install-maxnix";
           layout = lib.nixosSystem {
@@ -254,13 +258,16 @@
             disk
             workDir
             metalRecipient
+            toplevel
             ;
           diskoScript = lib.getExe layout.config.system.build.destroyFormatMount;
-          flake = repoSource;
         };
+      # The stick's: the ThinkPad's disk, and the machine as checks.metal
+      # builds it. Naming the toplevel here is what puts its closure in the
+      # image (hosts/installer).
       installMaxnix =
-        mkInstallMaxnix
-          (import ./modules/metal/disk-layout.nix { }).disko.devices.disk.main.device;
+        mkInstallMaxnix (import ./modules/metal/disk-layout.nix { }).disko.devices.disk.main.device
+          t14s.config.system.build.toplevel;
       installer = lib.nixosSystem {
         inherit system;
         modules = [ ./hosts/installer ];
