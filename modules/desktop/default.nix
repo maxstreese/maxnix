@@ -6,6 +6,7 @@
 {
   imports = [
     ./greeter.nix
+    ./boot-console.nix
     ./lock-screen.nix
     ./niri.nix
     ../gui

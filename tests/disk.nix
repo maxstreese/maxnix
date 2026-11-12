@@ -19,6 +19,7 @@
   pkgs,
   disko,
   preservation,
+  bootvine,
 }:
 disko.lib.testLib.makeDiskoTest {
   inherit pkgs;
@@ -63,6 +64,13 @@ disko.lib.testLib.makeDiskoTest {
         };
         environment.etc."restic-test-password".text = "not-a-real-password";
       }
+
+      # The boot console the desktop role gives the real machine. Here
+      # because this is the one suite that boots through a passphrase prompt,
+      # and bootvine takes that prompt over from systemd's own: whether the
+      # disk still unlocks through it shows nowhere else before install day.
+      bootvine.nixosModules.default
+      ../modules/desktop/boot-console.nix
     ];
   };
 

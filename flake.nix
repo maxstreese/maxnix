@@ -31,6 +31,16 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # bootvine — the boot console as a live tree of systemd's pending units,
+    # in place of the scrolling text; it also answers the LUKS prompt. Pinned
+    # to a release tag, not a branch: it runs as root in the initrd and takes
+    # the disk passphrase, so lock file maintenance must not move it unread.
+    # Its flake offers a Cachix cache, deliberately not taken; it builds here.
+    bootvine = {
+      url = "git+https://codeberg.org/wvhulle/bootvine?ref=refs/tags/v0.1.3";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     home-manager = {
       url = "github:nix-community/home-manager";
       # Without this you evaluate two different nixpkgs, which bloats the
@@ -122,6 +132,7 @@
         desktop = [
           ./modules/desktop
           inputs.dank-greeter.nixosModules.default
+          inputs.bootvine.nixosModules.default
         ];
         # GUI apps that need a display but not niri (1Password so far). The
         # desktop role imports it itself; a host without the desktop role
@@ -431,7 +442,7 @@
         # boots. See ./tests/disk.nix for why that is a separate claim.
         metal-boots = import ./tests/disk.nix {
           inherit pkgs;
-          inherit (inputs) disko preservation;
+          inherit (inputs) disko preservation bootvine;
         };
 
         # install-maxnix, the installer USB's script (hosts/installer): its
