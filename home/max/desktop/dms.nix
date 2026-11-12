@@ -172,7 +172,7 @@ in
     zbar # QR scanning (zbarimg)
   ])
   # `dcal`, for the calendar's accounts; its daemon is the service below.
-  ++ [ pkgs.dankcalendar ];
+  ++ [ pkgs.dux-calendar ];
 
   programs.dank-material-shell = {
     enable = true;
@@ -243,7 +243,7 @@ in
       PartOf = [ "graphical-session.target" ];
     };
     Service = {
-      ExecStart = "${pkgs.dankcalendar}/bin/dcal run --session --hidden";
+      ExecStart = "${pkgs.dux-calendar}/bin/dcal run --session --hidden";
       Restart = "on-failure";
       RestartSec = 2;
       Slice = "app.slice";
