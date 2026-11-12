@@ -175,6 +175,36 @@
       # it would only copy files up into the guest's disk.
       nix.optimise.automatic = lib.mkForce false;
 
+      # No scheduled collection either, for the same reason. The collector
+      # treats every entry in /nix/store that the guest's database does not
+      # know as garbage and deletes it recursively, and through the overlay
+      # that is nearly all of the host's store. 2026-11-12: the Monday run
+      # caught up three minutes after boot and virtiofsd ended with 523,682
+      # fds, 514,698 of them under the 26,993 store paths outside the VM's
+      # own 2,148-path closure; the session came up grey. What it "frees" is
+      # the host's, so each deletion only writes a whiteout into the
+      # overlay's upper layer, and that is a tmpfs: whatever the guest adds
+      # to its store is gone at the next boot anyway.
+      nix.gc.automatic = lib.mkForce false;
+
+      # No sleep in the VM. The kernel cannot suspend a virtio-fs device
+      # ("virtio-fs: suspend/resume not yet supported", -EOPNOTSUPP), so with
+      # the store shared that way every attempt fails, and the failed attempt
+      # is not harmless: 2026-11-12, DMS's idle timer (acSuspendTimeout, 600 s)
+      # ran `systemctl suspend`, both the deep and the s2idle try were
+      # refused, and afterwards virtio-gpu never completed another commit
+      # (kworker stuck in drm_atomic_helper_wait_for_fences, screenshots
+      # hung) until the VM was restarted. Refusing the verbs in logind makes
+      # the request fail before the kernel starts freezing devices. The idle
+      # timer itself stays as it is: it is the machine's, and on metal
+      # suspend is the point.
+      systemd.sleep.settings.Sleep = {
+        AllowSuspend = lib.mkForce "no";
+        AllowHibernation = lib.mkForce "no";
+        AllowHybridSleep = lib.mkForce "no";
+        AllowSuspendThenHibernate = lib.mkForce "no";
+      };
+
       # The VM's sops key, on the /home disk so a root reset keeps it. A full
       # reset (deleting .vm/home.qcow2) loses it; `nix run .#vm-restore-key`
       # puts it back from 1Password. Root-only: install -m 600 as root.
