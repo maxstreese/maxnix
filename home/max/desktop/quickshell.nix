@@ -1,6 +1,6 @@
 # Our own Quickshell config — the scratchpad, not the desktop.
 #
-# DankMaterialShell is the shell this machine actually runs (../max/dms.nix),
+# Dux Modular Shell is the shell this machine actually runs (../max/dms.nix),
 # and it is a Quickshell program. Writing our own was the original reason
 # Quickshell was on the list; this is where that starts, with DMS still doing
 # the real work and this running only when asked.

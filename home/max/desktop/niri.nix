@@ -47,7 +47,7 @@ let
     spawn = argv;
   };
 
-  # A DankMaterialShell action: a short-lived `dms ipc` call that talks to the
+  # A Dux Modular Shell action: a short-lived `dms ipc` call that talks to the
   # already-running shell.
   dms =
     title: words:
@@ -178,7 +178,7 @@ in
         ];
         "Mod+D" = command "Run an Application" [ "fuzzel" ];
 
-        # ── DankMaterialShell ──────────────────────────────────────────────
+        # ── Dux Modular Shell ──────────────────────────────────────────────
         #
         # Reproduced from inputs.dms.homeModules.niri, which we cannot import
         # (see ./dms.nix). Upstream's keys, except two that collide with

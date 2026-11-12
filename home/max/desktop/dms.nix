@@ -1,4 +1,4 @@
-# DankMaterialShell — a Quickshell-based desktop shell.
+# Dux Modular Shell — a Quickshell-based desktop shell.
 #
 # This fills the gap the compositor leaves: niri draws windows and nothing
 # else, so out of the box there is no bar, no launcher, no notification
@@ -219,13 +219,13 @@ in
     enableVPN = false;
     # The audio visualiser, through cava. In the VMs it has no sound to show.
     enableAudioWavelength = true;
-    # Not khal: the calendar comes from DankCalendar (below), which DMS
+    # Not khal: the calendar comes from Dux Calendar (below), which DMS
     # prefers whenever it is running, and which syncs Google itself — khal
     # would need a separate sync to have anything to read.
     enableCalendarEvents = false;
   };
 
-  # DankCalendar, the calendar DMS reads: Google accounts synced through
+  # Dux Calendar, the calendar DMS reads: Google accounts synced through
   # Google's own API, events in DMS's calendar card, and new ones created
   # from it. Its daemon runs with the graphical session, like the unit it
   # ships — declared here rather than system-wide so it starts for max alone,
@@ -238,7 +238,7 @@ in
   # 1Password (README, "Decisions, and why").
   systemd.user.services.dcal = {
     Unit = {
-      Description = "Dank Calendar";
+      Description = "Dux Calendar";
       After = [ "graphical-session.target" ];
       PartOf = [ "graphical-session.target" ];
     };

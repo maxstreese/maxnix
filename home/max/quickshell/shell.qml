@@ -1,6 +1,6 @@
 // A scratchpad for learning Quickshell, and the thing `qs-dev` runs.
 //
-// This is not the desktop shell: DankMaterialShell is (see ../dms.nix), and it
+// This is not the desktop shell: Dux Modular Shell is (see ../dms.nix), and it
 // runs from its own systemd service. Nothing starts this file automatically —
 // `programs.quickshell.systemd.enable` is false and `activeConfig` is null — so
 // it only appears when you ask for it, and it cannot fight DMS for the screen.

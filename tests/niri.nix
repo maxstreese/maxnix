@@ -236,7 +236,7 @@ in
               "niri enumerated no output:\n" + outputs
           )
 
-      with subtest("niri starts the DankMaterialShell service"):
+      with subtest("niri starts the Dux Modular Shell service"):
           # DMS is started from the session target, not by a spawn line in the
           # compositor config, so this also checks that the compositor actually
           # reaches graphical-session.target.
@@ -244,8 +244,8 @@ in
               "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 systemctl --user is-active dms'"
           )
 
-      with subtest("niri gives DMS its calendar from DankCalendar"):
-          # ../home/max/desktop/dms.nix: DankCalendar's daemon starts with the
+      with subtest("niri gives DMS its calendar from Dux Calendar"):
+          # ../home/max/desktop/dms.nix: Dux Calendar's daemon starts with the
           # session, and DMS — which prefers it over khal, deliberately not
           # installed — connects to its socket. DMS looks for a calendar only
           # once one is shown, not at start: in the VM the handshake came the
@@ -303,7 +303,7 @@ in
       machine.log(units)
 
       # 3000 sits well above a bare compositor with one terminal (measured
-      # 533-545) and well below DankMaterialShell once it has drawn its bar
+      # 533-545) and well below Dux Modular Shell once it has drawn its bar
       # and wallpaper (~6500). So this asserts the whole stack is on screen,
       # not merely that the compositor is not black.
       wait_for_rich_screen(machine, "niri-session", minimum=3000)

@@ -7,7 +7,7 @@
 # login screen — a property that was genuinely useful while we were fighting
 # virgl in steps 2 and 3.
 #
-# Dank Greeter gives that up. It is a Quickshell UI, so it needs a Wayland
+# DMS Greeter gives that up. It is a Quickshell UI, so it needs a Wayland
 # compositor to host it and therefore needs working GL. If the GPU setup ever
 # breaks, you now get no greeter at all rather than a text one.
 #
@@ -111,7 +111,7 @@ in
     # copy from pkgs.
     compositor.package = config.programs.niri.package;
 
-    # Track the user's DankMaterialShell palette, so the login screen and the
+    # Track the user's Dux Modular Shell palette, so the login screen and the
     # desktop are visibly the same thing rather than two Material themes that
     # happen to be adjacent.
     #
@@ -163,7 +163,7 @@ in
   # greeter would never appear. ../desktop/default.nix no longer sets one.
   #
   # Consequences of dropping tuigreet, so they are not a surprise:
-  #   --power-shutdown / --power-reboot   Dank Greeter has its own power menu
+  #   --power-shutdown / --power-reboot   DMS Greeter has its own power menu
   #   --greeting / --asterisks            styled by the greeter instead
   #   --sessions                          the module discovers sessions itself
   #     from services.displayManager.sessionPackages

@@ -52,7 +52,7 @@
   def wait_for_rich_screen(machine, name, minimum, timeout=120):
       """Capture repeatedly until the screen has at least `minimum` colours.
 
-      A fixed sleep does not work for this. DankMaterialShell takes tens of
+      A fixed sleep does not work for this. Dux Modular Shell takes tens of
       seconds to generate its theme and draw its bar — measured at 545 colours
       shortly after its service goes active, and ~6500 once it has actually
       rendered. So "the service is active" is not "the shell is on screen", and

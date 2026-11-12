@@ -1,4 +1,4 @@
-# The user layer's desktop half: niri's config, DankMaterialShell and
+# The user layer's desktop half: niri's config, Dux Modular Shell and
 # Quickshell, the terminal, Firefox and the desktop applications. Imported by
 # the desktop role (../../../modules/desktop/default.nix), on top of ../core.
 { lib, pkgs, ... }:

@@ -392,7 +392,7 @@ in
           assert "OK: hardware-accelerated" in gpu, "no hardware acceleration:\n" + gpu
 
       with subtest("the greeter renders"):
-          # Dank Greeter is a Quickshell UI hosted in niri, so this is a real
+          # DMS Greeter is a Quickshell UI hosted in niri, so this is a real
           # graphical screen: measured at ~5300-5700 colours once drawn, and
           # exactly 1 before that. The old tuigreet greeter was a text console
           # drawing in three colours, which is why this check used to assert

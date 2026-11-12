@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-A declarative NixOS machine (niri, DankMaterialShell/Quickshell on top), currently staged as a VM on an Ubuntu host and meant to become the real metal install. `README.md` is long and load-bearing: its "Decisions, and why", "Findings worth keeping", "Tests" and "Open points" sections record things that cost real time to discover. Read the relevant section before changing behaviour in that area.
+A declarative NixOS machine (niri, Dux Modular Shell/Quickshell on top), currently staged as a VM on an Ubuntu host and meant to become the real metal install. `README.md` is long and load-bearing: its "Decisions, and why", "Findings worth keeping", "Tests" and "Open points" sections record things that cost real time to discover. Read the relevant section before changing behaviour in that area.
 
 ## Commands
 

@@ -51,7 +51,7 @@
       noto-fonts
       dejavu_fonts
 
-      # For DankMaterialShell. Its Nix modules handle no fonts at all —
+      # For Dux Modular Shell. Its Nix modules handle no fonts at all —
       # checked, there is not a single font reference in them — and a Material
       # shell without Material Symbols draws every icon as an empty box. Inter
       # is the typeface the design language assumes.
@@ -89,7 +89,7 @@
   # pam_gnome_keyring into the `login` PAM service whenever this daemon is
   # enabled, and greetd's PAM service is a substack of `login` (greetd sets
   # useDefaultRules = false and delegates every phase to it). So the password
-  # typed into Dank Greeter unlocks the keyring.
+  # typed into DMS Greeter unlocks the keyring.
   #
   # Do NOT set security.pam.services.greetd.enableGnomeKeyring: greetd
   # replaces its rules wholesale, so that option renders nothing — it was

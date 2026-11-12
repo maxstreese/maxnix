@@ -4,10 +4,10 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
-    # DankMaterialShell — a Quickshell-based desktop shell. Not in nixpkgs;
-    # "stable" is upstream's release branch (drop the suffix for master).
-    # Since 2.0 (2026-10-20) it is Dux Labs' dux-shell; AvengeMedia's URLs
-    # still redirect, but upstream asks packagers to move.
+    # Dux Modular Shell (DMS) — a Quickshell-based desktop shell. Not in
+    # nixpkgs; "stable" is upstream's release branch (drop the suffix for
+    # master). Until 2.0 (2026-10-20) it was AvengeMedia's DankMaterialShell;
+    # those URLs still redirect, but upstream asks packagers to move.
     dms = {
       url = "github:duxlabs-dev/dux-shell/stable";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -22,7 +22,7 @@
       flake = false;
     };
 
-    # Dank Greeter — the graphical login screen matching DMS. It lives in its
+    # DMS Greeter — the graphical login screen matching DMS. It lives in its
     # own repo; the DMS flake's nixosModules.greeter is now only a deprecation
     # warning pointing here. Renamed dux-greeter with DMS 2.0; the input keeps
     # its old name, which nothing outside this file would gain from changing.
@@ -1246,7 +1246,7 @@
               echo "  desktop:  the guest has a GPU with working virgl" >&2
               echo "  desktop:  the greeter renders" >&2
               echo "  niri:     drives the virtual display" >&2
-              echo "  niri:     starts the DankMaterialShell service" >&2
+              echo "  niri:     starts the Dux Modular Shell service" >&2
               echo "  niri:     renders a client window" >&2
               echo "  niri:     the session renders a rich screen" >&2
               echo >&2
