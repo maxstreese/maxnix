@@ -749,9 +749,13 @@ covered here. Three details in it are load-bearing:
   rewritten to malicious commits in March 2025. The `lint` check runs
   `actionlint` over the workflow, which also shellchecks every `run:` block.
 - **`install_url` pins Nix itself.** Pinning the action's SHA pins the
-  installer *script*, not the Nix it fetches at run time. The URL names
-  2.34.8, matching `nix --version` here, so both environments run the same
-  Nix.
+  installer *script*, not the Nix it fetches at run time. Both are written
+  once, in `.github/actions/install-nix/action.yml`, a local action the three
+  workflows that install Nix share. Renovate keeps the version on upstream's
+  latest release (github-tags of NixOS/nix, read out of the URL by a regex
+  manager) in the weekly "Update CI" PR. Until 2026-11-14 each workflow named
+  the version by hand, to match the developing machine's Nix, and nothing
+  moved it: it sat on 2.34.8 a month past the security fixes in 2.34.9.
 - **Freeing disk is required, not an optimisation.** The guest closure is
   12.5 GiB and a runner has roughly 14 GB free.
 

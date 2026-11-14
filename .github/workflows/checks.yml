@@ -48,24 +48,18 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Upstream Nix, pinned to the version this repo is developed against.
-      #
-      # Pinning the action's SHA pins the installer *script*, not the Nix it
-      # installs — the script resolves a release at run time. `install_url`
-      # is what actually pins the version, and it is set to match the local
-      # `nix --version` so the two environments run the same Nix.
+      # Upstream Nix, pinned to a release: which one, and how it is kept
+      # current, is in ../actions/install-nix/action.yml.
       #
       # enable_kvm defaults to true and is named anyway: the VM suites are
       # three real QEMU boots, and losing acceleration silently would turn a
       # twenty-minute job into a timeout.
-      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+      - uses: ./.github/actions/install-nix
         with:
-          install_url: https://releases.nixos.org/nix/nix-2.34.8/install
           enable_kvm: true
           # nixos-test/kvm are what nixosTest derivations require to be
           # schedulable at all; without them the VM suites are simply refused.
           extra_nix_config: |
             system-features = nixos-test benchmark big-parallel kvm
-            experimental-features = nix-command flakes
 
       - run: nix run .#ci

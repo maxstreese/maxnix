@@ -141,6 +141,20 @@
       ],
       "datasourceTemplate": "custom.grafana-dashboards",
       "versioningTemplate": "loose"
+    },
+    {
+      // The Nix release the workflows install, read straight out of the
+      // installer URL in the one action they share. No annotation comment
+      // and no variable: a composite action has no `env:` of its own to
+      // hang one on, and the URL already says everything.
+      "customType": "regex",
+      "description": "The Nix release CI installs",
+      "managerFilePatterns": ["/^\\.github/actions/install-nix/action\\.yml$/"],
+      "matchStrings": [
+        "releases\\.nixos\\.org/nix/nix-(?<currentValue>\\d+\\.\\d+\\.\\d+)/install"
+      ],
+      "depNameTemplate": "NixOS/nix",
+      "datasourceTemplate": "github-tags"
     }
   ],
 
@@ -186,8 +200,9 @@
       "recreateWhen": "always"
     },
     {
-      // Everything pinned in a workflow file: action SHAs, Renovate's own
-      // image, any other tool version. None of it can change what the machine
+      // Everything pinned in a workflow file or in a local action they share
+      // (.github/actions): action SHAs, Renovate's own image, the Nix
+      // release, any other tool version. None of it can change what the machine
       // is built from, only the pipeline, so it is read differently from a
       // version bump and need not be current to the day. Matched by file so a
       // pin added later is covered whichever manager finds it (the image comes
@@ -208,8 +223,8 @@
       // every update type: the image alone, in a group then named "renovate",
       // came out as a second "Update dependencies" beside the action bump in
       // the first (PRs #56 and #57, 2026-11-09). This one is "Update CI".
-      "description": "Workflow pins weekly, in their own PR",
-      "matchFileNames": [".github/workflows/**"],
+      "description": "Workflow and action pins weekly, in their own PR",
+      "matchFileNames": [".github/workflows/**", ".github/actions/**"],
       "groupName": "ci",
       "commitMessageTopic": "CI",
       // For automerge, as in the rule above.

@@ -1,0 +1,41 @@
+# Upstream Nix, pinned to a release, for every workflow here.
+#
+# One place for it because three workflows install Nix (checks, closure-diff,
+# blocked) and each carried its own copy of the action pin and the version.
+# A local action needs the repository checked out first, which all three do
+# anyway.
+#
+# Pinning cachix/install-nix-action's SHA pins the installer *script*, not
+# the Nix it installs — the script resolves a release at run time.
+# `install_url` is what actually pins the version. Renovate keeps both
+# current, in the weekly "Update CI" PR: the SHA through its github-actions
+# manager, the version through a regex manager that reads it out of the URL
+# (renovate.jsonc). A release whose installer does not work fails that PR's
+# own run, so it is not merged.
+#
+# Until 2026-11-14 the version was written into each workflow by hand, to
+# match the Nix on the machine this repo was developed on, and nothing moved
+# it: it sat on 2.34.8 a month past the security fixes in 2.34.9.
+name: Install Nix
+description: Install the pinned upstream Nix release, with flakes enabled
+
+inputs:
+  enable_kvm:
+    description: Give the runner user access to /dev/kvm
+    # The wrapped action's own default, kept so a caller that says nothing
+    # behaves as it did before this file existed.
+    default: "true"
+  extra_nix_config:
+    description: Lines for nix.conf, after the experimental-features one
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+      with:
+        install_url: https://releases.nixos.org/nix/nix-2.35.6/install
+        enable_kvm: ${{ inputs.enable_kvm }}
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          ${{ inputs.extra_nix_config }}
