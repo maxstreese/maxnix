@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Recomputes the hash in home/max/core/aoe.json from the version in it.
+# Renovate runs this after bumping the version there (see the
+# postUpgradeTasks in renovate.jsonc); by hand it is the same command.
+#
+# Nothing but Nix, as in renovate-pypi-rehash: the Renovate container has nix
+# and little else. --impure because builtins.fetchurl without a hash is
+# exactly the point here. The URL is the one home/max/core/aoe.nix fetches.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+file=home/max/core/aoe.json
+export NIX_CONFIG="extra-experimental-features = nix-command"
+
+# The expression is Nix, single-quoted so the shell leaves its ${…} alone.
+# shellcheck disable=SC2016
+nix eval --impure --json --expr '
+  let
+    pin = builtins.fromJSON (builtins.readFile ./'"$file"');
+    tarball =
+      "https://github.com/agent-of-empires/agent-of-empires/releases/download/"
+      + "v${pin.version}/aoe-linux-amd64.tar.gz";
+  in
+  pin // {
+    hash = builtins.convertHash {
+      hash = builtins.hashFile "sha256" (builtins.fetchurl tarball);
+      hashAlgo = "sha256";
+      toHashFormat = "sri";
+    };
+  }
+' > "$file.new"
+mv "$file.new" "$file"

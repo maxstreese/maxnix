@@ -18,6 +18,7 @@
     ./git.nix
     ./dev.nix
     ./harlequin.nix
+    ./aoe.nix
     ./claude.nix
   ];
 

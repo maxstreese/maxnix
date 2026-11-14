@@ -89,7 +89,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | apps | Spotify, Slack, Discord, Claude Code — each signs in once via the browser |
 | games | Steam, as a system module: it needs the 32-bit graphics stack and controller udev rules |
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
-| dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf, gh, awscli2, steampipe |
+| dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf, gh, awscli2, steampipe, aoe |
 | notebooks | none installed: `uvx marimo edit --sandbox nb.py` per notebook, dependencies declared inline; plain `python3` and uv are in the profile |
 | git config | identity, aliases, ignores and SSH commit signing declared in Home Manager |
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
@@ -566,6 +566,22 @@ fixes it: systemd's generator expands `${XDG_RUNTIME_DIR}` there, and the
 manager then has the variable. Two smaller traps from the same test: a user
 unit's PATH has no `sh`, and a published port being unreachable proves
 nothing without the control that opening the firewall makes it reachable.
+
+**A package taken from its own flake is compiled on every CI run.** Such a
+flake is a build recipe, and its result is only reused where it already
+exists: in the local store, or in a cache this machine trusts, which is
+cache.nixos.org and so only what nixpkgs builds. A GitHub runner starts
+empty. Twice that was most of CI. aoe's Rust build took runs from about 20
+minutes to 54 and 59 (2026-10-02 to 10-06). bootvine's, also Rust, was a
+ten-minute silent stretch and some 400 extra derivations in the log; taking
+it from nixpkgs on 2026-11-14 cut the phase that builds what no cache serves
+from about 29 minutes to 9. Locally the cost is smaller and still real: an
+input that follows nixpkgs is rebuilt at every lock refresh. The two ways
+out are the package from nixpkgs once it has one (bootvine), or upstream's
+release binary, pinned by hash and patched for the store (aoe,
+`home/max/core/aoe.nix`), which nixpkgs itself does for much of what is in
+this closure. What is left compiling per run is the Dux shell, greeter and
+their Quickshell, four to five minutes.
 
 **DMS has a policy file for the lock settings, which is how they can be
 declared without owning `settings.json`.** `dms run` reads

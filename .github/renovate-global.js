@@ -26,6 +26,7 @@ module.exports = {
   allowedCommands: [
     "^nix --extra-experimental-features nix-command --extra-experimental-features flakes flake lock$",
     "^scripts/renovate-pypi-rehash$",
+    "^scripts/renovate-aoe-rehash$",
     "^scripts/renovate-grafana-rehash$",
   ],
 };

@@ -143,6 +143,18 @@
       "versioningTemplate": "loose"
     },
     {
+      // aoe, installed from upstream's release binary (home/max/core/aoe.nix).
+      // Release tags are v1.2.3 and the file holds 1.2.3, hence
+      // extractVersion.
+      "customType": "regex",
+      "description": "aoe pinned from its GitHub releases",
+      "managerFilePatterns": ["/(^|/)home/max/core/aoe\\.json$/"],
+      "matchStrings": ["\"version\":\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "agent-of-empires/agent-of-empires",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
       // The Nix release the workflows install, read straight out of the
       // installer URL in the one action they share. No annotation comment
       // and no variable: a composite action has no `env:` of its own to
@@ -266,6 +278,17 @@
       "postUpgradeTasks": {
         "commands": ["scripts/renovate-pypi-rehash"],
         "fileFilters": ["home/max/core/harlequin-adapters.json"],
+        "installTools": { "nix": {} },
+        "executionMode": "update"
+      }
+    },
+    {
+      // And for aoe: a new version is a new tarball.
+      "description": "Rehash after an aoe bump",
+      "matchFileNames": ["home/max/core/aoe.json"],
+      "postUpgradeTasks": {
+        "commands": ["scripts/renovate-aoe-rehash"],
+        "fileFilters": ["home/max/core/aoe.json"],
         "installTools": { "nix": {} },
         "executionMode": "update"
       }

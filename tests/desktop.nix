@@ -191,6 +191,10 @@ in
                   # Plain Python, and uv, which is what a scratch notebook
                   # runs through (`uvx marimo edit --sandbox`).
                   "python3", "uv",
+                  # aoe, from upstream's release binary. On PATH proves only
+                  # the link; that the patched binary runs is its own
+                  # installCheck (../home/max/core/aoe.nix).
+                  "aoe",
                   # `,` and nix-locate. Asserted by name because the whole
                   # point is that they are on PATH without being thought
                   # about; a silently missing `,` just looks like a typo.
