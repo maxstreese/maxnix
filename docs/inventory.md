@@ -62,7 +62,7 @@ later is the same collection; the counts below will have moved.
 
 From before the inventory: git, gh, delta, fzf, direnv, kubectl, awscli2,
 steampipe, duckdb, scala, claude-code, 1Password and `op`, Twingate, Docker
-(rootless), marimo, ghostty, Firefox, Slack, Discord, Spotify, Steam,
+(rootless), ghostty, Firefox, Slack, Discord, Spotify, Steam,
 Wootility, htop, osquery, vim, comma.
 
 From the inventory (2026-10-01), marked ✓ in the tables: the everyday CLI in
@@ -158,7 +158,7 @@ or IDEs rather than typed, which history cannot see.
 | Altair, GitButler, Unity Hub | installed | all present | ? |
 | OBS, GIMP | installed | both present | U ✓ |
 | Flameshot | installed | present | X — X11; niri and DMS have screenshots |
-| JupyterLab desktop | installed | missing | X — marimo is here |
+| JupyterLab desktop | installed | missing | X — marimo, per notebook through uv |
 | Emacs, WezTerm | installed | both present | X — nvim and ghostty won |
 
 ## System services on the host

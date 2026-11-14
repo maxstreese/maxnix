@@ -35,12 +35,10 @@
 
   # Per-project environments, entered by cd-ing into the directory.
   #
-  # This is where the marimo question ends up. That package sits in a
-  # python3.withPackages environment at user level because a notebook has to
-  # be able to import polars and duckdb — a reasonable default, and the wrong
-  # place for a project's actual dependencies. With direnv, a project carries
-  # a flake and an .envrc, and its Python is whatever that flake says rather
-  # than whatever this file happens to install.
+  # A project carries a flake and an .envrc, and its toolchain is whatever
+  # that flake says rather than whatever this file happens to install. That
+  # goes for data work too: there is no machine-wide Python environment with
+  # polars and the like in it (README "Decisions, and why", notebooks).
   #
   # nix-direnv rather than bare direnv for two reasons. It caches the
   # evaluated environment, so re-entering a directory is instant instead of a
@@ -81,7 +79,9 @@
       all_compile = false;
 
       # The self-update nag, which can never be acted on for a Nix-installed
-      # mise — see the marimo note at the end of this file.
+      # mise: the store path is immutable and the version is whatever the
+      # pinned nixpkgs carries. This goes for any Nix-installed tool with a
+      # self-update check. Silence them rather than chase them.
       disable_update_warning = true;
     };
   };
@@ -115,52 +115,10 @@
     # here.
     steampipe
 
-    # ── marimo, in a Python that can actually import things ──────────────
-    #
-    # marimo is a reactive Python notebook; `marimo edit foo.py` opens it in
-    # the browser (Firefox, per ../desktop/firefox.nix).
-    #
-    # It comes from a python3.withPackages environment rather than the bare
-    # `marimo` package, and that is the whole point. The bare package is
-    # wrapped with a *closed* PYTHONPATH: marimo's own runtime dependencies
-    # and nothing else, no polars, no pandas, and no pip to add any. A
-    # notebook doing `import polars` fails, and installing polars elsewhere
-    # in the profile changes nothing. A global marimo that cannot import
-    # anything is a trap dressed as a convenience.
-    #
-    # So the library set is declared here, built for this machine, and shared
-    # by the notebook and a plain `python3` shell. Adding one is an edit and
-    # a rebuild. nixpkgs also has pandas, matplotlib, plotly and
-    # scikit-learn.
-    #
-    # ── If a notebook needs something nixpkgs lacks ──────────────────────
-    #
-    # `marimo edit --sandbox` reads PEP 723 inline metadata from the notebook
-    # and resolves it with uv, which is not installed here. Adding uv is not
-    # enough on its own: uv downloads its own CPython, a generic-linux binary
-    # this distribution cannot execute. Two ways round that, both verified in
-    # the guest:
-    #
-    #   UV_PYTHON=${python3}/bin/python3 with UV_PYTHON_DOWNLOADS=never, so
-    #     uv never fetches an interpreter. Nothing global changes.
-    #   programs.nix-ld.enable, which puts a stub loader at /lib64 for every
-    #     process on the machine.
-    #
-    # The first keeps the impurity out of this environment, so prefer it.
-    # nix-ld is on now anyway, for the work repos' mise toolchains, but a
-    # notebook here should not depend on it.
-    (python3.withPackages (
-      ps: with ps; [
-        marimo
-
-        # What the notebooks are for.
-        polars
-        duckdb
-        pyarrow
-        altair
-        numpy
-      ]
-    ))
+    # Plain Python, for one-liners and scripts. No libraries on purpose: a
+    # project's Python and its packages come from the project (direnv above),
+    # and a scratch notebook brings its own through uv (below).
+    python3
 
     # `scala` is Scala 3 (3.9 here; `scala_3` is the same derivation), and
     # brings scalac and scaladoc with it. No JDK alongside: the wrapper
@@ -222,9 +180,16 @@
     trino-cli
     visualvm
 
-    # uv. Its downloaded CPython runs since nix-ld is on (work repos' uv
-    # scripts pin their own Python); for my own use, point it at a Nix
-    # Python instead, as the marimo note above describes.
+    # uv. Its downloaded CPython is a generic-linux binary and runs because
+    # nix-ld is on (../../../modules/base/nix-ld.nix); work repos' uv scripts
+    # pin their own Python that way.
+    #
+    # It is also how a scratch notebook runs: `uvx marimo edit --sandbox
+    # nb.py` resolves the dependencies the notebook declares inline (PEP 723)
+    # into an environment of its own. Not set globally: UV_PYTHON, which
+    # would override the Python a work repo pins. A project of my own that
+    # wants a Nix Python sets UV_PYTHON and UV_PYTHON_DOWNLOADS=never in its
+    # flake.
     uv
 
     # DBeaver Community, the database GUI. Free (Apache-2.0), so no
@@ -291,21 +256,4 @@
     age
     betterleaks
   ];
-
-  # marimo checks PyPI on startup and nags when it is behind. On a
-  # Nix-installed package that advice is unusable: the store path is
-  # immutable, there is no pip, and the version is whatever the pinned
-  # nixpkgs carries — today 0.24.0 against 0.24.2 upstream, and nixpkgs
-  # master has 0.24.0 too, so the lag is nixpkgs', not this repo's. It
-  # closes when nixpkgs' updater bot bumps it and `nix flake update` picks
-  # it up.
-  #
-  # This generalises: any Nix-installed tool with a self-update check will
-  # nag forever, because the action it asks for cannot be taken. Silence
-  # them rather than chase them.
-  #
-  # The variable that silences it is NOT here, and not a home.sessionVariables
-  # entry either, because that option only reaches login shells. It is set at
-  # the system level in ../../../modules/base/default.nix, which is the
-  # one route that reaches a terminal inside the compositor.
 }
