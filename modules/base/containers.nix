@@ -41,13 +41,26 @@
 #
 # The package carries compose and buildx as CLI plugins, so `docker compose`
 # and `docker buildx` need nothing extra.
-_: {
+{ lib, ... }:
+{
   virtualisation.docker.rootless = {
     enable = true;
     # DOCKER_HOST=unix://$XDG_RUNTIME_DIR/docker.sock in login shells — a TTY
     # or an ssh session. Not enough on its own; see below.
     setSocketVariable = true;
   };
+
+  # Only for people. The daemon is a systemd *user* service wanted by
+  # default.target, so every user manager starts it, and the module excludes
+  # root alone. greetd's greeter is a system user with a user manager of its
+  # own and no subordinate uid range: there the daemon failed three times at
+  # every boot ("No subuid ranges found for user 998") and left a failed unit
+  # behind (seen 2026-11-14 in the desktop suite's log). `@system` is
+  # systemd's name for every system user, root included, so this replaces the
+  # module's "!root" rather than adding to it. A unit whose condition does not
+  # hold is skipped, not failed; ../../tests/desktop.nix asserts that for the
+  # greeter.
+  systemd.user.services.docker.unitConfig.ConditionUser = lib.mkForce "!@system";
 
   # DOCKER_HOST for everything else in the session, which is most of it.
   #

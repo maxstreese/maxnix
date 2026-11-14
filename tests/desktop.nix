@@ -370,6 +370,23 @@ in
           machine.succeed("faillock --user max --reset")
           for service in ["login", "dankshell"]:
               assert tries(service, "maxnix") == 0, f"{service}: still locked after a reset"
+
+      with subtest("rootless Docker is not started for the greeter"):
+          # ../modules/base/containers.nix: the daemon is a systemd user
+          # service, so every user manager is asked to start it, the
+          # greeter's included. That one has no subordinate uid range and can
+          # never run it. Here because this is the node with a greeter; max's
+          # own daemon is ./containers.nix's subject.
+          #
+          # default.target is ordered after what it wants, so once it is
+          # active the unit has either been skipped or has failed at least
+          # once. Skipped is `inactive`; a unit that failed is restarting or
+          # `failed`, never that.
+          machine.wait_until_succeeds(
+              "systemctl --user -M greeter@ is-active default.target", timeout=120)
+          state = machine.succeed(
+              "systemctl --user -M greeter@ show docker.service -p ActiveState -p NRestarts")
+          assert "ActiveState=inactive" in state and "NRestarts=0" in state, state
     ''
     # Everything past here looks at the screen, which needs a real GPU:
     # without virgl the greeter never draws and gpu-check reports no

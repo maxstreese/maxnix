@@ -555,6 +555,16 @@ manager then has the variable. Two smaller traps from the same test: a user
 unit's PATH has no `sh`, and a published port being unreachable proves
 nothing without the control that opening the firewall makes it reachable.
 
+**A systemd user service starts for every user manager, the greeter's
+included.** nixpkgs' rootless Docker is a user unit wanted by
+`default.target` and excludes only root. greetd's greeter is a system user
+with a user manager of its own and no subordinate uid range, so at every boot
+that shows a greeter the daemon failed three times there ("No subuid ranges
+found for user 998") and stayed `failed` (seen 2026-11-14 in the desktop
+suite's log; harmless, and in no test's way). `ConditionUser=!@system` in
+`modules/base/containers.nix` skips it for every system user, and the desktop
+suite asserts the greeter's unit is inactive with no restarts.
+
 **Orbit ignores SIGTERM until it has enrolled.** While it retries against a
 server it cannot reach, `systemctl stop orbit` sits out systemd's full 90 s
 default before the SIGKILL — and so does every shutdown, which is where it
@@ -632,7 +642,7 @@ The tiers come from one definition instantiated twice, differing only in a
 | --- | --- | --- |
 | `gpu` | `false` | `true` |
 | QEMU | `-device virtio-vga` | `-device virtio-vga-gl` + `egl-headless` + `-vnc` |
-| desktop | 10 subtests | 12 |
+| desktop | 11 subtests | 13 |
 | niri | 2 | 6 |
 | sandboxed | yes, and cached | no — needs `/sys`, see above |
 
