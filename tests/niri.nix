@@ -307,5 +307,39 @@ in
       # and wallpaper (~6500). So this asserts the whole stack is on screen,
       # not merely that the compositor is not black.
       wait_for_rich_screen(machine, "niri-session", minimum=3000)
+
+      with subtest("locking the screen is a real lock, and takes 1Password with it"):
+          user = "su max -c 'XDG_RUNTIME_DIR=/run/user/1000 "
+          # ../modules/desktop/lock-screen.nix: the policy file is only worth
+          # something if `dms run` hands it to the shell, so read it off the
+          # shell's own environment rather than off /etc.
+          policy = machine.succeed(
+              # `|| true`: a process that exits mid-scan makes grep report an
+              # error, and the driver runs this with pipefail.
+              "(grep -z -h '^DMS_POLICY_LOCK_SETTINGS=' /proc/[0-9]*/environ 2>/dev/null || true)"
+              " | tr '\\0' '\\n' | sort -u")
+          assert '"lockBeforeSuspend":true' in policy, policy
+          assert '"loginctlLockIntegration":true' in policy, policy
+
+          # ../home/max/desktop/lock.nix. The hint is what DMS sets once the
+          # lock surface is secure, so waiting for it is waiting for a lock
+          # that holds, not for the request to have been made.
+          locked = (
+              "for s in $(loginctl list-sessions --no-legend | awk '$3 == \"max\" {print $1}'); do "
+              "loginctl show-session $s -p LockedHint --value; done | grep -qx "
+          )
+          machine.wait_until_succeeds(user + "systemctl --user is-active lock-1password'", timeout=60)
+          machine.succeed(locked + "no")
+          machine.succeed(user + "dms ipc call lock lock'")
+          machine.wait_until_succeeds(locked + "yes", timeout=60)
+          # 1Password is installed and not running here, and saying so is the
+          # listener having seen the lock and reached the app's turn. That it
+          # locks a signed-in app is seen by hand: there is no account here.
+          machine.wait_until_succeeds(
+              "journalctl -b _SYSTEMD_USER_UNIT=lock-1password.service | grep -q 'screen locked: '",
+              timeout=60)
+          # And back, so a later subtest finds the session as this one did.
+          machine.succeed(user + "dms ipc call lock unlock'")
+          machine.wait_until_succeeds(locked + "no", timeout=60)
     '';
 }

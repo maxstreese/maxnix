@@ -7,6 +7,7 @@
     ./dms.nix
     ./quickshell.nix
     ./niri.nix
+    ./lock.nix
     ./firefox.nix
     ./ghostty.nix
     ./apps.nix

@@ -180,6 +180,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | power profiles | power-profiles-daemon, not TLP or tuned | decided 2026-10-14. DMS's power widget reads `org.freedesktop.UPower.PowerProfiles`, the interface power-profiles-daemon provides; TLP conflicts with it and DMS does not talk to it. Which driver it uses on this Ryzen shows only on the hardware (`powerprofilesctl`) |
 | calendar | Dux Calendar syncing Google itself, for the company and a personal account, each through an OAuth client of its own; not khal | decided 2026-10-15. DMS prefers Dux Calendar when it runs, and khal would need a separate sync (vdirsyncer) to have anything to read. Own clients rather than Dux Calendar's built-in one, so no third-party app reads company calendar data: the company one Internal in the existing Workspace project, the personal one in a project of the personal account, since an Internal client admits only the organisation's accounts |
 | failed logins | pam_faillock: 10 failures in 15 minutes lock an account for 10 minutes, root included; in `login` (consoles and greeter), `sudo`, `su`, `polkit-1` and the lock screen's `dankshell`; the count on `/persist` | decided 2026-10-14, when the TPM was to unlock the disk. Since the boot decision of 2026-10-15 (below) a cold boot stops at the LUKS passphrase, so this guards the lock screen of a laptop taken running or asleep; NIST SP 800-63B-4 asks for at most 100 failures, this is lenient enough for typos in a long passphrase. Root too, or a root login at the console would be the way around it; the emergency shell is unaffected, since `sulogin` does not use PAM. The lock screen gets a NixOS-built `/etc/pam.d/dankshell`, which DMS prefers over the `login` it ships without a lockout |
+| locking | DMS's lock screen; the lock comes before any suspend, and 1Password locks with the screen | decided 2026-11-14. Lock before suspend is DMS's own, off by default, and switched on through `/etc/dms/cli-policy.json` (`modules/desktop/lock-screen.nix`), DMS's file for lock settings an administrator sets: the shell shows them as managed, and the rest of its settings stay the UI's. Without it a closed lid could suspend with the session still on screen. 1Password is locked by a user service that runs `1password --lock` when logind's LockedHint turns true for max's session (`home/max/desktop/lock.nix`), which follows the bind, the idle timer and the lock before suspend alike, and does not rest on a setting inside the app. Not taken: unlocking over IPC or `loginctl unlock-session` stays possible (the same policy file could switch both off); they are open only to what already runs as max |
 | boot and login | one password at power-on: the LUKS passphrase, then greetd starts max's niri session (`initial_session`); no TPM unlock; the login keyring with an empty password | decided 2026-10-15, over typing a passphrase and then a password. Only someone who knows the passphrase gets past power-on, so the greeter added typing, not protection; the lock screen and sudo still take the login password. TPM unlock was dropped with it: together with autologin, the power button alone would open the session, and `modules/desktop/greeter.nix` refuses that combination. The keyring cannot be opened by the boot passphrase — greetd starts an autologin session without `pam_authenticate`, the step in which `pam_gnome_keyring` and `pam_systemd_loadkey` act (read in their sources) — so it has no password of its own, and LUKS protects its file. Metal only: VMs and test nodes have no LUKS and keep the greeter |
 | backups | restic, to Google Drive over rclone; VM only until install day | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
 | containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
@@ -566,6 +567,18 @@ manager then has the variable. Two smaller traps from the same test: a user
 unit's PATH has no `sh`, and a published port being unreachable proves
 nothing without the control that opening the firewall makes it reachable.
 
+**DMS has a policy file for the lock settings, which is how they can be
+declared without owning `settings.json`.** `dms run` reads
+`/etc/dms/cli-policy.json` at every start (and `/usr/share/dms/` before it)
+and hands `lock_settings` to the shell as `DMS_POLICY_LOCK_SETTINGS`; the
+shell treats those keys as managed and leaves them out of what it saves. Only
+a fixed list of keys is accepted, all about locking: `lockBeforeSuspend`,
+`loginctlLockIntegration`, the lock timeouts, the fade and the fingerprint and
+U2F switches (`core/internal/clipolicy` in dux-shell 2.1, read 2026-11-14). A
+key outside the list is ignored with a warning, and a file that does not parse
+manages nothing and turns every restriction switch on. `lockBeforeSuspend`
+defaults to off.
+
 **A systemd user service starts for every user manager, the greeter's
 included.** nixpkgs' rootless Docker is a user unit wanted by
 `default.target` and excludes only root. greetd's greeter is a system user
@@ -654,7 +667,7 @@ The tiers come from one definition instantiated twice, differing only in a
 | `gpu` | `false` | `true` |
 | QEMU | `-device virtio-vga` | `-device virtio-vga-gl` + `egl-headless` + `-vnc` |
 | desktop | 11 subtests | 13 |
-| niri | 2 | 6 |
+| niri | 3 | 8 |
 | sandboxed | yes, and cached | no — needs `/sys`, see above |
 
 The portable tier is everything that does not look at the screen. It is not a
@@ -1230,7 +1243,9 @@ After:
     "Calendar accounts are added by hand"); Fleet enrolls and the backup
     runs by themselves — check both.
 12. What only the hardware shows: brightness (`acpi_backlight=native` if it
-    does not work), suspend, `powerprofilesctl`, `fwupdmgr get-updates`,
+    does not work), suspend, that a closed lid comes back to the lock screen
+    and not to the session, that locking the screen locks a signed-in
+    1Password, `powerprofilesctl`, `fwupdmgr get-updates`,
     and whether hibernation is worth adding (see the swap decision). Also
     the weekly firmware check (`hosts/t14s/laptop.nix`), which the VM can
     only run against stand-ins: `systemctl --user start firmware-check`
