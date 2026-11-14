@@ -9,12 +9,14 @@
 # correctly built Nix programs started from it are unaffected.
 #
 # This reverses part of an earlier decision (README "Decisions, and why").
-# For my own projects the answer is still a flake per project, and uv for
-# marimo is still pointed at a Nix Python (../../home/max/core/dev.nix). What
-# changed is the work repos: they pin their toolchains in mise.toml, mise
+# For my own projects the answer is still a flake per project. What changed
+# is the work repos: they pin their toolchains in mise.toml, mise
 # downloads upstream builds, and those repos are not mine to convert to
 # flakes. The cost is that an undeclared binary no longer fails loudly; it
 # runs, outside anything Nix can see, roll back or collect.
+#
+# Since 2026-11-14 a scratch notebook leans on it too: `uvx marimo` runs on
+# the CPython uv downloads (../../home/max/core/dev.nix, at uv).
 #
 # In base rather than desktop because the work repos are used under WSL too,
 # where VS Code's remote server needs the same shim.

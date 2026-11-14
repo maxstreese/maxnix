@@ -186,8 +186,11 @@ in
                   # duckdb/kubectl/scala are the dev tools; delta is git's
                   # pager and fzf backs its `cleanup` alias, so a missing one
                   # of those two breaks git itself.
-                  "duckdb", "kubectl", "scala", "marimo", "delta", "fzf",
+                  "duckdb", "kubectl", "scala", "delta", "fzf",
                   "gh", "aws", "steampipe",
+                  # Plain Python, and uv, which is what a scratch notebook
+                  # runs through (`uvx marimo edit --sandbox`).
+                  "python3", "uv",
                   # `,` and nix-locate. Asserted by name because the whole
                   # point is that they are on PATH without being thought
                   # about; a silently missing `,` just looks like a typo.
@@ -199,12 +202,6 @@ in
               user=True,
           )
 
-          # The point of installing marimo inside a python3.withPackages
-          # environment rather than bare: a notebook can import the data
-          # libraries. The bare package cannot, and fails only at run time.
-          machine.succeed(
-              "su - max -c 'python3 -c \"import marimo, polars, duckdb, altair, pyarrow, numpy\"'"
-          )
           # direnv being on PATH says nothing about it being hooked into the
           # shell, and a direnv that never fires is indistinguishable from an
           # absent one. Both halves are asserted: the function that makes
@@ -266,11 +263,6 @@ in
           # The 1Password agent must be told which account a vault lives in;
           # both accounts have a vault called Private.
           machine.succeed("grep -q '^account = ' /home/max/.config/1Password/ssh/agent.toml")
-          # Silencing marimo's update nag only works if the variable travels
-          # the PAM route; Home Manager's home.sessionVariables would reach a
-          # login shell and not a terminal window. There is no logged-in user
-          # session in this test, so PAM's file is what can be checked here.
-          machine.succeed("grep -q '^MARIMO_SKIP_UPDATE_CHECK' /etc/pam/environment")
           # Steam is a system module, not a package: without the 32-bit
           # graphics stack it installs but cannot draw.
           machine.succeed("test -e /run/opengl-driver-32/lib")

@@ -90,7 +90,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | games | Steam, as a system module: it needs the 32-bit graphics stack and controller udev rules |
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
 | dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf, gh, awscli2, steampipe |
-| notebooks | marimo, inside a declared `python3.withPackages` with polars, duckdb, pyarrow, altair, numpy |
+| notebooks | none installed: `uvx marimo edit --sandbox nb.py` per notebook, dependencies declared inline; plain `python3` and uv are in the profile |
 | git config | identity, aliases, ignores and SSH commit signing declared in Home Manager |
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
@@ -184,6 +184,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | backups | restic, to Google Drive over rclone; VM only until install day | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
 | containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
 | foreign binaries | `programs.nix-ld` on every host, plus mise for repos that pin tools in a `mise.toml`; my own projects keep a flake each | decided 2026-10-22, reversing "nix-ld was not kept" (Findings) for one reason: the work repos are not mine to convert, and they pin node, pnpm, uv and a dozen CLIs through mise, which downloads upstream generic-linux builds. Both repos were run end to end in the VM: every tool installs and runs, uv fetches and runs its own CPython, and the frontend's vitest (unit and Chromium component tests) passes, with Playwright's e2e suite running against Chromium. The cost is the loud failure: an undeclared binary now just runs, outside anything Nix can roll back or collect. The library list holds only what a named tool failed without, today Playwright's Chromium. On `z690-wsl` the Windows NVIDIA driver's `/usr/lib/wsl/lib` reaches foreign binaries through `LD_LIBRARY_PATH`, which nix-ld adds its own path to, set for every session in `hosts/z690-wsl/windows.nix` (2026-11-07): the driver's own `nvidia-smi` could not find `libnvidia-ml.so` without it, and Mesa's Vulkan driver found no GPU. In base, not desktop, because WSL runs the same repos. Considered and not taken: the Nix-backed mise plugins (a work repo's `node = "24"` reaches them only through hand-kept `tool_alias` mappings, exact pins often do not exist in nixpkgs, and npm's prebuilt binaries would need nix-ld anyway), a flake per work repo kept beside it (drifts from the team's pins), and a container per repo |
+| notebooks and data work | nothing machine-wide: a project's Python comes from the project, a scratch notebook runs as `uvx marimo edit --sandbox` | decided 2026-11-14, removing the `python3.withPackages` environment (marimo, polars, duckdb, pyarrow, altair, numpy) that had been in the profile since 2026-09-18. Three reasons. It sat in `modules/base`, so in every host's closure, and its one fragile package stood in the way of the whole machine: from 2026-11-12 nixpkgs' marimo 0.25.1 would not build against `uv_build` 0.13.4 and the lock refresh failed on it. The library set was a guess, and adding to it meant a system rebuild. And the repo already said a project's dependencies belong to the project. Scratch notebooks now run on the CPython uv downloads, so they depend on nix-ld; accepted, and `UV_PYTHON` is not set globally because it would override the Python a work repo pins |
 | device management | Fleet's agent (Orbit + osquery) via nixpkgs' `services.orbit`, with fleetd 1.63.0 built from upstream's tag, off until configured | the employer is adopting Fleet (learned 2026-09-29). Wired ahead of the URL and enroll secret; both come from sops, so turning it on is one line. `osquery` itself is a general system tool in `configuration.nix`; `osqueryi` also lets the machine be checked the way Fleet will check it. NixOS support is upstream since fleetd 1.63.0 (2026-10-28), which nixpkgs did not carry yet (1.55.0 plus four patches upstream now has), so `fleet.nix` overrides the version until it does. Whether the console reads the LUKS root and firewall correctly is first seen on metal; LUKS key escrow is still not offered to NixOS |
 | backup secrets | sops-nix, rendered into an rclone.conf template | the repository password and the rclone OAuth token are both long-lived and must survive a reinstall, so neither can live only on the machine being backed up |
 | rescue path | password login on the text consoles, no autologin | the greeter needs GL, a TTY does not; autologin would have made the lock screen decorative |
@@ -505,12 +506,15 @@ generic-linux binary is ever executed, and the same notebook ran with the
 nix-ld variables removed. uv and Nix are known to sit awkwardly together —
 astral-sh/uv#4450 has been open since 2024, labelled *compatibility*, and
 `uv venv` from a wrapped nixpkgs Python isolates itself from that Python's
-packages — so the third option won: marimo lives in a `python3.withPackages`
-environment, and nothing downloads an interpreter at all.
+packages — so at the time the third option won: marimo lived in a
+`python3.withPackages` environment, and nothing downloaded an interpreter at
+all.
 
-nix-ld came back on 2026-10-22, for the work repos and their mise toolchains
-("Decisions, and why"); marimo's environment is unchanged and does not rely
-on it.
+nix-ld came back on 2026-10-22, for the work repos and their mise toolchains,
+and that environment went on 2026-11-14: a scratch notebook now runs as
+`uvx marimo edit --sandbox`, on the CPython uv downloads, through nix-ld
+(both in "Decisions, and why"). `UV_PYTHON` with `UV_PYTHON_DOWNLOADS=never`
+remains the way for a project that wants a Nix Python under uv.
 
 **On NixOS, mise compiles tools such as node from source by default — even
 with nix-ld on.** It detects the distribution and sets `all_compile = true`,
@@ -528,8 +532,9 @@ time.** The bare `marimo` package is wrapped with a fixed PYTHONPATH holding
 its own runtime dependencies and nothing else, with no pip. It installs
 cleanly, starts cleanly, and then a notebook's `import polars` fails, and
 installing polars elsewhere in the profile does not help. Declaring the
-library set alongside marimo in one `python3.withPackages` is what makes the
-global install honest; `home/max/core/dev.nix` carries the reasoning.
+library set alongside marimo in one `python3.withPackages` is what makes such
+a global install honest. That is how marimo was installed here until
+2026-11-14, when it left the profile altogether ("Decisions, and why").
 
 **An unconfigured Twingate daemon respawns forever.** Its unit pairs
 `Restart=always` with `StartLimitIntervalSec=0`, which turns off systemd's
