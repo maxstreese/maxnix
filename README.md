@@ -363,6 +363,17 @@ is absent, and `eglinfo` reports `eglInitialize failed`. So KVM-only tests are
 ordinary sandboxed checks and GPU tests are not, at any permission. This is
 the line the two test tiers are drawn along.
 
+**A sandbox path is an input no hash covers.** `sandbox-paths` and
+`extra-sandbox-paths` mount host paths into the build sandbox, and nothing
+about them enters a derivation's hash, so two machines that differ only there
+build the same derivation from different surroundings. The attempt above left
+exactly that behind: the Ubuntu host's `/etc/nix/nix.conf` still had
+`extra-sandbox-paths = /dev/dri` on 2026-11-14, eight weeks after it was shown
+to be useless, so every local build could see a device no GitHub runner has.
+Nothing is known to have used it. `nix run .#ci` now refuses to build on a
+machine with anything but the sandbox's own `/bin/sh` in view, and
+`checks.nix-sandbox` holds the machines defined here to the same.
+
 **niri has no software renderer.** Without virgl it starts, opens its socket,
 and enumerates zero outputs. Mesa's `GBM_ALWAYS_SOFTWARE` does not rescue it.
 Re-measured 2026-09-21 on both `-device virtio-gpu` and `-device virtio-vga`:
@@ -677,6 +688,7 @@ and the WSL host), a check of the ThinkPad's login stacks, and the suites for on
 | `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk and puts the key on `/persist`, and the system booted from it decrypts with that key. Leaves only `nixos-install --system <the machine>`, a copy from the stick, to the day | disko's own script, plus the script's |
 | `installer` | the installer USB's system builds; the image is that plus a squashfs, left to `nix build .#installer-iso` | — |
 | `metal-auth` | metal's built `sudoers` asks `wheel` for a password, and each of its five password stacks has pam_faillock in place: before the first line that can let someone in, after the last password check, with its config file | — |
+| `nix-sandbox` | every machine defined here builds in the sandbox and shows a build nothing of the host: `sandbox = true` and no `sandbox-paths` in the `nix.conf` each would install. The machine running the checks is asked the same by `nix run .#ci` before it builds anything | — |
 | `secrets` | sops-nix decrypts a post-quantum age key at activation, root-only and in memory, and Fleet and the backup get their values from it | 4 |
 | `fleet` | orbit starts with its secret, tries the configured server, keeps retrying without crashing, and stops promptly | 4 |
 | `containers` | rootless Docker is max's, runs a Docker Hub image under compose with its storage on `/home`, and a published port stays behind the firewall until opened | 7 |

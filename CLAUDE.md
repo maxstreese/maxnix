@@ -15,6 +15,7 @@ nix build .#checks.x86_64-linux.formatting     # any single check by name:
 nix build .#checks.x86_64-linux.lint           #   statix + deadnix + actionlint + renovate-config-validator (report-only)
 nix build .#checks.x86_64-linux.metal          #   the installable toplevel builds
 nix build .#checks.x86_64-linux.metal-auth     #   metal's sudoers and pam_faillock in its login stacks, read off the built files
+nix build .#checks.x86_64-linux.nix-sandbox    #   every host builds sandboxed with no host path in view; `nix run .#ci` asks the building machine the same first
 nix build .#checks.x86_64-linux.metal-install  #   install-maxnix (hosts/installer) partitions a virtual disk, places the sops key, the result boots and decrypts
 nix build .#installer-iso        # the installer USB image; README "Road to metal" is the install-day checklist
 nix run .#installer-vm           # that image booted as a USB stick in QEMU, scratch NVMe at the ThinkPad's by-path (.vm/installer-disk.qcow2)

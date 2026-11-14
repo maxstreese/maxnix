@@ -434,6 +434,40 @@
             touch $out
           '';
 
+        # What a build can see besides its inputs, on every machine defined
+        # here, read off the nix.conf each would install. `sandbox-paths` are
+        # host paths mounted into the build sandbox, and nothing about them
+        # goes into a derivation's hash: two machines that differ only there
+        # build "the same" derivation from different surroundings, and a
+        # cache would hand either result to the other. NixOS gives a build
+        # /bin/sh and nothing else unless a module adds to
+        # `nix.settings.extra-sandbox-paths` (programs.ccache does); this
+        # fails if one ever does, or if the sandbox is turned off or relaxed.
+        #
+        # The machine doing the building is the other half and is not a NixOS
+        # configuration: `nix run .#ci` asks it the same question first
+        # (sandboxProbe, below).
+        nix-sandbox =
+          let
+            confs = lib.mapAttrs (_: host: host.config.environment.etc."nix/nix.conf".source) {
+              inherit t14s installer;
+              z690-wsl = z690Wsl;
+            };
+          in
+          pkgs.runCommand "nix-sandbox" { } ''
+            set -eu
+            ${lib.concatStrings (
+              lib.mapAttrsToList (name: conf: ''
+                grep -qx 'sandbox = true' ${conf} \
+                  || { echo "${name}: builds are not sandboxed" >&2; cat ${conf} >&2; exit 1; }
+                extra=$(sed -n -E 's/^(extra-)?sandbox-paths = *//p' ${conf} | tr -d ' ')
+                [ -z "$extra" ] \
+                  || { echo "${name}: builds can see host paths no derivation hash covers: $extra" >&2; exit 1; }
+              '') confs
+            )}
+            touch $out
+          '';
+
         # And that the layout it describes actually partitions, formats and
         # boots. See ./tests/disk.nix for why that is a separate claim.
         metal-boots = import ./tests/disk.nix {
@@ -1178,6 +1212,46 @@
       checkArgs =
         set: lib.concatMapStringsSep " " (n: ".#checks.${system}.${n}") (builtins.attrNames set);
 
+      # Whether this machine builds in a sandbox that shows a build only its
+      # inputs. checks.nix-sandbox answers that for the machines defined
+      # here; the one running the checks is a GitHub runner or the Ubuntu
+      # host, whose nix.conf this repo does not write. Asked before anything
+      # is built, and fatal: a result built with a host path in view is not
+      # the result CI or anyone else would get from the same derivation.
+      #
+      # It reads the client's view of the settings, which is the daemon's as
+      # long as both read the same nix.conf. The sandbox's own shell is the
+      # one entry every Linux Nix has; anything else was put there by hand.
+      # Written after finding `extra-sandbox-paths = /dev/dri` on the Ubuntu
+      # host (2026-11-14), left from the GL-in-the-sandbox attempt of
+      # 2026-09-21 that README "Findings worth keeping" records as a dead end.
+      sandboxProbe = pkgs.writeShellApplication {
+        name = "sandbox-probe";
+        runtimeInputs = [ pkgs.nix ];
+        text = ''
+          sandbox=$(nix config show sandbox)
+          read -r -a paths <<<"$(nix config show sandbox-paths)"
+          extra=()
+          for p in "''${paths[@]}"; do
+            case "$p" in
+              /bin/sh=/nix/store/*) ;;
+              *) extra+=("$p") ;;
+            esac
+          done
+          if [ "$sandbox" != true ]; then
+            echo "sandbox: '$sandbox', not 'true' — builds here are not isolated from this machine." >&2
+            exit 1
+          fi
+          if [ "''${#extra[@]}" -gt 0 ]; then
+            echo "sandbox: builds here can see ''${extra[*]}, which no derivation hash covers." >&2
+            echo "Remove it from sandbox-paths / extra-sandbox-paths in this machine's nix.conf" >&2
+            echo "(/etc/nix/nix.conf) and restart nix-daemon." >&2
+            exit 1
+          fi
+          echo "sandbox: on, nothing of the host in view" >&2
+        '';
+      };
+
       ciRunner =
         let
           gpuSuites = lib.mapAttrsToList (name: test: {
@@ -1190,6 +1264,7 @@
           runtimeInputs = [ pkgs.nix ];
           text = ''
             echo "== maxnix ci ==" >&2
+            ${lib.getExe sandboxProbe}
 
             # The probe. A render node that exists but cannot be opened is the
             # same as no render node, so this opens it rather than stat-ing
