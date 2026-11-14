@@ -117,6 +117,18 @@ let
       "harlequin_trino"
       "harlequin_mysql"
     ];
+
+    # Harlequin's own test suite is not run again here. This override only
+    # adds two adapters to its environment, which that suite does not touch,
+    # and nixpkgs' unmodified harlequin is on cache.nixos.org, so Hydra has
+    # already run all of it on the same source. Re-running it cost about 2.5
+    # minutes a build (1,935 tests) and made every build of the machine
+    # depend on tests that wait on real clocks: on 2026-11-14 one of them,
+    # an `hsql --timeout 0.1` case, failed on a busy runner and took the
+    # closure-diff job with it, while the same derivation built in `checks`
+    # beside it. The import check above still runs, and is what covers the
+    # two adapters.
+    doCheck = false;
   });
 in
 {
