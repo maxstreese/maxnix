@@ -755,8 +755,22 @@ extra sshd (the checks' derivations were the same before and after it was
 added, 2026-11-15).
 
 `ci` builds the static checks, then the metal stage, then the portable desktop
-suites, each stage one `nix build`. The metal stage runs its suites in
-parallel, the desktop stage one at a time: a guest keeps every page it
+suites, each stage one `nix build`. The script itself depends on none of it,
+so it is running within seconds and a formatting error stops it there (4 s,
+2026-11-15). Until that day the GPU suites' runners were built into the
+script, which made the whole machine a prerequisite of its first line: on a
+runner the header printed 14 minutes in, before any of the cheap checks.
+Without a render node the runners are still built, last, so a full suite
+that no longer builds fails in CI and not on the next machine with a GPU.
+
+The whole of `ci` is for a runner, not for the machine this is developed on.
+Its metal stage runs its suites in parallel (below), and on 2026-11-15 a full
+local run had six test VMs up beside a 5 GiB evaluation when the kernel's OOM
+killer ended it: 26.5 of 29 GiB were in use, with a desktop session and other
+work open. Locally, build one check or run one suite at a time; a single GPU
+suite left more than 11 GiB available throughout.
+
+The metal stage runs its suites in parallel, the desktop stage one at a time: a guest keeps every page it
 touches, so what bounds it is its memory ceiling, and two 8 GiB desktop
 guests would take all of a 16 GB runner. The metal stage's ceilings
 add up to 17 GiB, its measured peaks to about 9.4 (2026-10-12, before

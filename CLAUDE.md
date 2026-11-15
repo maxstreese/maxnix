@@ -34,6 +34,8 @@ Observability (`modules/base/observability`, on everywhere): Prometheus `127.0.0
 
 Run the GPU `test-*` apps one at a time — they share a VNC port.
 
+Watch the host's memory. Do not run the full `nix run .#ci` on the Ubuntu host: its metal stage starts the suites in parallel, six test VMs at once, sized for a 16 GB runner with nothing else on it, and on 2026-11-15 that ran this machine (29 GiB, in use at the time) out of memory. Verify one check or one suite at a time (`nix build .#checks.x86_64-linux.<name>`, `nix run .#test-<name>`), look at `free -g` before anything that boots a VM, and leave the parallel stage to GitHub.
+
 Watch the host's disk. VM suites, system rebuilds and VM images pile up in `/nix/store` (and `./.vm/`) fast, and the Ubuntu host has run short more than once. Check `df -h /` before starting such work and again between long runs; if free space gets low (under ~50 GB), stop and tell the user rather than carry on. Collecting garbage (`nix-collect-garbage`, `nix store gc`) deletes things, so only with the user's go-ahead.
 
 ## Architecture

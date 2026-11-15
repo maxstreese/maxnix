@@ -1283,16 +1283,29 @@
         '';
       };
 
+      # Thin on purpose: nothing heavy is a dependency of this script, so
+      # `nix run .#ci` has it running within seconds and every stage below is
+      # asked of Nix by name, in the order written. Until 2026-11-15 the GPU
+      # suites' runners were interpolated into the text as store paths, which
+      # made the test VMs, and so the whole machine, a build input of the
+      # script itself: Nix built all of that before the first line ran. On a
+      # GitHub runner the header below printed 14 minutes into the run
+      # (2026-11-14), so the sandbox probe looked only after the largest build
+      # was done, and a formatting error was reported after it too, not in
+      # the second before. The runners are reachable as `.#ci.gpuRunners.<name>`
+      # instead (passthru, not an input), without the SSH backdoor variant
+      # that only `nix run .#test-<name> -- --interactive` uses.
       ciRunner =
         let
-          gpuSuites = lib.mapAttrsToList (name: test: {
-            inherit name;
-            runner = testRunner { inherit name test; };
-          }) tests;
+          gpuRunners = lib.mapAttrs (name: test: testRunner { inherit name test; }) tests;
+          gpuRunnerArgs = lib.concatMapStringsSep " " (n: ".#ci.gpuRunners.${n}") (
+            builtins.attrNames gpuRunners
+          );
         in
         pkgs.writeShellApplication {
           name = "ci";
           runtimeInputs = [ pkgs.nix ];
+          passthru = { inherit gpuRunners; };
           text = ''
             echo "== maxnix ci ==" >&2
             ${lib.getExe sandboxProbe}
@@ -1354,6 +1367,13 @@
             nix build --max-jobs 1 --print-build-logs ${checkArgs portableVmTests}
 
             if [ "$have_gpu" = no ]; then
+              # Built all the same, last: without a render node they cannot
+              # run, but a full suite that no longer evaluates or builds
+              # should still fail here and not on the next machine with a GPU.
+              echo >&2
+              echo "-- the full suites' runners build --" >&2
+              nix build --no-link --print-build-logs ${gpuRunnerArgs}
+
               echo >&2
               echo "SKIPPED, no render node — these need a GPU:" >&2
               echo "  desktop:  the guest has a GPU with working virgl" >&2
@@ -1367,11 +1387,11 @@
               exit 0
             fi
 
-            ${lib.concatMapStringsSep "\n" (s: ''
+            ${lib.concatMapStringsSep "\n" (name: ''
               echo >&2
-              echo "-- ${s.name} (full suite) --" >&2
-              ${lib.getExe s.runner}
-            '') gpuSuites}
+              echo "-- ${name} (full suite) --" >&2
+              nix run .#ci.gpuRunners.${name}
+            '') (builtins.attrNames gpuRunners)}
 
             echo >&2
             echo "ok (everything)" >&2
