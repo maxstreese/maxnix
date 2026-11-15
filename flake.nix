@@ -1739,9 +1739,10 @@
             # the only feedback loop there is. No argument: the validator
             # auto-discovers renovate.jsonc and checks it as a repository
             # config, where an explicit path makes it fall back to the laxer
-            # global schema.
+            # global schema. --strict: a pending config migration fails too,
+            # as in maxi-me and maxcad.
             echo "== renovate-config-validator ==" >&2
-            renovate-config-validator
+            renovate-config-validator --strict
             touch "$out"
           '';
 

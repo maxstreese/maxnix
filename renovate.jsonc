@@ -33,7 +33,19 @@
     // `# renovate: datasource=… depName=…` comment — here the Renovate
     // version in .github/workflows/renovate.yml, so the bot keeps itself
     // current like everything else.
-    "customManagers:githubActionsVersions"
+    "customManagers:githubActionsVersions",
+
+    // No Dependency Dashboard. Runs are started by the workflow — nightly, or
+    // by hand with `gh workflow run renovate.yml` — and the PRs themselves are
+    // the record of what is pending. What this gives up: a run's warnings
+    // (a rejected postUpgradeTask, a config problem) no longer surface as an
+    // issue, only in the run's log.
+    //
+    // The preset, not the option: the option changed from a boolean to an
+    // object, and the lint check validates this file with nixpkgs' Renovate
+    // while the workflow runs another version, so either spelling can fail
+    // in one of them.
+    ":disableDependencyDashboard"
   ],
 
   // Schedules, should any come back, are read in this zone rather than UTC.
@@ -79,13 +91,6 @@
   // would now do the same; kept explicit so it does not hinge on that, and
   // so what is merged was tested on the main it lands on.
   "rebaseWhen": "behind-base-branch",
-
-  // No Dependency Dashboard. Runs are started by the workflow — nightly, or
-  // by hand with `gh workflow run renovate.yml` — and the PRs themselves are
-  // the record of what is pending. What this gives up: a run's warnings
-  // (a rejected postUpgradeTask, a config problem) no longer surface as an
-  // issue, only in the run's log.
-  "dependencyDashboard": false,
 
   // Flake inputs pinned to a release tag (none at present; aoe was the
   // last, removed 2026-10-06). The nix manager above
