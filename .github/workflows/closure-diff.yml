@@ -3,8 +3,9 @@
 # Renovate's lock file maintenance PR says only "All locks refreshed": the
 # flake's inputs follow branches, so there is no version for it to report,
 # and no setting changes that (see `closure-diff` in flake.nix). This builds
-# metal at the PR's base and at its head and posts the `nvd diff` of the two
-# — the packages that change version, appear or go, and the closure size.
+# metal at the PR's base and at its head and posts what `nvd diff` finds
+# between the two — the packages that change version, appear or go, and the
+# closure size — as a table with links to each package's release notes.
 #
 # Only on that PR. The other Renovate PR lists its versions itself, and
 # every other PR changes the configuration, where the diff is better read
@@ -51,22 +52,12 @@ jobs:
       - name: Build both sides and diff
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-        run: nix run .#closure-diff -- "$BASE" > diff.txt
+        run: nix run .#closure-diff -- --markdown "$BASE" > comment.md
 
-      # One comment, edited in place on every later run.
+      # One comment, edited in place on every later run. The command above
+      # wrote it whole, heading included (tools/closure-table.py).
       - name: Comment
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          {
-            echo "### Package changes on metal"
-            echo
-            echo "\`nvd diff\` of metal at ${BASE:0:7} (base) and this PR, from \`nix run .#closure-diff\`."
-            echo
-            echo '```'
-            cat diff.txt
-            echo '```'
-          } > comment.md
-          gh pr comment "$PR" --body-file comment.md --edit-last --create-if-none
+        run: gh pr comment "$PR" --body-file comment.md --edit-last --create-if-none

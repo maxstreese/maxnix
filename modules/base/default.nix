@@ -10,6 +10,7 @@
   imports = [
     ./containers.nix
     ./dev.nix
+    ./generation-log.nix
     ./login-limits.nix
     ./nix-ld.nix
     ./observability

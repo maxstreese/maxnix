@@ -135,6 +135,12 @@
         # Battery charge history, which UPower's history graphs are made of.
         "/var/lib/upower"
 
+        # The system that ran last, which the generation log compares the
+        # running one against (../base/generation-log.nix). Without it the
+        # first run after every boot would have nothing to compare with, and
+        # an update that needed a reboot would go unrecorded.
+        "/var/lib/generation-log"
+
         # Failed logins, counted by pam_faillock (../base/login-limits.nix). On the
         # wiped root, a reboot would reset the count and with it the lockout.
         {

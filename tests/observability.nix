@@ -53,6 +53,7 @@ let
       imports = [
         ../modules/base/observability
         ../modules/base/dev.nix
+        ../modules/base/generation-log.nix
         # Declared by the module whether its sops path is on or not.
         sops-nix.nixosModules.sops
       ];
@@ -75,7 +76,14 @@ in
 {
   name = "maxnix-observability";
 
-  nodes.machine = stack;
+  nodes.machine =
+    { pkgs, ... }:
+    {
+      imports = [ stack ];
+      # A second system to switch to, one package apart, for the generation
+      # log's subtest: a real switch, by the real switch-to-configuration.
+      specialisation.with-hello.configuration.environment.systemPackages = [ pkgs.hello ];
+    };
 
   nodes.devbox =
     { lib, ... }:
@@ -515,5 +523,37 @@ in
         machine.succeed("systemd-run --unit exposed-probe nc -lk 9999")
         machine.wait_for_open_port(9999)
         outside.succeed("nc -z -w 3 machine 9999")
+
+    with subtest("a change of the running system is logged with what changed, and reaches Loki"):
+        # ../modules/base/generation-log.nix. Last, since it switches the
+        # machine to another system.
+        changes = "journalctl -b -u generation-log --no-pager"
+        # The boot: nothing to compare with on a new machine.
+        machine.wait_until_succeeds(changes + " | grep -q 'generation recorded: '", timeout=120)
+        machine.fail(changes + " | grep -q 'generation changed'")
+
+        machine.succeed(
+            "/run/current-system/specialisation/with-hello/bin/switch-to-configuration test")
+        machine.wait_until_succeeds(changes + " | grep -q 'generation changed: '", timeout=120)
+        report = machine.succeed(changes)
+        # The heading, then nvd's own lines. No version moves between these
+        # two: a system's closure holds its specialisations, so the one the
+        # machine switches to was in it all along, hello included, and what
+        # differs is only which paths are still needed. The heading has to
+        # say so and not count nvd's "changed" rows, which it did at first.
+        assert re.search(
+            r"generation changed: machine-test \(\w{8}\) -> machine-test \(\w{8}\):"
+            r" 0 version changes, 0 added, 0 removed", report), report
+        assert "Closure size:" in report, report
+        wait("curl -fsS -G http://127.0.0.1:3100/loki/api/v1/query_range"
+             " --data-urlencode 'query={unit=\"generation-log.service\"} |= \"generation changed\"'"
+             " | grep -q 'generation changed'", "the generation change in Loki")
+
+        # The same system again says nothing: a restart of the unit with
+        # nothing changed must not put a line on every dashboard.
+        before = machine.succeed(changes + " | grep -c 'generation changed'").strip()
+        machine.succeed("systemctl start generation-log")
+        after = machine.succeed(changes + " | grep -c 'generation changed'").strip()
+        assert before == after == "1", (before, after)
   '';
 }

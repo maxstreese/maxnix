@@ -363,6 +363,41 @@
       staticChecks = {
         formatting = treefmtEval.config.build.check inputs.self;
         lint = lintCheck;
+
+        # The PR comment's formatter (./tools/closure-table.py) against a
+        # cut of a real nvd report: a month of nixpkgs on metal, 2026-11-15.
+        # Without --flake, so no links and no grouping by the configuration;
+        # those need an evaluation, and a wrong one only loses a link. What
+        # this holds is the reading of nvd's lines: several outputs of one
+        # version are one version, `<none>` is none, and a package whose
+        # version did not move is not listed as a change, which includes the
+        # rows of nvd's "Selection state changes".
+        closure-table =
+          pkgs.runCommand "closure-table-check"
+            {
+              nativeBuildInputs = [ closureTable ];
+            }
+            ''
+              closure-table --nvd ${./tests/fixtures/nvd-report.txt} --base-rev 0123456789 > out.md
+              has() { grep -qF -- "$1" out.md || { echo "missing: $1" >&2; cat out.md >&2; exit 1; }; }
+              has "metal at 0123456 (base) against this PR"
+              has "| 1password | 8.12.40 | 8.12.44 |"
+              has "| bash-interactive | 5.3p15 | 5.3p20 |"
+              has "| systemd | 261.3 | 262 |"
+              has "| fuse | 2.9.9, 3.18.2 | 3.18.2 |"
+              has "| firefox | 158.0 | 160.0 |"
+              has "**Installed by name (6)**"
+              has "Came along as dependencies (3)"
+              has "Added (3)</summary>"
+              has "claude-code-hm-plugin, download, etc-dms-cli-policy.json"
+              has "stub-ld-x86_64-unknown-linux-musl, zeromq 4.3.5"
+              has "Same version, different outputs or builds (1)</summary>"
+              has "Closure size: 2156 -> 2212"
+              ! grep -qF "| abseil-cpp |" out.md
+              ! grep -qF "| hello |" out.md
+              ! grep -qF "| grub |" out.md
+              touch $out
+            '';
       };
 
       # The machine as it would be installed, built.
@@ -1598,6 +1633,16 @@
       # Metal rather than the VM, as the real machine; Home Manager is a
       # NixOS module here, so the user's packages are in its closure too.
       # nvd is the flake's own, like everything the app runs except nix.
+      #
+      # --markdown is the same report as the PR comment: ./tools/closure-table.py
+      # regroups nvd's text into a table of what the configuration installs
+      # by name, with dependencies, additions and removals folded away, and
+      # links each package to its homepage and release notes where nixpkgs'
+      # metadata has them (2026-11-15; 130 of 300 rows on a month's worth of
+      # nixpkgs). Without the flag it prints nvd's text, as a terminal wants.
+      closureTable = pkgs.writers.writePython3Bin "closure-table" { } (
+        builtins.readFile ./tools/closure-table.py
+      );
       closureDiff = pkgs.writeShellApplication {
         name = "closure-diff";
         runtimeInputs = [
@@ -1605,8 +1650,13 @@
           pkgs.git
         ];
         text = ''
+          markdown=no
+          if [ "''${1:-}" = --markdown ]; then
+            markdown=yes
+            shift
+          fi
           if [ $# -ne 1 ]; then
-            echo "usage: nix run .#closure-diff -- <base-rev>" >&2
+            echo "usage: nix run .#closure-diff -- [--markdown] <base-rev>" >&2
             exit 2
           fi
           [ -e flake.nix ] || { echo "run this from the repo root" >&2; exit 1; }
@@ -1619,9 +1669,17 @@
           nix build --out-link "$out/base" "git+file://$PWD?rev=$rev#$attr"
           echo "building metal from the working tree..." >&2
           nix build --out-link "$out/head" ".#$attr"
+          repo=$PWD
           # From inside, so nvd's header names the sides, not a temp dir.
           cd "$out"
-          nvd diff base head
+          if [ "$markdown" = no ]; then
+            nvd diff base head
+            exit
+          fi
+          nvd diff base head > nvd.txt
+          git -C "$repo" show "$rev:flake.lock" > base.lock
+          ${lib.getExe closureTable} --nvd nvd.txt --flake "$repo" \
+            --base-rev "$rev" --base-lock base.lock --head-lock "$repo/flake.lock"
         '';
       };
 

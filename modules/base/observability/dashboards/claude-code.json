@@ -280,5 +280,21 @@
     "to": "now"
   },
   "title": "Claude Code",
-  "uid": "maxnix-claude-code"
+  "uid": "maxnix-claude-code",
+  "annotations": {
+    "list": [
+      {
+        "name": "System changes",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "enable": true,
+        "iconColor": "blue",
+        "expr": "{unit=\"generation-log.service\"} |= \"generation changed\"",
+        "titleFormat": "System changed",
+        "textFormat": ""
+      }
+    ]
+  }
 }

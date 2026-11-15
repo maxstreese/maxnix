@@ -1,0 +1,24 @@
+<<< base
+>>> head
+Version changes:
+[U*]  #001  1password                          8.12.40 -> 8.12.44
+[U*]  #002  1password-cli                      2.40.0 -> 2.42.0
+[C.]  #003  abseil-cpp                         20260817.0 x3, 20260817.0-dev -> 20260817.0 x3, 20260817.0-dev, 20260817.0-testing
+[U.]  #004  adwaita-icon-theme                 50.0 -> 51.0
+[U.]  #005  agent-browser                      0.38.2 -> 0.41.1
+[U*]  #022  bash-interactive                   5.3p15 x3, 5.3p15-doc, 5.3p15-info, 5.3p15-man x2 -> 5.3p20 x3, 5.3p20-doc, 5.3p20-info, 5.3p20-man x2
+[U.]  #055  firefox                            158.0 -> 160.0
+[C*]  #061  fuse                               2.9.9-bin, 2.9.9-man, 3.18.2, 3.18.2-bin, 3.18.2-man -> 3.18.2, 3.18.2-bin, 3.18.2-man
+[C*]  #280  systemd                            <none>, 261.3, 261.3-man -> <none>, 262 x2, 262-man
+[C*]  #283  tempo                              3.1.0, 13.2.2 -> 3.1.1, 13.4.2
+Selection state changes:
+[C-]  #1  grub   2.14
+[C+]  #2  hello  2.12.3
+Added packages:
+[A.]  #06  claude-code-hm-plugin           <none>
+[A.]  #07  download                        <none> x2
+[A.]  #09  etc-dms-cli-policy.json         <none>
+Removed packages:
+[R.]  #23  stub-ld-x86_64-unknown-linux-musl                      <none>
+[R.]  #24  zeromq                                                 4.3.5
+Closure size: 2156 -> 2212 (2196 paths added, 2140 paths removed, delta +56, disk usage -2.0GiB).
