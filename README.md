@@ -182,6 +182,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | calendar | Dux Calendar syncing Google itself, for the company and a personal account, each through an OAuth client of its own; not khal | decided 2026-10-15. DMS prefers Dux Calendar when it runs, and khal would need a separate sync (vdirsyncer) to have anything to read. Own clients rather than Dux Calendar's built-in one, so no third-party app reads company calendar data: the company one Internal in the existing Workspace project, the personal one in a project of the personal account, since an Internal client admits only the organisation's accounts |
 | failed logins | pam_faillock: 10 failures in 15 minutes lock an account for 10 minutes, root included; in `login` (consoles and greeter), `sudo`, `su`, `polkit-1` and the lock screen's `dankshell`; the count on `/persist` | decided 2026-10-14, when the TPM was to unlock the disk. Since the boot decision of 2026-10-15 (below) a cold boot stops at the LUKS passphrase, so this guards the lock screen of a laptop taken running or asleep; NIST SP 800-63B-4 asks for at most 100 failures, this is lenient enough for typos in a long passphrase. Root too, or a root login at the console would be the way around it; the emergency shell is unaffected, since `sulogin` does not use PAM. The lock screen gets a NixOS-built `/etc/pam.d/dankshell`, which DMS prefers over the `login` it ships without a lockout |
 | locking | DMS's lock screen; the lock comes before any suspend, and 1Password locks with the screen | decided 2026-11-14. Lock before suspend is DMS's own, off by default, and switched on through `/etc/dms/cli-policy.json` (`modules/desktop/lock-screen.nix`), DMS's file for lock settings an administrator sets: the shell shows them as managed, and the rest of its settings stay the UI's. Without it a closed lid could suspend with the session still on screen. 1Password is locked by a user service that runs `1password --lock` when logind's LockedHint turns true for max's session (`home/max/desktop/lock.nix`), which follows the bind, the idle timer and the lock before suspend alike, and does not rest on a setting inside the app. Not taken: unlocking over IPC or `loginctl unlock-session` stays possible (the same policy file could switch both off); they are open only to what already runs as max |
+| agent containment | per project and per session, not machine-wide; the machine supplies the means (bubblewrap and socat in the profile, Landlock and user namespaces in the kernel) | decided 2026-11-15, after testing Claude Code's sandbox runtime in the VM (Findings). How far to trust an agent depends on the repo and the task, and one policy for the machine would be wrong for much of the work: the same sandbox that suits a throwaway repo cannot run Docker, a VM test or Chrome. So nothing here switches a sandbox on; a project's own settings do. What the VM boundary gives while this is a VM (above) has no machine-wide replacement on metal, by choice: work that needs real containment gets a VM |
 | boot and login | one password at power-on: the LUKS passphrase, then greetd starts max's niri session (`initial_session`); no TPM unlock; the login keyring with an empty password | decided 2026-10-15, over typing a passphrase and then a password. Only someone who knows the passphrase gets past power-on, so the greeter added typing, not protection; the lock screen and sudo still take the login password. TPM unlock was dropped with it: together with autologin, the power button alone would open the session, and `modules/desktop/greeter.nix` refuses that combination. The keyring cannot be opened by the boot passphrase — greetd starts an autologin session without `pam_authenticate`, the step in which `pam_gnome_keyring` and `pam_systemd_loadkey` act (read in their sources) — so it has no password of its own, and LUKS protects its file. Metal only: VMs and test nodes have no LUKS and keep the greeter |
 | backups | restic, to Google Drive over rclone; VM only until install day | Drive is the only destination the employer permits on this machine (learned 2026-09-23). restic was chosen before that, when the destination was unknown, for reaching the most backends — which is what made the constraint a config change rather than a rewrite |
 | containers | Docker, rootless; no `docker` group | the work runs on Docker — compose, company image builds, Testcontainers 1.16, JetBrains — and Podman's compatibility is most of that, not all. Rootless because the `docker` group is root-equivalent and rootful Docker publishes ports past the firewall; its state also lands on `/home` rather than the wiped root. Images are excluded from backups |
@@ -567,6 +568,23 @@ fixes it: systemd's generator expands `${XDG_RUNTIME_DIR}` there, and the
 manager then has the variable. Two smaller traps from the same test: a user
 unit's PATH has no `sh`, and a published port being unreachable proves
 nothing without the control that opening the firewall makes it reachable.
+
+**Claude Code's sandbox on NixOS guards against accidents and does not
+contain.** Measured 2026-11-15 in the VM with the runtime it is built on
+(`srt` 0.0.82 from nixpkgs). It needs `bwrap` and `socat` on PATH and uses
+unprivileged user namespaces, which NixOS allows. With the working directory
+and `~/.cache/nix` writable and GitHub and the NixOS cache hosts allowed,
+`nix build` and `nix run` work, writes elsewhere fail and unlisted hosts are
+refused. Rootless Docker's socket is a way straight out: `docker run -v
+$HOME:/h` wrote where the sandbox had refused, and a container reached a host
+not on the list, because the daemon runs as max outside it. `/dev/kvm` is not
+there, so `nix run .#test-*` cannot run inside, while checks built through
+the daemon can. Nested user namespaces are refused, which Chrome needs.
+nixpkgs' `srt` ships without its seccomp helper and says so in its debug log,
+which is why Unix sockets were reachable at all; with it they are blocked,
+Nix's daemon socket included (per the docs, not tested). Only shell commands
+are covered: file tools, MCP servers and hooks run outside. Not tested:
+Claude Code itself, whose login in the guest had expired.
 
 **A package taken from its own flake is compiled on every CI run.** Such a
 flake is a build recipe, and its result is only reused where it already

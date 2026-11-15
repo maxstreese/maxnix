@@ -195,6 +195,8 @@ in
                   # the link; that the patched binary runs is its own
                   # installCheck (../home/max/core/aoe.nix).
                   "aoe",
+                  # What a sandbox is built from (../home/max/core/dev.nix).
+                  "bwrap", "socat",
                   # `,` and nix-locate. Asserted by name because the whole
                   # point is that they are on PATH without being thought
                   # about; a silently missing `,` just looks like a typo.
@@ -206,6 +208,13 @@ in
               user=True,
           )
 
+          # bwrap on PATH is only useful if this kernel lets max make the
+          # namespaces it needs, without setuid: the smallest real sandbox,
+          # the system read-only and no network.
+          machine.succeed(
+              "su - max -c 'bwrap --ro-bind / / --dev /dev --proc /proc --unshare-net --unshare-pid"
+              " sh -c \"test ! -w /etc && ! ip route | grep -q default\"'"
+          )
           # direnv being on PATH says nothing about it being hooked into the
           # shell, and a direnv that never fires is indistinguishable from an
           # absent one. Both halves are asserted: the function that makes

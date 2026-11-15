@@ -192,6 +192,22 @@
     # flake.
     uv
 
+    # What a process sandbox on Linux is built from, for whichever project or
+    # agent session chooses one: bubblewrap (`bwrap`) gives a program its own
+    # view of the file system and no network, and socat is the relay that
+    # carries its traffic over a socket to a proxy outside, which decides
+    # which hosts it may reach. Claude Code's /sandbox needs both on PATH and
+    # could not be switched on here without them, and a tool that sandboxes
+    # agents itself should call the system's bwrap, not carry a copy.
+    #
+    # The means, not a policy: nothing here turns a sandbox on. How far to
+    # trust an agent depends on the repo and the task, so it is decided where
+    # the agent is started, in that project's settings (README "Decisions,
+    # and why", agent containment). Landlock, seccomp and user namespaces,
+    # the kernel's side of this, are already on.
+    bubblewrap
+    socat
+
     # DBeaver Community, the database GUI. Free (Apache-2.0), so no
     # allow-list entry; it replaced DataGrip.
     dbeaver-bin
