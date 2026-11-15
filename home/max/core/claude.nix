@@ -1,5 +1,5 @@
 # Claude Code, and what ties it to this machine: telemetry into the local
-# observability stack, and the grafana-local MCP server.
+# observability stack, and its MCP servers, grafana-local and nixos.
 #
 # Unfree: the allow-list entry is in ../../../modules/base/default.nix, next to
 # where this layer is imported. Home Manager cannot declare it itself — with
@@ -95,12 +95,29 @@ in
 
     # Not in ~/.claude.json, which Claude Code rewrites constantly: the
     # module writes these into a plugin of its own, named `hm`, in the store
-    # and linked into ~/.claude/skills. So the server shows up as
-    # plugin:hm:grafana-local and its tools as mcp__plugin_hm_grafana-local__*,
-    # in every project, and a rebuild changes or removes it.
-    mcpServers = lib.mkIf observability.enable {
-      grafana-local.command = lib.getExe grafanaLocalMcp;
-    };
+    # and linked into ~/.claude/skills. So a server shows up as
+    # plugin:hm:<name> and its tools as mcp__plugin_hm_<name>__*, in every
+    # project, and a rebuild changes or removes it.
+    mcpServers = lib.mkMerge [
+      (lib.mkIf observability.enable {
+        grafana-local.command = lib.getExe grafanaLocalMcp;
+      })
+
+      # mcp-nixos: NixOS options, nixpkgs packages and versions, Home Manager
+      # options and the like, looked up instead of recalled. Most of what
+      # Claude is asked to do on this machine is this repo, where a wrong
+      # option name costs an evaluation to find out.
+      #
+      # It answers from the public indexes (search.nixos.org and others), not
+      # from this flake: what it says an option is called is true of current
+      # nixpkgs, not necessarily of the revision in flake.lock, and it knows
+      # nothing of maxnix.* options. Each lookup is a request to those
+      # services carrying the name searched for, and nothing else of the
+      # session. On every host: it needs no service here.
+      {
+        nixos.command = lib.getExe pkgs.mcp-nixos;
+      }
+    ];
   };
 
   # Until 2026-11-10 the server was registered once through `claude mcp add

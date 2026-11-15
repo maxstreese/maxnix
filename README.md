@@ -87,6 +87,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | terminal | ghostty, opened through its D-Bus-activated systemd service |
 | browser | Firefox, 1Password and Vimium preinstalled by policy, default for links |
 | apps | Spotify, Slack, Discord, Claude Code — each signs in once via the browser |
+| Claude Code's MCP servers | `grafana-local` (this machine's Prometheus, Loki, Tempo and dashboards) and `nixos` (mcp-nixos: options and packages from the public NixOS indexes), declared in `home/max/core/claude.nix` |
 | games | Steam, as a system module: it needs the 32-bit graphics stack and controller udev rules |
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
 | dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf, gh, awscli2, steampipe, aoe |
