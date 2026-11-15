@@ -754,8 +754,12 @@ judges a suite boot nodes without it, so no suite tests a machine with an
 extra sshd (the checks' derivations were the same before and after it was
 added, 2026-11-15).
 
-`ci` builds the static checks, then the metal stage, then the portable desktop
-suites, each stage one `nix build`. The script itself depends on none of it,
+`ci` builds the static checks, then the installable systems, then the metal
+stage's suites, then the portable desktop suites, each stage one `nix build`.
+The systems come before the suites so that their compiles are over before any
+test VM starts: built together on a runner's four cores, a suite's wait for a
+metric took 241.6 s against a limit of 240 (2026-11-15). The script itself
+depends on none of it,
 so it is running within seconds and a formatting error stops it there (4 s,
 2026-11-15). Until that day the GPU suites' runners were built into the
 script, which made the whole machine a prerequisite of its first line: on a

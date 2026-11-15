@@ -1298,6 +1298,18 @@
       ciRunner =
         let
           gpuRunners = lib.mapAttrs (name: test: testRunner { inherit name test; }) tests;
+
+          # metalChecks, split by whether a check only builds or boots a VM.
+          # Named here are the ones that build; anything added to
+          # metalChecks later lands with the suites, so it still runs.
+          metalBuilds = lib.getAttrs [
+            "metal"
+            "z690-wsl"
+            "installer"
+            "metal-auth"
+            "nix-sandbox"
+          ] metalChecks;
+          metalSuites = removeAttrs metalChecks (builtins.attrNames metalBuilds);
           gpuRunnerArgs = lib.concatMapStringsSep " " (n: ".#ci.gpuRunners.${n}") (
             builtins.attrNames gpuRunners
           );
@@ -1340,9 +1352,20 @@
             echo "-- static checks --" >&2
             nix build --print-build-logs ${checkArgs staticChecks}
 
+            # The systems first, and only then the suites that boot them.
+            # While the runners were a build input of this script the machine
+            # was already built by the time any suite started. Asked for in
+            # one `nix build` with the suites, its compiles ran beside six
+            # test VMs on a runner's four cores: observability then waited
+            # 241.6 s for a metric against a limit of 240 and failed (run of
+            # 2026-11-15, 19:33 UTC; 5.6 to 133.5 s in earlier runs).
             echo >&2
             echo "-- the installable systems build --" >&2
-            nix build --print-build-logs ${checkArgs metalChecks}
+            nix build --print-build-logs ${checkArgs metalBuilds}
+
+            echo >&2
+            echo "-- vm suites, the metal stage --" >&2
+            nix build --print-build-logs ${checkArgs metalSuites}
 
             echo >&2
             echo "-- vm suites, portable tier --" >&2
