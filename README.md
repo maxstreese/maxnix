@@ -742,6 +742,18 @@ and the WSL host), a check of the ThinkPad's login stacks, and the suites for on
 | `containers` | rootless Docker is max's, runs a Docker Hub image under compose with its storage on `/home`, and a published port stays behind the firewall until opened | 7 |
 | `observability` | metrics, logs, events and traces reach their stores; Grafana, its datasources, dashboards and mcp-grafana work; data survives a restart; nothing listens beyond loopback but the Beyla child's metrics port (Alloy 1.21), which the firewall keeps in | 19 |
 
+**Getting into a node of a suite.** A driver started by hand boots its nodes
+with an SSH backdoor and prints one line per node, `ssh -o User=root
+vsock-mux/…`, a socket on this machine only. That is `nix run .#test-<name>
+-- --interactive` for the two desktop suites, and for any suite `nix build
+.#checks.x86_64-linux.<suite>.driverInteractive` followed by
+`./result/bin/nixos-test-driver`. Root's password is the node's own: empty on
+a bare test node, `maxnix` on one built from the machine. The backdoor exists
+only in those drivers. The derivations in `checks` and the GPU run that
+judges a suite boot nodes without it, so no suite tests a machine with an
+extra sshd (the checks' derivations were the same before and after it was
+added, 2026-11-15).
+
 `ci` builds the static checks, then the metal stage, then the portable desktop
 suites, each stage one `nix build`. The metal stage runs its suites in
 parallel, the desktop stage one at a time: a guest keeps every page it

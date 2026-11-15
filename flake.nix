@@ -283,15 +283,28 @@
       # any machine. The full set is what `nix run .#test-*` and `nix run .#ci`
       # reach for when a GPU is actually present. Both are declared here, so
       # nothing is hidden behind a flag you cannot see.
-      mkTests = gpu: {
-        desktop = runSuite (if gpu then 1 else sandboxTimeoutScale) (
-          import ./tests/desktop.nix { inherit hostModules gpu; }
-        );
+      mkTests =
+        gpu:
+        let
+          # The GPU tier runs *as* its interactive driver (testRunner, below),
+          # so what that driver boots is the machine under test: no SSH
+          # backdoor in it, or the suites would be judging a machine with an
+          # sshd that takes root without a password. `nix run .#test-<name>
+          # -- --interactive` gets a second driver that has it.
+          suite = test: {
+            imports = [ test ];
+            interactive.sshBackdoor.enable = !gpu;
+          };
+        in
+        {
+          desktop = runSuite (if gpu then 1 else sandboxTimeoutScale) (
+            suite (import ./tests/desktop.nix { inherit hostModules gpu; })
+          );
 
-        niri = runSuite (if gpu then 1 else sandboxTimeoutScale) (
-          import ./tests/niri.nix { inherit hostModules gpu; }
-        );
-      };
+          niri = runSuite (if gpu then 1 else sandboxTimeoutScale) (
+            suite (import ./tests/niri.nix { inherit hostModules gpu; })
+          );
+        };
 
       # Every runNixOSTest suite goes through this, which adds
       # ./tests/waits.nix: each wait is timed (log line, $out/waits.jsonl,
@@ -304,6 +317,24 @@
             test
             (import ./tests/waits.nix { inherit scale; })
           ];
+
+          # SSH into a node of a suite being debugged, over a vsock the
+          # driver sets up and prints the command for (`ssh -o User=root
+          # vsock-mux/…`): a real terminal in the guest, where
+          # machine.shell_interact() gave a line-mangled one inside the REPL
+          # and is deprecated for this. `interactive.*` reaches only
+          # `driverInteractive`, the driver a person starts by hand; the
+          # derivations in `checks` are built from the other evaluation and
+          # are unchanged by it, sshd included. Reachable only through that
+          # socket on this machine, as root with root's password on that
+          # node: empty on a bare test node, `maxnix` on one built from the
+          # machine (modules/vm/qemu-guest.nix), and in the secrets suite the
+          # one that suite sets, which is what it is testing. Tried
+          # 2026-11-15 on containers (empty) and niri (`maxnix`).
+          #
+          #   nix build .#checks.x86_64-linux.<suite>.driverInteractive
+          #   ./result/bin/nixos-test-driver
+          interactive.sshBackdoor.enable = lib.mkDefault true;
         };
 
       # The scale for suites built as derivations: the sandboxed tier GitHub's
@@ -1256,7 +1287,7 @@
         let
           gpuSuites = lib.mapAttrsToList (name: test: {
             inherit name;
-            runner = testRunner name test;
+            runner = testRunner { inherit name test; };
           }) tests;
         in
         pkgs.writeShellApplication {
@@ -1608,8 +1639,19 @@
       # The interactive driver runs as you, outside the sandbox, where both
       # devices are simply available. Wrapping it here puts that knowledge in
       # the entry point instead of a comment nobody rereads.
+      #
+      # `debug` is the same suite with the SSH backdoor in its nodes
+      # (runSuite, above), used when --interactive is asked for: a REPL
+      # session is for looking around, and a terminal in the guest is most of
+      # that. The run that judges the suite stays on the driver without it.
+      # null where nobody will ask, which is `ci`: it would only build a
+      # second machine to never start it.
       testRunner =
-        name: test:
+        {
+          name,
+          test,
+          debug ? null,
+        }:
         pkgs.writeShellApplication {
           name = "test-${name}";
           runtimeInputs = [ pkgs.coreutils ];
@@ -1617,10 +1659,19 @@
             out=$(mktemp -d -t "maxnix-test-${name}-XXXXXX")
             echo "screenshots and logs -> $out" >&2
             cd "$out"
+            driver=${test.driverInteractive}
+            ${lib.optionalString (debug != null) ''
+              for arg in "$@"; do
+                if [ "$arg" = --interactive ]; then
+                  driver=${debug.driverInteractive}
+                fi
+              done
+            ''}
             # --no-interactive runs the test script. To get a REPL against a
             # live VM instead, pass --interactive through; the later flag wins:
             #   nix run .#test-${name} -- --interactive
-            exec ${test.driverInteractive}/bin/nixos-test-driver \
+            # That one also prints an `ssh … vsock-mux/…` line per node.
+            exec "$driver"/bin/nixos-test-driver \
               --no-interactive -o "$out" "$@"
           '';
         };
@@ -1799,7 +1850,12 @@
         name = "test-${name}";
         value = {
           type = "app";
-          program = lib.getExe (testRunner name test);
+          program = lib.getExe (testRunner {
+            inherit name test;
+            debug = test.extend {
+              modules = [ { interactive.sshBackdoor.enable = lib.mkForce true; } ];
+            };
+          });
         };
       }) tests;
     };

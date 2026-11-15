@@ -20,7 +20,8 @@ nix build .#checks.x86_64-linux.metal-install  #   install-maxnix (hosts/install
 nix build .#installer-iso        # the installer USB image; README "Road to metal" is the install-day checklist
 nix run .#installer-vm           # that image booted as a USB stick in QEMU, scratch NVMe at the ThinkPad's by-path (.vm/installer-disk.qcow2)
 nix build .#checks.x86_64-linux.niri           #   portable tier of a VM suite (also desktop, metal-boots, fleet, containers, secrets)
-nix run .#test-niri              # full (GPU) suite for desktop or niri; `-- --interactive` for a REPL
+nix run .#test-niri              # full (GPU) suite for desktop or niri; `-- --interactive` for a REPL, which also prints an `ssh -o User=root vsock-mux/…` line per node (root's password there is `maxnix`)
+nix build .#checks.x86_64-linux.<suite>.driverInteractive && ./result/bin/nixos-test-driver   # any suite by hand, with the same SSH lines (empty password on bare nodes); `checks` themselves carry no sshd
 nix build .#ci                   # shellchecks the ci runner itself without running it
 nix run .#blocked                # which workarounds in docs/blocked.toml upstream has unblocked
 nix run .#closure-diff -- <rev>  # nvd diff of metal at <rev> and the working tree (what CI comments on Renovate's lock PR)
