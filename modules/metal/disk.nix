@@ -48,7 +48,8 @@
 #
 # No swap. Hibernation wants a swapfile at least the size of RAM, and RAM is
 # another fact about the unchosen machine. A swapfile on btrfs is a file, so
-# adding it later costs nothing — unlike the partition layout around it.
+# adding it later costs nothing — unlike the partition layout around it, which
+# is why the subvolume it would live in is already there (./disk-layout.nix).
 { config, lib, ... }:
 {
   options.maxnix.disk.passwordFile = lib.mkOption {

@@ -80,8 +80,9 @@
   # No swap on disk, and so no hibernation, for now (decided 2026-10-15).
   # Whether resuming from hibernation works on this ThinkPad's AMD graphics,
   # and whether Secure Boot through lanzaboote leaves the kernel willing to,
-  # shows only on the hardware. If it does, a swapfile in a btrfs subvolume of
-  # its own (out of the root's rollback) adds it without repartitioning, and
+  # shows only on the hardware. If it does, a swapfile in the /swap subvolume
+  # (empty until then, and out of the root's rollback;
+  # ../../modules/metal/disk-layout.nix) adds it by a rebuild, and
   # systemd's suspend-then-hibernate gives a lid closed for days a full
   # battery back. zram stays either way, ahead of the file.
   zramSwap.enable = true;
@@ -123,6 +124,15 @@
   # Metal only: ../../modules/vm/qemu-guest.nix sets it back to null for every
   # VM, whose hardware is QEMU's, not this.
   hardware.facter.reportPath = ./facter.json;
+
+  # The fingerprint reader stays off (decided 2026-11-16). The report lists
+  # it (Goodix 27c6:6594) as supported, so facter would enable fprintd, and
+  # with that sudo, the console login and polkit would take a finger in
+  # place of the password: nobody decided that. The enrolled prints would
+  # also be gone at every boot, /var/lib/fprint not being preserved.
+  # Wanting it later means this line, that directory in
+  # ../../modules/metal/persistence.nix, and a row in the README.
+  hardware.facter.detected.fingerprint.enable = false;
 
   # Wootility — configuration software for Wooting keyboards.
   #

@@ -167,6 +167,21 @@
                     "noatime"
                   ];
                 };
+                # Empty, and nothing uses it yet (decided 2026-11-16). It is
+                # where a swapfile goes if hibernation turns out to work on
+                # this hardware (../../hosts/t14s/configuration.nix, zram). A
+                # subvolume is the one part of that which belongs to format
+                # time: made by hand later, it would be the first difference
+                # between the machine and what checks.metal-boots formats.
+                # The file itself and the sleep settings are a rebuild.
+                #
+                # Its own subvolume because a swapfile must not be snapshotted
+                # or rolled back with the root, and no compression because
+                # btrfs refuses to swap onto a compressed file.
+                "/swap" = {
+                  mountpoint = "/swap";
+                  mountOptions = [ "noatime" ];
+                };
               };
             };
           };

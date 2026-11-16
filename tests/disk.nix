@@ -90,14 +90,15 @@ disko.lib.testLib.makeDiskoTest {
     # mountpoint can be satisfied by the wrong subvolume, or by none at all
     # if it silently fell back to the root one.
     subvols = machine.succeed("btrfs subvolume list /")
-    for name in ["root", "home", "nix", "persist", "log"]:
+    for name in ["root", "home", "nix", "persist", "log", "swap"]:
         assert f"path {name}" in subvols, f"missing subvolume {name}:\n{subvols}"
 
     # And that they are actually mounted where they belong. `findmnt` reports
     # the subvolume in its source, so this catches a mount that exists but
     # points at the wrong one.
     for path, subvol in [("/", "root"), ("/home", "home"), ("/nix", "nix"),
-                         ("/persist", "persist"), ("/var/log", "log")]:
+                         ("/persist", "persist"), ("/var/log", "log"),
+                         ("/swap", "swap")]:
         src = machine.succeed(f"findmnt -no SOURCE {path}")
         assert f"[/{subvol}]" in src, f"{path} is not subvol {subvol}: {src}"
 
@@ -158,6 +159,18 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("test -f /persist/var/lib/faillock/preserved-marker")
     first_machine_id = machine.succeed("cat /etc/machine-id").strip()
 
+    # An old root from 40 days ago, with a subvolume nested in it, for the
+    # rollback to expire: old roots are kept for 30 days
+    # (../modules/metal/persistence.nix). Its age is its mtime, set last,
+    # since creating the nested one touches it.
+    top = "mount -o subvol=/ /dev/mapper/crypted /top"
+    machine.succeed(f"mkdir -p /top && {top}")
+    machine.succeed("mkdir -p /top/old_roots")
+    machine.succeed("btrfs subvolume create /top/old_roots/ancient")
+    machine.succeed("btrfs subvolume create /top/old_roots/ancient/nested")
+    machine.succeed("touch -d '40 days ago' /top/old_roots/ancient")
+    machine.succeed("umount /top")
+
     machine.succeed("sync")
     machine.shutdown()
 
@@ -195,6 +208,17 @@ disko.lib.testLib.makeDiskoTest {
     # that does not exist and swallowed the error with `|| true`, which made
     # it pass unconditionally.
     machine.fail("journalctl -b | grep -q 'rollback-root.service: Failed'")
+
+    # The root that was wiped is not gone: it was set aside, marker and all,
+    # which is what makes a path forgotten in the persistence list
+    # recoverable. The one from 40 days ago has been deleted, nested
+    # subvolume included.
+    machine.succeed(f"mkdir -p /top && {top}")
+    old_roots = machine.succeed("ls /top/old_roots").split()
+    assert "ancient" not in old_roots, old_roots
+    kept = machine.succeed("ls /top/old_roots/*/root-marker").split()
+    assert len(kept) == 1, f"the wiped root was not kept exactly once: {kept} of {old_roots}"
+    machine.succeed("umount /top")
     # Cannot survive, ever: /run is a tmpfs. This is what proves the reboot
     # actually happened.
     machine.fail("test -f /run/run-marker")

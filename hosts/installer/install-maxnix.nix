@@ -24,7 +24,17 @@
 #               would have meant an unpinned build over Wi-Fi
 #   5. key      onto /persist/sops/age.key, where ../maxnix/secrets.nix reads
 #               it, before the first boot needs it
-#   6. install  nixos-install --system <the machine, built>: the toplevel
+#   6. header   a copy of the LUKS header, the 16 MiB at the start of the
+#               encrypted partition that hold the key the passphrase
+#               unlocks. Damage there (a bad sector, a stray write) makes
+#               the passphrase useless and the whole disk unreadable, and a
+#               copy is what puts it back (README, install day). Into the
+#               1Password vault the passphrase came from, as a document; it
+#               is worthless without that passphrase. Where that fails, or
+#               the passphrase came from a file, it is left at
+#               /persist/luks-header.img to be stored by hand: failing here
+#               would leave an erased disk and no system
+#   7. install  nixos-install --system <the machine, built>: the toplevel
 #               the flake built for nixosConfigurations.t14s, which is on the
 #               stick with its whole closure because this script names it
 #               (decided 2026-11-12). Nothing is evaluated, fetched or built
@@ -35,14 +45,15 @@
 #               servers for the rest (measured that day) — all after step 4
 #               had erased the only machine there is
 #
-# checks.metal-install runs 1 to 5 against a virtual disk with --no-install,
-# then installs a small test system itself and boots it. Step 6 is NixOS's
-# own installer command and the one part only install day runs.
+# checks.metal-install runs 1 to 6 against a virtual disk with --no-install,
+# then installs a small test system itself and boots it. Step 7 is NixOS's
+# own installer command, and with the upload to 1Password in step 6 the
+# part only install day runs.
 #
 # disk and diskoScript come together from the flake's mkInstallMaxnix: the
 # ThinkPad's M.2 slot for the installer, a virtual disk for the test. The
 # script reads the passphrase from workDir, which is why that is fixed.
-# `toplevel` is the system to install, or null where step 6 never runs: the
+# `toplevel` is the system to install, or null where step 7 never runs: the
 # test's script must not drag the machine's 22 GiB into its nodes.
 {
   pkgs,
@@ -57,6 +68,8 @@ pkgs.writeShellApplication {
   runtimeInputs = [
     pkgs.age
     pkgs.coreutils
+    pkgs.cryptsetup
+    pkgs.gawk
     pkgs.util-linux
     pkgs.nixos-install-tools
   ];
@@ -133,7 +146,29 @@ pkgs.writeShellApplication {
     install -D -m 600 "$work/age.key" /mnt/persist/sops/age.key
     echo "key: /persist/sops/age.key" >&2
 
-    # ── 6. install ─────────────────────────────────────────────────────
+    # ── 6. header ──────────────────────────────────────────────────────
+    # The partition under the mapping disko just opened, so this cannot
+    # name a different disk than the one that was formatted.
+    luks_part=$(cryptsetup status crypted | awk '$1 == "device:" { print $2 }')
+    [ -b "$luks_part" ] || die "cannot find the partition under /dev/mapper/crypted"
+    cryptsetup luksHeaderBackup "$luks_part" --header-backup-file "$work/luks-header.img"
+    stored=0
+    if [ -n "$luks_ref" ]; then
+      vault=''${luks_ref#op://}
+      vault=''${vault%%/*}
+      if op document create "$work/luks-header.img" --vault "$vault" \
+        --title "maxnix LUKS header $(date +%F)" >/dev/null; then
+        stored=1
+        echo "header: a copy of the LUKS header is in 1Password, vault $vault" >&2
+      fi
+    fi
+    if [ "$stored" != 1 ]; then
+      install -m 600 "$work/luks-header.img" /mnt/persist/luks-header.img
+      echo "header: NOT in 1Password. A copy of the LUKS header is at" >&2
+      echo "        /persist/luks-header.img: store it off this disk." >&2
+    fi
+
+    # ── 7. install ─────────────────────────────────────────────────────
     if [ "$install" = 1 ]; then
       ${
         if toplevel == null then

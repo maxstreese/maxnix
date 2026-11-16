@@ -117,6 +117,18 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("${pkgs.cryptsetup}/bin/cryptsetup isLuks /dev/vdb2")
     mode = machine.succeed("stat -c '%a %U' /mnt/persist/sops/age.key").strip()
     assert mode == "600 root", mode
+
+    # The copy of the LUKS header, left on /persist because nothing here is
+    # signed in to 1Password. That it is this disk's header, and enough to
+    # open it: the passphrase unlocks the partition with the header read
+    # from the copy.
+    header = "/mnt/persist/luks-header.img"
+    cs = "${pkgs.cryptsetup}/bin/cryptsetup"
+    machine.succeed(f"{cs} isLuks {header}")
+    machine.succeed(
+        f"{cs} open --test-passphrase --header {header} "
+        "--key-file /tmp/secret.key /dev/vdb2"
+    )
   '';
 
   extraTestScript = ''

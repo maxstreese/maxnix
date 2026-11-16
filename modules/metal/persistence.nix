@@ -223,10 +223,6 @@
   # is already in use as the root. DefaultDependencies=no keeps systemd from
   # adding the ordinary ordering that would place it far too late.
   #
-  # Nested subvolumes are deleted first: btrfs refuses to delete a subvolume
-  # that contains others, and anything creating them inside / later (docker,
-  # systemd-nspawn) would otherwise turn every boot into a failed rollback and
-  # a root that quietly stopped being ephemeral.
   # Only where the root actually is the btrfs subvolume this rolls back.
   #
   # Every VM path — build-vm and all three test nodes — takes its root from
@@ -239,20 +235,64 @@
   # ephemeral, so a permanently-red unit in the VMs would have been training
   # to ignore exactly the signal that matters on metal.
   boot.initrd.systemd.services.rollback-root = lib.mkIf (config.fileSystems."/".fsType == "btrfs") {
-    description = "Roll the root subvolume back to its blank snapshot";
+    description = "Set the old root aside and start from the blank snapshot";
     wantedBy = [ "initrd.target" ];
     after = [ "systemd-cryptsetup@crypted.service" ];
     before = [ "sysroot.mount" ];
     unitConfig.DefaultDependencies = "no";
     serviceConfig.Type = "oneshot";
+    # The old root is moved aside, not deleted, and kept for 30 days
+    # (2026-11-16). The list above is the risk in this design: a path left
+    # off it is state that silently disappears at the next boot, and no
+    # generation brings it back, because it was never in the store. With
+    # the old roots kept, such a file can still be copied out and the path
+    # added:
+    #
+    #   mount -o subvol=/ /dev/mapper/crypted /mnt && ls /mnt/old_roots
+    #
+    # They are named by the time of the boot that retired them and aged by
+    # their mtime, which the `touch` sets to that same moment. A clock that
+    # is wrong at boot (an empty RTC battery says 1970) makes every age
+    # negative, so nothing is deleted. They hold whatever the root held,
+    # /tmp included, and are in no backup: nothing mounts them.
+    #
+    # Nested subvolumes go first, each time: btrfs refuses to delete a
+    # subvolume that contains others.
     script = ''
       mkdir -p /btrfs_tmp
       mount -t btrfs -o subvol=/ /dev/mapper/crypted /btrfs_tmp
 
-      btrfs subvolume list -o /btrfs_tmp/root | cut -f9 -d' ' | while read -r sub; do
-        btrfs subvolume delete "/btrfs_tmp/$sub"
+      delete_subvolume() {
+        btrfs subvolume list -o "$1" | cut -f9- -d' ' | while read -r sub; do
+          if [ -d "/btrfs_tmp/$sub" ]; then
+            delete_subvolume "/btrfs_tmp/$sub"
+          fi
+        done
+        btrfs subvolume delete "$1"
+      }
+
+      mkdir -p /btrfs_tmp/old_roots
+      if [ -e /btrfs_tmp/root ]; then
+        stamp=$(date -u +%Y-%m-%dT%H%M%SZ)
+        name=$stamp
+        n=0
+        while [ -e "/btrfs_tmp/old_roots/$name" ]; do
+          n=$((n + 1))
+          name="$stamp-$n"
+        done
+        mv /btrfs_tmp/root "/btrfs_tmp/old_roots/$name"
+        touch "/btrfs_tmp/old_roots/$name"
+      fi
+
+      now=$(date +%s)
+      for old in /btrfs_tmp/old_roots/*; do
+        [ -e "$old" ] || continue
+        age=$((now - $(stat -c %Y "$old")))
+        if [ "$age" -gt $((30 * 24 * 3600)) ]; then
+          delete_subvolume "$old"
+        fi
       done
-      btrfs subvolume delete /btrfs_tmp/root
+
       btrfs subvolume snapshot /btrfs_tmp/root-blank /btrfs_tmp/root
 
       umount /btrfs_tmp
