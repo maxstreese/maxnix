@@ -21,6 +21,15 @@
   # under load.
   security.rtkit.enable = true;
 
+  # The touchpad is off (decided 2026-11-16): this ThinkPad's is poor, it is
+  # off on the Ubuntu install too, and the TrackPoint does the pointing. In
+  # niri's input settings, which is libinput's "send events: disabled", the
+  # same switch GNOME's touchpad toggle sets there. It covers the session
+  # and its lock screen, not the greeter, which runs a niri of its own and
+  # is only seen after a logout. Here and not in home/max/desktop/niri.nix
+  # because it is a fact about this laptop, not about the desktop.
+  home-manager.users.max.wayland.windowManager.niri.settings.input.touchpad.off = { };
+
   # Battery state, for DMS's battery widget (Quickshell's UPower service).
   services.upower.enable = true;
 
