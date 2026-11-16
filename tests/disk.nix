@@ -74,11 +74,23 @@ disko.lib.testLib.makeDiskoTest {
 
   # The machine still asks for the passphrase at boot, because the layout puts
   # nothing in settings.keyFile — which is exactly the behaviour the real
-  # machine has, and the reason this test is worth having. OCR reads the
-  # prompt off the console; there is no other way to see it.
-  enableOCR = true;
+  # machine has, and the reason this test is worth having.
+  #
+  # When to type is read off the serial console, not off the screen
+  # (2026-11-16). bootvine, which has the prompt here, logs "asking for a
+  # password" once it shows it. Until then this used OCR, which polls
+  # screenshots through tesseract: on GitHub's four-core runner the suite sat
+  # at the prompt for five minutes that way (run 43846479920), and those
+  # minutes of CPU starved the suites running beside it. Twice the
+  # observability suite's 240 s wait for a host metric, normally 8 to 18 s,
+  # ran out exactly while this suite and ./install.nix were at their
+  # prompts (runs 43753104331 and 43846530426).
   bootCommands = ''
-    machine.wait_for_text("[Pp]assphrase for")
+    import datetime
+    machine.wait_for_console_text(
+        "bootvine: asking for a password",
+        timeout=datetime.timedelta(minutes=15),
+    )
     machine.send_chars("secretsecret\n")
   '';
 
@@ -189,7 +201,10 @@ disko.lib.testLib.makeDiskoTest {
     # dies at once with a QMP ConnectionResetError. Found by writing it that
     # way first.
     machine.start()
-    machine.wait_for_text("[Pp]assphrase for")
+    machine.wait_for_console_text(
+        "bootvine: asking for a password",
+        timeout=datetime.timedelta(minutes=15),
+    )
     machine.send_chars("secretsecret\n")
     machine.wait_for_unit("local-fs.target")
 

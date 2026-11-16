@@ -103,9 +103,15 @@ disko.lib.testLib.makeDiskoTest {
       sops.secrets.probe = { };
     };
 
-  enableOCR = true;
+  # Off the serial console, not by OCR, for the reason in ./disk.nix. No
+  # bootvine here, so the line is systemd's own: its agent for the screen's
+  # console, the one send_chars types into, saying it has started asking.
   bootCommands = ''
-    machine.wait_for_text("[Pp]assphrase for")
+    import datetime
+    machine.wait_for_console_text(
+        "Starting password query on /dev/tty1",
+        timeout=datetime.timedelta(minutes=15),
+    )
     machine.send_chars("secretsecret\n")
   '';
 

@@ -817,9 +817,13 @@ result. It reads the *same* layout file the real machine does — that is why
 the layout is plain data in its own file, since `makeDiskoTest` calls its
 config with `lib` alone and cannot be handed a NixOS module. It also exercises
 the real unlock path: the guest prints `Please enter passphrase for disk
-disk-main-luks`, and the test reads that off the console with OCR and types
-the answer, rather than taking a keyfile shortcut that the metal machine will
-not have. Slowest check here by some way — a full install, not a boot.
+disk-main-luks`, and the test types the answer once the serial console says
+the prompt is up, rather than taking a keyfile shortcut that the metal
+machine will not have. Until 2026-11-16 it read the prompt off the screen
+with OCR, which on GitHub's runner cost each of the two disk suites five to
+seven minutes of tesseract at the prompt and, twice, starved the
+observability suite running beside them into a timeout. Slowest check here
+by some way — a full install, not a boot.
 
 `nix fmt` is treefmt driving nixfmt, configured in `treefmt.nix`, which also
 records why shfmt and a Markdown formatter are deliberately absent. The linters
