@@ -153,9 +153,6 @@
     # revisions (`, cloc --git --diff A B`), is occasional enough for `,`.
     scc
 
-    # Terminal multiplexer, and what aoe runs its sessions inside (./aoe.nix).
-    tmux
-
     # herdr, a terminal workspace manager for coding agents. Came from
     # upstream's flake while nixpkgs' 0.9.1 failed to link; 0.9.3 builds.
     herdr

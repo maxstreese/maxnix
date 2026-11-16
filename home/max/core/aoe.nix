@@ -24,7 +24,7 @@
 # regex manager bumps the version from upstream's GitHub releases, then
 # ../../../scripts/renovate-aoe-rehash rewrites the hash (renovate.jsonc).
 #
-# aoe runs its sessions inside tmux, which ./dev.nix installs.
+# aoe runs its sessions inside tmux, which ./tmux.nix installs and configures.
 { lib, pkgs, ... }:
 let
   pin = builtins.fromJSON (builtins.readFile ./aoe.json);

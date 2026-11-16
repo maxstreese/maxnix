@@ -297,6 +297,19 @@ in
           machine.succeed("grep -q pam_gnome_keyring /etc/pam.d/login")
           machine.succeed("grep -Eq '^auth[[:space:]]+substack[[:space:]]+login' /etc/pam.d/greetd")
 
+      with subtest("tmux starts with my configuration"):
+          # ../home/max/core/tmux.nix. Read back from a running server, on a
+          # socket of its own: a file that is there but does not parse would
+          # leave tmux on its defaults.
+          t = "tmux -L suite"
+          machine.succeed(f"su - max -c '{t} new-session -d sleep 60 && {t} source-file ~/.tmux.conf'")
+          keys = machine.succeed(f"su - max -c '{t} show-options -gwv mode-keys'").strip()
+          assert keys == "vi", keys
+          clip = machine.succeed(f"su - max -c '{t} show-options -sv set-clipboard'").strip()
+          assert clip == "external", clip
+          machine.succeed(f"su - max -c '{t} list-keys -T root MouseDown2Pane' | grep -q wl-paste")
+          machine.succeed(f"su - max -c '{t} kill-server'")
+
       with subtest("Claude Code has my rule, skill, status line and settings, and keeps what it writes itself"):
           # Declared in ../home/max/core/claude.nix, so a new machine has
           # them before the first session.

@@ -19,6 +19,7 @@
     ./dev.nix
     ./harlequin.nix
     ./aoe.nix
+    ./tmux.nix
     ./claude.nix
   ];
 
