@@ -1,5 +1,6 @@
 # Claude Code, and what ties it to this machine: telemetry into the local
-# observability stack, and its MCP servers, grafana-local and nixos.
+# observability stack, its MCP servers, grafana-local and nixos, and my own
+# rule, skill, status line and settings (./claude).
 #
 # Unfree: the allow-list entry is in ../../../modules/base/default.nix, next to
 # where this layer is imported. Home Manager cannot declare it itself — with
@@ -71,6 +72,19 @@ let
       exec mcp-grafana "$@"
     '';
   };
+
+  # The status line: model and context used, the 5-hour and 7-day limits,
+  # cost and session time. The script is the one from the Ubuntu host; here
+  # it is built with jq on its PATH and named by store path in the settings,
+  # so it does not depend on what the profile happens to hold.
+  statusLine = pkgs.writeShellApplication {
+    name = "claude-statusline";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.jq
+    ];
+    text = builtins.readFile ./claude/statusline.sh;
+  };
 in
 {
   # Through Home Manager's programs.claude-code since 2026-11-10, so MCP
@@ -85,13 +99,63 @@ in
     # Wrapped to send telemetry when the observability stack is on (above).
     package = if observability.enable then claudeWithTelemetry else pkgs.claude-code;
 
-    # ~/.claude/settings.json stays a writable file that `settings` (none
-    # declared yet) is merged into on activation, rather than a read-only
+    # ~/.claude/settings.json stays a writable file that `settings` (below)
+    # is merged into on activation, rather than a read-only
     # store symlink: /config and "always allow" on a permission prompt write
     # there. Declared keys win, arrays whole (a declared permissions.allow
     # drops what Claude added since); a key no longer declared stays in the
     # file until deleted by hand.
     mutableSettings = true;
+
+    # What I had set by hand on the Ubuntu host, declared 2026-11-16 so a
+    # new machine has it from the first session and not from memory.
+    #
+    # Left out on purpose:
+    #   hooks        aoe writes its own two (SessionStart, UserPromptSubmit)
+    #                into the file. A declared `hooks` would replace them at
+    #                every activation, since a declared key wins whole.
+    #   skipDangerousModePermissionPrompt
+    #                the host has it; it is a choice to make per machine, by
+    #                hand, not one to publish for every host.
+    #   env.MCP_PROTOCOL_NEGOTIATION = "legacy"
+    #                on the host for a reason nobody remembers. Back only if
+    #                an MCP server turns out to need it, with the reason.
+    #   what the account brings (the Slack plugin, synced skills, the
+    #   organisation's remote settings) and the login itself.
+    settings = {
+      # The trailer on commits Claude makes; the commit skill below refers
+      # to it.
+      attribution.commit = "Co-Authored-By: Claude <noreply@anthropic.com>";
+
+      statusLine = {
+        type = "command";
+        command = lib.getExe statusLine;
+      };
+
+      tui = "fullscreen";
+      idleCompaction = false;
+      feedbackDrafts = "off";
+
+      # Claude Code deletes a session's transcript 30 days after its last
+      # use and it is then gone from /resume. Ten years instead: the
+      # conversations are the state I rely on most, /home is backed up, and
+      # they are text. 0 is not "never"; it fails validation.
+      cleanupPeriodDays = 3650;
+
+      # From Anthropic's own marketplace, which Claude Code knows without
+      # being told. It downloads the plugin itself, so this one is not
+      # pinned by the lock. marimo-pair, which the host also had, is not
+      # carried over.
+      enabledPlugins."duckdb-skills@claude-plugins-official" = true;
+    };
+
+    # ~/.claude/rules/git.md: never touch git history unless asked, and the
+    # Jira id in commit subjects. Loaded in every project.
+    rules.git = ./claude/git.md;
+
+    # /commit: proposes messages as a choice list and commits the chosen
+    # one. A directory, so the skill can grow files beside its SKILL.md.
+    skills.commit = ./claude/commit;
 
     # Not in ~/.claude.json, which Claude Code rewrites constantly: the
     # module writes these into a plugin of its own, named `hm`, in the store

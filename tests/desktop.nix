@@ -297,6 +297,39 @@ in
           machine.succeed("grep -q pam_gnome_keyring /etc/pam.d/login")
           machine.succeed("grep -Eq '^auth[[:space:]]+substack[[:space:]]+login' /etc/pam.d/greetd")
 
+      with subtest("Claude Code has my rule, skill, status line and settings, and keeps what it writes itself"):
+          # Declared in ../home/max/core/claude.nix, so a new machine has
+          # them before the first session.
+          claude = "/home/max/.claude"
+          machine.succeed(f"grep -q 'Never Touch History Unless Asked' {claude}/rules/git.md")
+          machine.succeed(f"grep -q '^name: commit$' {claude}/skills/commit/SKILL.md")
+
+          def setting(query):
+              return machine.succeed(f"su - max -c \"jq -r '{query}' {claude}/settings.json\"").strip()
+
+          assert setting(".attribution.commit").startswith("Co-Authored-By: Claude"), setting(".")
+          assert setting(".cleanupPeriodDays") == "3650", setting(".")
+          assert setting('.enabledPlugins[\\"duckdb-skills@claude-plugins-official\\"]') == "true", setting(".")
+          # The status line is a program that runs, not a path into a home
+          # directory: with nothing to report yet it prints the placeholder.
+          status_line = setting(".statusLine.command")
+          assert status_line.startswith("/nix/store/"), status_line
+          out = machine.succeed(f"echo '{{}}' | su - max -c {status_line}")
+          assert out == "?%", repr(out)
+
+          # The file is a writable one of max's own, and a key Claude Code
+          # or aoe wrote into it survives the next activation. aoe keeps
+          # its hooks there, which is why `hooks` is not declared.
+          machine.succeed(f"su - max -c 'test -f {claude}/settings.json -a ! -L {claude}/settings.json -a -w {claude}/settings.json'")
+          machine.succeed(
+              f"su - max -c \"jq '.hooks.SessionStart = [1] | .cleanupPeriodDays = 30' {claude}/settings.json > /tmp/s.json"
+              f" && cp /tmp/s.json {claude}/settings.json\""
+          )
+          machine.succeed("systemctl restart home-manager-max.service")
+          assert setting(".hooks.SessionStart[0]") == "1", setting(".")
+          # And a declared key is put back.
+          assert setting(".cleanupPeriodDays") == "3650", setting(".")
+
       with subtest("the observability stack runs on the whole machine"):
           # ../tests/observability.nix covers what it does, on nodes without
           # this machine's persistence. That gap hid a real failure: the

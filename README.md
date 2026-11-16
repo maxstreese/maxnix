@@ -88,6 +88,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | browser | Firefox, 1Password and Vimium preinstalled by policy, default for links |
 | apps | Spotify, Slack, Discord, Claude Code — each signs in once via the browser |
 | Claude Code's MCP servers | `grafana-local` (this machine's Prometheus, Loki, Tempo and dashboards) and `nixos` (mcp-nixos: options and packages from the public NixOS indexes), declared in `home/max/core/claude.nix` |
+| Claude Code's own configuration | my git rule (`~/.claude/rules/git.md`), the `/commit` skill, the status line, and settings: the commit trailer, fullscreen TUI, no idle compaction, transcripts kept ten years instead of 30 days, the duckdb-skills plugin. In `home/max/core/claude.nix` and `home/max/core/claude/`; `settings.json` stays writable and only declared keys are reset at activation |
 | games | Steam, as a system module: it needs the 32-bit graphics stack and controller udev rules |
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
 | dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf, gh, awscli2, steampipe, aoe |
