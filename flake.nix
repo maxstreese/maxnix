@@ -226,30 +226,40 @@
       # `toplevel` is the built machine the script's last step installs, or
       # null for the test, which stops before that step and whose nodes
       # would otherwise carry the machine's whole closure.
+      installWorkDir = "/run/install-maxnix";
+      installLayout =
+        disk:
+        lib.nixosSystem {
+          inherit system;
+          modules = [
+            inputs.disko.nixosModules.disko
+            (import ./modules/metal/disk-layout.nix {
+              device = disk;
+              passwordFile = "${installWorkDir}/luks.key";
+            })
+          ];
+        };
       mkInstallMaxnix =
         disk: toplevel:
-        let
-          workDir = "/run/install-maxnix";
-          layout = lib.nixosSystem {
-            inherit system;
-            modules = [
-              inputs.disko.nixosModules.disko
-              (import ./modules/metal/disk-layout.nix {
-                device = disk;
-                passwordFile = "${workDir}/luks.key";
-              })
-            ];
-          };
-        in
         import ./hosts/installer/install-maxnix.nix {
           inherit
             pkgs
             disk
-            workDir
             metalRecipient
             toplevel
             ;
-          diskoScript = lib.getExe layout.config.system.build.destroyFormatMount;
+          workDir = installWorkDir;
+          diskoScript = lib.getExe (installLayout disk).config.system.build.destroyFormatMount;
+        };
+      # rescue-maxnix, the stick's other command: the same layout, opened
+      # and mounted and never formatted (hosts/installer/rescue-maxnix.nix).
+      # `preserved` is what it binds from /persist once mounted.
+      mkRescueMaxnix =
+        disk: preserved:
+        import ./hosts/installer/rescue-maxnix.nix {
+          inherit pkgs disk preserved;
+          workDir = installWorkDir;
+          mountScript = lib.getExe (installLayout disk).config.system.build.mount;
         };
       # The stick's: the ThinkPad's disk, and the machine as checks.metal
       # builds it. Naming the toplevel here is what puts its closure in the
@@ -257,11 +267,20 @@
       installMaxnix =
         mkInstallMaxnix (import ./modules/metal/disk-layout.nix { }).disko.devices.disk.main.device
           t14s.config.system.build.toplevel;
+      # The directories the machine binds from /persist, read off its own
+      # mount units, so the list cannot differ from persistence.nix's.
+      rescueMaxnix =
+        mkRescueMaxnix (import ./modules/metal/disk-layout.nix { }).disko.devices.disk.main.device
+          (
+            map (m: m.where) (
+              lib.filter (m: lib.hasPrefix "/persist/" (m.what or "")) t14s.config.systemd.mounts
+            )
+          );
       installer = lib.nixosSystem {
         inherit system;
         modules = [ ./hosts/installer ];
         specialArgs = {
-          inherit installMaxnix;
+          inherit installMaxnix rescueMaxnix;
           flake = repoSource;
           disko = inputs.disko.packages.${system}.disko;
         };
@@ -546,7 +565,7 @@
         # key, which the booted result must decrypt with. See
         # ./tests/install.nix for what it leaves to install day.
         metal-install = import ./tests/install.nix {
-          inherit pkgs mkInstallMaxnix;
+          inherit pkgs mkInstallMaxnix mkRescueMaxnix;
           inherit (inputs) disko preservation sops-nix;
         };
 

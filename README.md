@@ -737,7 +737,7 @@ and the WSL host), a check of the ThinkPad's login stacks, and the suites for on
 | `metal` | the machine as it would be *installed* builds | — |
 | `z690-wsl` | the WSL host (`hosts/z690-wsl`) builds; nothing in CI can boot a WSL distribution, so its boot is checked on the desktop | — |
 | `metal-boots` | that layout partitions, formats and boots | disko's own script |
-| `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk, puts the key on `/persist` and takes a copy of the LUKS header that opens the disk with the passphrase, and the system booted from it decrypts with that key. Leaves only `nixos-install --system <the machine>`, a copy from the stick, to the day | disko's own script, plus the script's |
+| `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk, puts the key on `/persist` and takes a copy of the LUKS header that opens the disk with the passphrase, and the system booted from it decrypts with that key. Leaves only `nixos-install --system <the machine>`, a copy from the stick, to the day. Then `rescue-maxnix`, the stick's other command, on that disk: it refuses a wrong passphrase and leaves nothing open, mounts every subvolume and binds the preserved state with the right one, typed or from a file, and erases nothing: the system is installed through its mounts and boots with the markers written before | disko's own script, plus the script's |
 | `installer` | the installer USB's system builds; the image is that plus a squashfs, left to `nix build .#installer-iso` | — |
 | `metal-auth` | metal's built `sudoers` asks `wheel` for a password, and each of its five password stacks has pam_faillock in place: before the first line that can let someone in, after the last password check, with its config file | — |
 | `nix-sandbox` | every machine defined here builds in the sandbox and shows a build nothing of the host: `sandbox = true` and no `sandbox-paths` in the `nix.conf` each would install. The machine running the checks is asked the same by `nix run .#ci` before it builds anything | — |
@@ -1314,6 +1314,8 @@ On the day:
    and delete the old.
 9. Reboot, take the stick out, type the LUKS passphrase: the niri session
    starts by itself. The login password is for the lock screen and sudo.
+   **Keep the stick**: it is the way back in if the machine stops booting
+   (below).
 
 After:
 
@@ -1337,6 +1339,30 @@ After:
     only run against stand-ins: `systemctl --user start firmware-check`
     should end in a notification that stays, or in "no firmware updates" in
     `journalctl --user -u firmware-check`.
+
+**When the machine does not boot: `rescue-maxnix`, from the stick
+(2026-11-16).** For what the boot menu's older generations cannot fix: a
+damaged or full boot partition, Secure Boot refusing everything. Turn Secure
+Boot off in the firmware (the stick is not signed for the machine's keys),
+boot the stick, `sudo -i`, then `rescue-maxnix` and type the LUKS
+passphrase. It opens the disk, mounts the installed system at `/mnt` with
+the state from `/persist` bound where the running machine has it, lists the
+generations and enters it with `nixos-enter`; it formats nothing. Inside:
+
+- the boot files again, for the current generation:
+  `NIXOS_INSTALL_BOOTLOADER=1 /nix/var/nix/profiles/system/bin/switch-to-configuration boot`
+- an older generation as the one to boot:
+  `/nix/var/nix/profiles/system-<N>-link/bin/switch-to-configuration boot`
+- Secure Boot's state: `sbctl status`, `sbctl verify`
+
+Leaving the shell leaves the disk mounted, for copying things out of
+`/mnt/home` or `/mnt/persist`; `rescue-maxnix --unmount` closes it. The
+stick is the machine of the commit it was built from, so its list of
+preserved directories is that commit's. `checks.metal-install` covers
+everything but `nixos-enter` itself and the three commands above: the first
+is what disko's test harness runs to install its system, the other two are
+untried from the stick. `nix run .#installer-vm` without `--fresh`, after a
+rehearsed install, is where to try them.
 
 **The install path has run end to end, in the VM (2026-10-16).**
 `nix run .#installer-vm` boots the real installer image as a USB stick under

@@ -10,6 +10,10 @@
 # and install-maxnix (./install-maxnix.nix), which does the rest. The
 # README's install-day checklist walks through it.
 #
+# And rescue-maxnix (./rescue-maxnix.nix), for every day after that one: it
+# opens the installed disk and enters the system on it without erasing
+# anything. It is why the stick is kept.
+#
 # And the machine itself, built, with its whole closure (22.6 GiB unpacked on
 # 2026-11-12): install-maxnix names that toplevel, so it is in this system's
 # closure and so in the image's store. The install copies it from the stick
@@ -25,6 +29,7 @@
   modulesPath,
   pkgs,
   installMaxnix,
+  rescueMaxnix,
   flake,
   disko,
   ...
@@ -43,6 +48,7 @@
 
   environment.systemPackages = [
     installMaxnix
+    rescueMaxnix
     disko
     pkgs.git
     pkgs._1password-cli
