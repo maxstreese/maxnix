@@ -51,11 +51,17 @@
       type = "gpt";
       partitions = {
         ESP = {
-          # 1G rather than the conventional 512M: a Unified Kernel Image
-          # carries the kernel, initrd and cmdline in one signed file, and
-          # several generations of those do not fit in 512M. Sizing it now
-          # avoids a reinstall when lanzaboote lands.
-          size = "1G";
+          # 2G (2026-11-16; 1G before). The LUKS partition follows at 100%,
+          # so this can never grow, and lanzaboote keeps the kernel and
+          # initrd of every generation not yet collected here, each stored
+          # once. Measured on a built machine in October 2026: a 65.7 MB
+          # initrd and a 13.8 MB kernel, so 1G held about 12 distinct pairs
+          # and 2G holds about 25. A month of generations (the garbage
+          # collector keeps 30 days) was estimated at 400 to 500 MB. Only a
+          # rebuild a day, each with a different initrd, would fill it, and
+          # then a rebuild fails with "no space left" until generations are
+          # deleted; nothing breaks at boot.
+          size = "2G";
           type = "EF00";
           content = {
             type = "filesystem";

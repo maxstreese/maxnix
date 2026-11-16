@@ -106,6 +106,10 @@ disko.lib.testLib.makeDiskoTest {
     # booted, so this is belt and braces — but a machine that boots once from
     # an installer-written ESP and never again is a real failure mode.
     machine.succeed("findmnt -no FSTYPE /boot | grep -qx vfat")
+    # Its size, which is fixed at format time: the encrypted partition
+    # follows it to the end of the disk (../modules/metal/disk-layout.nix).
+    esp = int(machine.succeed("lsblk -bno SIZE /dev/vda1"))
+    assert esp == 2 * 1024**3, f"the ESP is {esp} bytes, not 2 GiB"
     machine.succeed("test -d /boot/EFI/systemd -o -d /boot/EFI/BOOT")
 
     # ── Second boot ────────────────────────────────────────────────────
