@@ -100,6 +100,16 @@
     settings.git_protocol = "ssh";
   };
 
+  # Go's own DNS resolver instead of the C library's, for every Go program
+  # started from a shell. Carried over from the Ubuntu host's .bashrc, where
+  # argo did not work without it. Whether argo needs it here was not tested;
+  # it is harmless where it is not needed. In ~/.bashrc and not
+  # home.sessionVariables, because those never reach a terminal here
+  # (../../../modules/base/default.nix).
+  programs.bash.initExtra = ''
+    export GODEBUG=netdns=go
+  '';
+
   home.packages = with pkgs; [
     # duckdb brings the `duckdb` CLI; the library rides along for anything
     # that links it. No server to run — it is in-process by design.

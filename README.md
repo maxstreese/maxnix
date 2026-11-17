@@ -93,6 +93,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | vpn | Twingate, as a system daemon; `twingate setup` once, then `twingate start`. Until then the unit sits in `failed`, by design |
 | dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf, gh, awscli2, steampipe, aoe |
 | notebooks | none installed: `uvx marimo edit --sandbox nb.py` per notebook, dependencies declared inline; plain `python3` and uv are in the profile |
+| shell | bash, with starship, atuin (Ctrl-R), fzf (Ctrl-T, Alt-C), zoxide (`z`), eza as `ls`, and `rt`, `clip`, `jsontidy` from the old host, in `home/max/core/shell.nix` |
 | git config | identity, aliases, ignores and SSH commit signing declared in Home Manager |
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |

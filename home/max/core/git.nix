@@ -88,9 +88,10 @@
   # here rather than with the other tools in ./dev.nix because they are this
   # file's dependencies, not free-standing preferences.
   #
-  # fzf's own shell integration (Ctrl-R history, Ctrl-T files) is a separate
-  # Home Manager module and is deliberately not enabled; only the binary is
-  # wanted here.
+  # fzf's shell integration (Ctrl-T files, Alt-C directories) is a separate
+  # Home Manager module, enabled in ./shell.nix, which installs the binary
+  # too. It is listed here all the same, so that git keeps working if that
+  # is ever switched off.
   home.packages = with pkgs; [
     delta
     fzf

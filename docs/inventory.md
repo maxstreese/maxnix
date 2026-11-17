@@ -186,6 +186,13 @@ or IDEs rather than typed, which history cannot see.
   module), sdkman going; cargo and deno env; and a long run of `source <(… completion bash)`
   lines. Most of those completions come free once the package is in Home
   Manager.
+- **Colour and variables:** the host's `ls`/`grep` colour aliases became eza
+  and a `grep` alias, and `GODEBUG=netdns=go` came over (2026-11-17).
+  `LOKI_ADDR` did not: it names a work host, which does not belong in the
+  repo. `EDITOR=nvim` waits on the Neovim decision above.
+- **Not from the host**, added 2026-11-17: fzf's Ctrl-T and Alt-C bindings
+  (Ctrl-R stays atuin's) and zoxide, which the host had installed but never
+  initialised.
 
 ## Unidentified
 

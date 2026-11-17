@@ -8,7 +8,7 @@
 # wired: nothing linked /share/zsh into the profiles, so it saw no package's
 # completions. fish was weighed that day and not taken either; atuin and
 # starship already cover what a change of shell would mostly buy.
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 let
   # The Ubuntu host's aliases and functions that its history shows in use
   # (../../../docs/inventory.md, "Shell configuration to port"), as programs
@@ -73,9 +73,41 @@ in
 
   programs.bat.enable = true;
 
+  # ls, coloured and with git status in long listings. The module's bash
+  # integration aliases ls, ll, la, lt (tree) and lla to it. Chosen over
+  # dircolors and `ls --color=auto`, which is what the Ubuntu host had: plain
+  # `ls` came over uncoloured, on the most-typed command in the history.
+  programs.eza.enable = true;
+
+  # The other half of what the host's .bashrc did for colour. eza covers ls;
+  # grep still needs asking when it writes to a terminal.
+  home.shellAliases.grep = "grep --color=auto";
+
+  # fzf's key bindings: Ctrl-T pastes picked files onto the command line,
+  # Alt-C changes into a picked directory. Its third binding, Ctrl-R, is
+  # switched off below so that history stays atuin's. The binary was already
+  # here for git's `cleanup` alias (./git.nix).
+  programs.fzf.enable = true;
+
+  # `z part-of-a-name` jumps to the directory used most and most recently
+  # that matches; `zi` picks among the matches with fzf. It learns from
+  # every cd, so it is empty on a new machine. Installed on the host and
+  # never initialised there, so this is its first real trial.
+  programs.zoxide.enable = true;
+
   # bash, the login shell, with Home Manager writing ~/.bashrc. No
   # `source <(… completion bash)` lines here: completions are files in
   # share/bash-completion/completions, which bash-completion loads on the
   # first Tab. 1password-cli ships its own; restish's is built in ./dev.nix.
-  programs.bash.enable = true;
+  programs.bash = {
+    enable = true;
+    # Before fzf's hook, which reads it: an empty command is how fzf is told
+    # to leave Ctrl-R alone. Order 100 because the fzf module writes its
+    # hook at 200, ahead of mkBefore's 500. In ~/.bashrc and not
+    # home.sessionVariables, because those never reach a terminal here
+    # (../../../modules/base/default.nix).
+    initExtra = lib.mkOrder 100 ''
+      FZF_CTRL_R_COMMAND=
+    '';
+  };
 }
