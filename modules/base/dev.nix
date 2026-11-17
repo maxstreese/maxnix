@@ -35,7 +35,8 @@
       default = false;
       description = ''
         Point generated Quickshell config at the clone instead of copying it
-        into the store, so edits take effect on save.
+        into the store, so edits take effect on save. Neovim's Lua
+        (home/max/core/neovim.nix) follows the same switch.
 
         Quickshell watches the files it loaded and reloads on change —
         `watchFiles` defaults to true, and quickshell-core.qmltypes carries

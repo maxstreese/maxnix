@@ -20,6 +20,7 @@
     ./harlequin.nix
     ./aoe.nix
     ./tmux.nix
+    ./neovim.nix
     ./claude.nix
   ];
 

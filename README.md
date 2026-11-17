@@ -94,6 +94,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | dev tools | git (system-wide, needed to clone), DuckDB, kubectl, Scala 3, delta, fzf, gh, awscli2, steampipe, aoe |
 | notebooks | none installed: `uvx marimo edit --sandbox nb.py` per notebook, dependencies declared inline; plain `python3` and uv are in the profile |
 | shell | bash, with starship, atuin (Ctrl-R), fzf (Ctrl-T, Alt-C), zoxide (`z`), eza as `ls`, and `rt`, `clip`, `jsontidy` from the old host, in `home/max/core/shell.nix` |
+| editor | Neovim, and `EDITOR`: fzf-lua for files and grep, nixd and Metals as language servers, format on save, tree-sitter highlighting; plugins, grammars and servers from nixpkgs, settings in `home/max/core/nvim/maxnix.lua` |
 | git config | identity, aliases, ignores and SSH commit signing declared in Home Manager |
 | keyboard | Wootility + its udev rules; needs USB passthrough to see the keyboard in the VM |
 | ssh, `op` | both served by the 1Password app: agent socket in `ssh_config`, `op` unlocks through the app |
@@ -1126,10 +1127,10 @@ not yet.** `docs/inventory.md` records what the Ubuntu host has installed and
 what its shell history shows is actually used, and marks with ✓ what came
 over on 2026-10-01: the CLI tools, atuin and starship, DBeaver, and Harlequin
 in place of per-database clients. Decided besides: sdkman gives way to
-per-project flakes, mise stays for the work repos that pin tools with it, and
-three host services stay behind. Still open: how to carry the Neovim config
-over, the less-used shell aliases, a few tools proposed but not added, and
-the rows marked "?".
+per-project flakes, mise stays for the work repos that pin tools with it,
+three host services stay behind, and Neovim gets a small configuration of its
+own in place of LazyVim. Still open: the less-used shell aliases, a few tools
+proposed but not added, and the rows marked "?".
 
 **Bind reachability is only partly checked.** The dead German binds were found
 by a hand-run audit, not by anything in the repo. niri rejects a bad keysym at

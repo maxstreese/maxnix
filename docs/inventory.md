@@ -51,10 +51,13 @@ later is the same collection; the counts below will have moved.
 
 ## Still to decide
 
-1. **Neovim** (508 runs in 90 days, LazyVim). Keep `~/.config/nvim` as is,
-   symlinked out of the store into a clone like `maxnix.dev.liveConfig`, or
-   port it to Nix (nixvim)? Either way Mason's downloaded language servers
-   will not run; LSPs and formatters have to come from nixpkgs.
+1. **Neovim** (508 runs in 90 days, LazyVim) — decided 2026-11-17, neither
+   of the two options first written here (keep `~/.config/nvim` as is, or
+   port it to nixvim). Of what LazyVim brought, a file picker, grep, language
+   servers for Nix and Scala and format on save were in use, so a small
+   configuration with just those, plus tree-sitter highlighting, was written
+   fresh: `home/max/core/neovim.nix`, plugins and servers from nixpkgs,
+   settings in plain Lua.
 2. **Shell aliases and functions** — `rt`, `clip` and `jsontidy` ported
    2026-11-17; see the last section for the rest.
 3. **Rows proposed U but not added**: bd (beads), mill. tldr (tealdeer)
@@ -85,7 +88,7 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 
 | tool | 90d (all) | nixpkgs | home | note |
 |---|---|---|---|---|
-| nvim | 508 (2362) | neovim 0.12.5 | U+cfg | decision 1; `svim` function uses it |
+| nvim | 508 (2362) | neovim 0.12.5 | U+cfg ✓ | decision 1; `svim` function used it |
 | aoe | 372 (806) | **missing** | U ✓ | upstream's release binary since 2026-11-14; its flake was removed 2026-10-06, as building it from source took CI from ~15 to ~55 min |
 | rg | 269 (791) | ripgrep | U ✓ | also used by the `rt` function |
 | mill | 130 (863) | mill 1.1.8 | P or U | not added yet |
@@ -190,7 +193,7 @@ or IDEs rather than typed, which history cannot see.
 - **Colour and variables:** the host's `ls`/`grep` colour aliases became eza
   and a `grep` alias, and `GODEBUG=netdns=go` came over (2026-11-17).
   `LOKI_ADDR` did not: it names a work host, which does not belong in the
-  repo. `EDITOR=nvim` waits on the Neovim decision above.
+  repo. `EDITOR=nvim` came with Neovim (2026-11-17).
 - **Not from the host**, added 2026-11-17: fzf's Ctrl-T and Alt-C bindings
   (Ctrl-R stays atuin's) and zoxide, which the host had installed but never
   initialised.
