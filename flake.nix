@@ -193,6 +193,18 @@
         in
         assert lib.assertMsg (builtins.length hits == 1) ".sops.yaml must name exactly one &metal key";
         builtins.head hits;
+      # Where the two secrets of install day are in 1Password: the LUKS
+      # passphrase and metal's sops key. Built into the stick's two commands
+      # as their defaults (decided 2026-11-17), so that the day's command is
+      # `install-maxnix` and nothing else. They were arguments until then,
+      # typed off the README: 120 characters on a console with no clipboard,
+      # where a slip in an item's ID shows only as "could not read". Nothing
+      # is given away by having them here: a reference is worthless without
+      # the account, and the README printed both.
+      installSecrets = {
+        luks = "op://uxobupcysqhat566ymgikx46fm/z26gdcpznhbgxktpdsffrgh5lu/password";
+        sopsKey = "op://uxobupcysqhat566ymgikx46fm/qvls72inmhuw3op62wyhhudayy/notesPlain";
+      };
       # The repo as the installer carries it: what git tracks, which is all a
       # build from git ever sees. A build from the working tree (`path:.`)
       # would otherwise copy everything .gitignore keeps out — .vm/ above
@@ -249,6 +261,8 @@
             toplevel
             ;
           workDir = installWorkDir;
+          luksRef = installSecrets.luks;
+          sopsKeyRef = installSecrets.sopsKey;
           diskoScript = lib.getExe (installLayout disk).config.system.build.destroyFormatMount;
         };
       # rescue-maxnix, the stick's other command: the same layout, opened
@@ -259,6 +273,7 @@
         import ./hosts/installer/rescue-maxnix.nix {
           inherit pkgs disk preserved;
           workDir = installWorkDir;
+          luksRef = installSecrets.luks;
           mountScript = lib.getExe (installLayout disk).config.system.build.mount;
         };
       # The stick's: the ThinkPad's disk, and the machine as checks.metal

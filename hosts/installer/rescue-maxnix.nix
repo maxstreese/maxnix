@@ -2,7 +2,7 @@
 # (./default.nix) when it does not boot by itself, without erasing anything.
 # Run as root.
 #
-#   rescue-maxnix [--luks <op-ref> | --luks-file <file>] [--no-enter]
+#   rescue-maxnix [--luks [<op-ref>] | --luks-file <file>] [--no-enter]
 #   rescue-maxnix --unmount
 #
 # Why it exists (decided 2026-11-16): after install day the stick is the only
@@ -18,7 +18,10 @@
 #
 #   1. checks      root, the disk is there, nothing is mounted at /mnt yet
 #   2. passphrase  typed at a prompt, as at every boot; or from 1Password
-#                  (--luks) or a file (--luks-file), into a tmpfs only
+#                  (--luks: the item install-maxnix reads it from, unless a
+#                  reference follows) or a file (--luks-file), into a tmpfs
+#                  only. The prompt stays the default: it needs no network
+#                  and no sign-in on the day the machine does not boot
 #   3. mount       disko's mount script for ../../modules/metal/disk-layout.nix:
 #                  the same layout the install formatted, opened and mounted
 #                  at /mnt. It only opens and mounts; the script that formats
@@ -44,13 +47,15 @@
 # mounts boots. Step 5 is NixOS's own command.
 #
 # disk, mountScript and workDir come from the flake, as for install-maxnix;
-# `preserved` is the list for step 4.
+# `preserved` is the list for step 4, luksRef the reference a bare --luks
+# reads.
 {
   pkgs,
   disk,
   mountScript,
   workDir,
   preserved,
+  luksRef,
 }:
 pkgs.writeShellApplication {
   name = "rescue-maxnix";
@@ -68,13 +73,19 @@ pkgs.writeShellApplication {
 
     die() { echo "rescue-maxnix: $*" >&2; exit 1; }
     usage() {
-      echo "usage: rescue-maxnix [--luks <op-ref> | --luks-file <file>] [--no-enter]" >&2
+      echo "usage: rescue-maxnix [--luks [<op-ref>] | --luks-file <file>] [--no-enter]" >&2
       echo "       rescue-maxnix --unmount" >&2
       exit 2
     }
     while [ $# -gt 0 ]; do
       case "$1" in
-        --luks) luks_ref=''${2-}; shift 2 || usage ;;
+        # With a reference after it, that one; bare, the built-in one.
+        --luks)
+          case "''${2-}" in
+            op://*) luks_ref=$2; shift 2 ;;
+            *) luks_ref=${pkgs.lib.escapeShellArg luksRef}; shift ;;
+          esac
+          ;;
         --luks-file) luks_file=''${2-}; shift 2 || usage ;;
         --no-enter) enter=0; shift ;;
         --unmount) unmount=1; shift ;;

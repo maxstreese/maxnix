@@ -2,15 +2,22 @@
 # (./default.nix). Run as root, in a terminal where 1Password's CLI is signed
 # in (`eval $(op signin)`); the README has the whole day as a checklist.
 #
-#   install-maxnix --luks op://<vault>/<item>/password \
-#                  --sops-key op://<vault>/<item>/<field>
+#   install-maxnix
+#
+# Where the two secrets are in 1Password is built in (the flake's
+# installSecrets, with the reason). Each can be named differently, for an
+# item that has moved since the stick was built or, from a file, for the
+# test and for a day 1Password is not reachable:
+#
+#   install-maxnix [--luks <op-ref> | --luks-file <file>]
+#                  [--sops-key <op-ref> | --sops-key-file <file>]
 #
 # In order, and stopping at the first thing that is not right:
 #
 #   1. checks   root, UEFI, the disk exists — shown by size and model before
 #               anything happens to it
 #   2. secrets  the LUKS passphrase and the metal sops key, from 1Password
-#               (or from files: --luks-file, --sops-key-file), into a tmpfs
+#               (or from files, as above), into a tmpfs
 #               only, and the key checked against `metal` in .sops.yaml — a
 #               wrong key would install a machine that cannot decrypt its
 #               secrets, login password included
@@ -53,6 +60,8 @@
 # disk and diskoScript come together from the flake's mkInstallMaxnix: the
 # ThinkPad's M.2 slot for the installer, a virtual disk for the test. The
 # script reads the passphrase from workDir, which is why that is fixed.
+# luksRef and sopsKeyRef are the 1Password references used where no flag
+# names another source.
 # `toplevel` is the system to install, or null where step 7 never runs: the
 # test's script must not drag the machine's 22 GiB into its nodes.
 {
@@ -61,6 +70,8 @@
   diskoScript,
   workDir,
   metalRecipient,
+  luksRef,
+  sopsKeyRef,
   toplevel ? null,
 }:
 pkgs.writeShellApplication {
@@ -81,9 +92,10 @@ pkgs.writeShellApplication {
 
     die() { echo "install-maxnix: $*" >&2; exit 1; }
     usage() {
-      echo "usage: install-maxnix (--luks <op-ref> | --luks-file <file>)" >&2
-      echo "                      (--sops-key <op-ref> | --sops-key-file <file>)" >&2
+      echo "usage: install-maxnix [--luks <op-ref> | --luks-file <file>]" >&2
+      echo "                      [--sops-key <op-ref> | --sops-key-file <file>]" >&2
       echo "                      [--yes] [--no-install]" >&2
+      echo "without flags, both secrets come from their items in 1Password" >&2
       exit 2
     }
     while [ $# -gt 0 ]; do
@@ -99,7 +111,9 @@ pkgs.writeShellApplication {
         *) usage ;;
       esac
     done
-    if [ -z "$luks_ref$luks_file" ] || [ -z "$key_ref$key_file" ]; then usage; fi
+    # The built-in references, each only where no flag named a source.
+    [ -n "$luks_ref$luks_file" ] || luks_ref=${pkgs.lib.escapeShellArg luksRef}
+    [ -n "$key_ref$key_file" ] || key_ref=${pkgs.lib.escapeShellArg sopsKeyRef}
 
     # ── 1. checks ──────────────────────────────────────────────────────
     [ "$(id -u)" = 0 ] || die "run as root (sudo -i first)"

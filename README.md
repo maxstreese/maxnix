@@ -739,7 +739,7 @@ and the WSL host), a check of the ThinkPad's login stacks, and the suites for on
 | `metal` | the machine as it would be *installed* builds | — |
 | `z690-wsl` | the WSL host (`hosts/z690-wsl`) builds; nothing in CI can boot a WSL distribution, so its boot is checked on the desktop | — |
 | `metal-boots` | that layout partitions, formats and boots | disko's own script |
-| `metal-install` | `install-maxnix`, the installer USB's script: it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk, puts the key on `/persist` and takes a copy of the LUKS header that opens the disk with the passphrase, and the system booted from it decrypts with that key. Leaves only `nixos-install --system <the machine>`, a copy from the stick, to the day. Then `rescue-maxnix`, the stick's other command, on that disk: it refuses a wrong passphrase and leaves nothing open, mounts every subvolume and binds the preserved state with the right one, typed or from a file, and erases nothing: the system is installed through its mounts and boots with the markers written before | disko's own script, plus the script's |
+| `metal-install` | `install-maxnix`, the installer USB's script: without flags it goes to 1Password for both secrets (as `rescue-maxnix --luks` does for the passphrase) and stops where nothing is signed in; it refuses a sops key that is not the expected one, a disk that is not there and anything but `erase`; then partitions a virtual disk, puts the key on `/persist` and takes a copy of the LUKS header that opens the disk with the passphrase, and the system booted from it decrypts with that key. Leaves only `nixos-install --system <the machine>`, a copy from the stick, to the day. Then `rescue-maxnix`, the stick's other command, on that disk: it refuses a wrong passphrase and leaves nothing open, mounts every subvolume and binds the preserved state with the right one, typed or from a file, and erases nothing: the system is installed through its mounts and boots with the markers written before | disko's own script, plus the script's |
 | `installer` | the installer USB's system builds; the image is that plus a squashfs, left to `nix build .#installer-iso` | — |
 | `metal-auth` | metal's built `sudoers` asks `wheel` for a password, and each of its five password stacks has pam_faillock in place: before the first line that can let someone in, after the last password check, with its config file | — |
 | `nix-sandbox` | every machine defined here builds in the sandbox and shows a build nothing of the host: `sandbox = true` and no `sandbox-paths` in the `nix.conf` each would install. The machine running the checks is asked the same by `nix run .#ci` before it builds anything | — |
@@ -1298,7 +1298,10 @@ On the day:
    `eval $(op signin)`. In that order because install-maxnix runs as root
    and `op` keeps its sign-in per user and shell: signed in as `nixos`,
    root's `op` would not see it.
-8. `install-maxnix --luks op://uxobupcysqhat566ymgikx46fm/z26gdcpznhbgxktpdsffrgh5lu/password --sops-key op://uxobupcysqhat566ymgikx46fm/qvls72inmhuw3op62wyhhudayy/notesPlain`.
+8. `install-maxnix`. Where the two secrets are in 1Password is built into
+   it (`installSecrets` in `flake.nix`, decided 2026-11-17; `--luks` and
+   `--sops-key` name other items, `--luks-file` and `--sops-key-file`
+   files).
    It checks UEFI and the disk, shows the disk's size and model, reads both
    secrets, refuses a sops key that is not `metal` in `.sops.yaml`, asks you
    to type `erase`, partitions, puts the key on `/persist`, stores a copy of the LUKS
@@ -1352,7 +1355,8 @@ After:
 damaged or full boot partition, Secure Boot refusing everything. Turn Secure
 Boot off in the firmware (the stick is not signed for the machine's keys),
 boot the stick, `sudo -i`, then `rescue-maxnix` and type the LUKS
-passphrase. It opens the disk, mounts the installed system at `/mnt` with
+passphrase (or, signed in to 1Password as on install day, `rescue-maxnix
+--luks`). It opens the disk, mounts the installed system at `/mnt` with
 the state from `/persist` bound where the running machine has it, lists the
 generations and enters it with `nixos-enter`; it formats nothing. Inside:
 
@@ -1385,7 +1389,10 @@ keyring behaved as intended. Before that, with throwaway secrets, the stick's
 copy of this repo evaluated the machine to the same store path as the host.
 What a VM cannot show is left to the hardware (steps 4, 12). Two things the
 run taught: `sudo -i` has to come before `op` signs in (step 7), and the
-VM needs a GL GPU, as niri draws nothing without one.
+VM needs a GL GPU, as niri draws nothing without one. Run again 2026-11-17
+with `install-maxnix` taking no arguments: signed in, it read both secrets
+from the references built into it and installed, and the disk booted with
+`--no-stick --offline` through the passphrase into niri.
 
 **The stick carries the machine, and the install needs no upstream
 (2026-11-12).** Until then `install-maxnix` ended in `nixos-install --flake`,

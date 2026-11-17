@@ -120,6 +120,12 @@ disko.lib.testLib.makeDiskoTest {
     recipient = machine.succeed("cat ${fixture}/recipient").strip()
     run = "install-maxnix ${args}"
 
+    # Without flags the secrets are 1Password's, at the references the
+    # flake builds in: nothing is signed in here, so it stops there, and
+    # not at a usage message asking for them.
+    out = machine.fail("install-maxnix --yes --no-install 2>&1")
+    assert "1Password's CLI is not signed in" in out, out
+
     # The refusals, each before anything is written. A key that is not the
     # expected one — here, metal's, the default:
     out = machine.fail(run + " --yes 2>&1")
@@ -161,6 +167,12 @@ disko.lib.testLib.makeDiskoTest {
     machine.succeed("echo marker > /mnt/persist/var/lib/sbctl/rescue-marker")
     machine.succeed("rescue-maxnix --unmount")
     machine.fail("mountpoint -q /mnt")
+    machine.fail("test -e /dev/mapper/crypted")
+
+    # A bare --luks is 1Password's too, at the built-in reference, and
+    # stops the same way.
+    out = machine.fail("rescue-maxnix --luks --no-enter 2>&1")
+    assert "1Password's CLI is not signed in" in out, out
     machine.fail("test -e /dev/mapper/crypted")
 
     # A wrong passphrase: refused, and nothing left half open.
