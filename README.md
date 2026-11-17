@@ -1313,10 +1313,15 @@ On the day:
    The header is the first 16 MiB of the encrypted partition and holds the
    key the passphrase unlocks: damaged, it leaves the passphrase useless and
    the disk unreadable. The copy goes into the passphrase's vault as the
-   document "maxnix LUKS header <date>" and is worthless without the
-   passphrase. If the script says `NOT in 1Password`, the copy is at
-   `/persist/luks-header.img`: store it by hand after the first boot and
-   delete it there. To put a header back, from the stick:
+   document "MaxNix LUKS Header t14s <date>", holding the file
+   `luks-header-<LUKS UUID>.img`, and is worthless without the
+   passphrase. A header fits one disk only, and restoring another's
+   destroys what is there: `cryptsetup luksUUID
+   /dev/disk/by-partlabel/disk-main-luks` has to give the UUID in the file
+   name. If the script says `NOT in 1Password`, the copy is at
+   `/persist/luks-header.img`: store it by hand after the first boot, under
+   the names the script prints, and delete it there. To put a header back,
+   from the stick:
    `cryptsetup luksHeaderRestore /dev/disk/by-partlabel/disk-main-luks --header-backup-file <file>`.
    A copy still opens the disk with the passphrase of its day, so after
    changing the passphrase take a new one (`cryptsetup luksHeaderBackup`)

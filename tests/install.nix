@@ -58,8 +58,8 @@ let
   args = "--luks-file /tmp/secret.key --sops-key-file /tmp/age.key --no-install";
   # install-maxnix as the flake builds it, for the harness's empty disk, and
   # for one that is not there.
-  forDisk = mkInstallMaxnix "/dev/vdb" null;
-  forNoDisk = mkInstallMaxnix "/dev/nope" null;
+  forDisk = mkInstallMaxnix "/dev/vdb" "test" null;
+  forNoDisk = mkInstallMaxnix "/dev/nope" "test" null;
   # rescue-maxnix for the same disk, binding one of the machine's preserved
   # directories.
   rescue = mkRescueMaxnix "/dev/vdb" [ "/var/lib/sbctl" ];
@@ -138,17 +138,22 @@ disko.lib.testLib.makeDiskoTest {
     assert "nothing was changed" in out, out
 
     # For real, confirmed at the prompt as on the day.
-    machine.succeed(f"echo erase | {run} --recipient {recipient}")
+    out = machine.succeed(f"(echo erase | {run} --recipient {recipient}) 2>&1")
     machine.succeed("${pkgs.cryptsetup}/bin/cryptsetup isLuks /dev/vdb2")
     mode = machine.succeed("stat -c '%a %U' /mnt/persist/sops/age.key").strip()
     assert mode == "600 root", mode
 
     # The copy of the LUKS header, left on /persist because nothing here is
-    # signed in to 1Password. That it is this disk's header, and enough to
+    # signed in to 1Password, with the name to store it under: the title
+    # the upload would have given it and this disk's UUID. That it is this
+    # disk's header, and enough to
     # open it: the passphrase unlocks the partition with the header read
     # from the copy.
     header = "/mnt/persist/luks-header.img"
     cs = "${pkgs.cryptsetup}/bin/cryptsetup"
+    uuid = machine.succeed(f"{cs} luksUUID /dev/vdb2").strip()
+    assert '"MaxNix LUKS Header test ' in out, out
+    assert f"luks-header-{uuid}.img" in out, out
     machine.succeed(f"{cs} isLuks {header}")
     machine.succeed(
         f"{cs} open --test-passphrase --header {header} "

@@ -36,8 +36,15 @@
 #               unlocks. Damage there (a bad sector, a stray write) makes
 #               the passphrase useless and the whole disk unreadable, and a
 #               copy is what puts it back (README, install day). Into the
-#               1Password vault the passphrase came from, as a document; it
-#               is worthless without that passphrase. Where that fails, or
+#               1Password vault the passphrase came from, as the document
+#               "MaxNix LUKS Header <host> <date>", named as the other
+#               items of a machine are, with the file in it called
+#               luks-header-<LUKS UUID>.img (decided 2026-11-17). A header
+#               fits one disk only and restoring another's destroys what is
+#               there, so the title says which machine, for the day there is
+#               a second one, and the file name which disk: `cryptsetup
+#               luksUUID` on the partition has to give the same. It is
+#               worthless without the passphrase. Where the upload fails, or
 #               the passphrase came from a file, it is left at
 #               /persist/luks-header.img to be stored by hand: failing here
 #               would leave an erased disk and no system
@@ -61,7 +68,8 @@
 # ThinkPad's M.2 slot for the installer, a virtual disk for the test. The
 # script reads the passphrase from workDir, which is why that is fixed.
 # luksRef and sopsKeyRef are the 1Password references used where no flag
-# names another source.
+# names another source. hostName is the machine's, for the header copy's
+# title.
 # `toplevel` is the system to install, or null where step 7 never runs: the
 # test's script must not drag the machine's 22 GiB into its nodes.
 {
@@ -70,6 +78,7 @@
   diskoScript,
   workDir,
   metalRecipient,
+  hostName,
   luksRef,
   sopsKeyRef,
   toplevel ? null,
@@ -166,20 +175,24 @@ pkgs.writeShellApplication {
     luks_part=$(cryptsetup status crypted | awk '$1 == "device:" { print $2 }')
     [ -b "$luks_part" ] || die "cannot find the partition under /dev/mapper/crypted"
     cryptsetup luksHeaderBackup "$luks_part" --header-backup-file "$work/luks-header.img"
+    luks_uuid=$(cryptsetup luksUUID "$luks_part")
+    title=${pkgs.lib.escapeShellArg "MaxNix LUKS Header ${hostName}"}" $(date +%F)"
     stored=0
     if [ -n "$luks_ref" ]; then
       vault=''${luks_ref#op://}
       vault=''${vault%%/*}
       if op document create "$work/luks-header.img" --vault "$vault" \
-        --title "maxnix LUKS header $(date +%F)" >/dev/null; then
+        --title "$title" --file-name "luks-header-$luks_uuid.img" >/dev/null; then
         stored=1
-        echo "header: a copy of the LUKS header is in 1Password, vault $vault" >&2
+        echo "header: a copy of the LUKS header is in 1Password, vault $vault," >&2
+        echo "        as \"$title\"" >&2
       fi
     fi
     if [ "$stored" != 1 ]; then
       install -m 600 "$work/luks-header.img" /mnt/persist/luks-header.img
       echo "header: NOT in 1Password. A copy of the LUKS header is at" >&2
-      echo "        /persist/luks-header.img: store it off this disk." >&2
+      echo "        /persist/luks-header.img: store it off this disk, as" >&2
+      echo "        \"$title\", file luks-header-$luks_uuid.img." >&2
     fi
 
     # ── 7. install ─────────────────────────────────────────────────────

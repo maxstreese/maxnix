@@ -252,11 +252,12 @@
           ];
         };
       mkInstallMaxnix =
-        disk: toplevel:
+        disk: hostName: toplevel:
         import ./hosts/installer/install-maxnix.nix {
           inherit
             pkgs
             disk
+            hostName
             metalRecipient
             toplevel
             ;
@@ -281,6 +282,7 @@
       # image (hosts/installer).
       installMaxnix =
         mkInstallMaxnix (import ./modules/metal/disk-layout.nix { }).disko.devices.disk.main.device
+          t14s.config.networking.hostName
           t14s.config.system.build.toplevel;
       # The directories the machine binds from /persist, read off its own
       # mount units, so the list cannot differ from persistence.nix's.
