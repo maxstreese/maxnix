@@ -43,6 +43,9 @@ later is the same collection; the counts below will have moved.
   `home/max/core/shell.nix`, for bash. zsh was enabled beside it until
   2026-11-17 and removed unused. atuin's history from the Ubuntu host has to
   be copied over by hand.
+- **No JetBrains product comes over** (2026-11-17): IntelliJ IDEA, CLion,
+  Rider and DataGrip all stay behind. Neovim, with language servers for Nix
+  and Scala, is the editor.
 - **DBeaver, not DataGrip.** DataGrip came over first and was swapped out the
   same day: DBeaver is free, so it needs no unfree allow-list entry.
 - **Harlequin for SQL in the terminal**, with Trino and MySQL adapters
@@ -60,9 +63,9 @@ later is the same collection; the counts below will have moved.
    settings in plain Lua.
 2. **Shell aliases and functions** — `rt`, `clip` and `jsontidy` ported
    2026-11-17; see the last section for the rest.
-3. **Rows proposed U but not added**: bd (beads). tldr (tealdeer) went in
-   on 2026-11-17, and mill turned out to need nothing (its row).
-4. **The "?" rows below.**
+3. **Rows proposed U but not added** — settled 2026-11-17: tldr (tealdeer)
+   went in, mill turned out to need nothing (its row), beads is out.
+4. **The "?" rows below** — settled 2026-11-17, each in its row.
 
 ## Already in maxnix
 
@@ -110,8 +113,8 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 | sqlfluff | 8 | sqlfluff | , or P | |
 | deno | 7 | deno | P | |
 | flux | 6 (9) | fluxcd | U ✓ | |
-| agentsview | 5 (14) | not checked | ? | |
-| bd | 5 | beads | U | not added yet |
+| agentsview | 5 (14) | not checked | X | not coming (2026-11-17) |
+| bd | 5 | beads | X | not coming (2026-11-17) |
 | uv | 4 (44) | uv | U ✓ | projects still pin their Python |
 | kaf | 4 (15) | kaf | U ✓ | |
 | visualvm | 4 (12) | visualvm | U ✓ | |
@@ -149,20 +152,17 @@ or IDEs rather than typed, which history cannot see.
 
 | app | evidence | nixpkgs | home |
 |---|---|---|---|
-| IntelliJ IDEA Ultimate | launcher alias | jetbrains.idea-ultimate | U (unfree) |
-| CLion | launcher alias | jetbrains.clion | ? |
-| Rider | installed | jetbrains.rider | ? |
-| DataGrip | installed | jetbrains.datagrip | X — DBeaver replaced it |
-| Thunderbird | dock favourite | thunderbird | U |
-| Zoom | installed | zoom-us | U |
-| Obsidian | installed | obsidian | U |
-| Threema | installed | threema-desktop | U |
-| LibreOffice | dock favourite | libreoffice | U |
-| Zed, Cursor, VS Code | installed; `code` 2 runs | all present | ? |
+| IntelliJ IDEA Ultimate, CLion, Rider, DataGrip | installed; launcher aliases for the first two | all present | X — no JetBrains product comes over (decided 2026-11-17); Neovim is the editor and DBeaver replaced DataGrip |
+| Thunderbird | dock favourite | thunderbird | X — a favourite, but essentially never used |
+| Zoom | installed | zoom-us | X |
+| Obsidian | installed | obsidian | X |
+| Threema | installed, as the 2.0 beta from Flatpak | threema-desktop is 1.2.50, the older client | X — the host runs the 2.0 beta, which nixpkgs does not have, and the older client is not wanted in its place (2026-11-17) |
+| LibreOffice | dock favourite | libreoffice | X — a favourite, but essentially never used |
+| Zed, Cursor, VS Code | installed; `code` 2 runs | all present | X — Neovim is the editor |
 | DBeaver | installed | dbeaver-bin | U ✓ |
-| Google Chrome | installed | google-chrome | ? |
-| Wireshark | installed | wireshark | S (capture group) |
-| Altair, GitButler, Unity Hub | installed | all present | ? |
+| Google Chrome | installed | google-chrome | U ✓ — already in `home/max/core/dev.nix`, where agent-browser needs it |
+| Wireshark | installed | wireshark | S ✓ — `modules/desktop/wireshark.nix`, with the capture group |
+| Altair, GitButler, Unity Hub | installed | all present | X |
 | OBS, GIMP | installed | both present | U ✓ |
 | Flameshot | installed | present | X — X11; niri and DMS have screenshots |
 | JupyterLab desktop | installed | missing | X — marimo, per notebook through uv |
@@ -172,8 +172,8 @@ or IDEs rather than typed, which history cannot see.
 
 | service | proposal |
 |---|---|
-| PostgreSQL 17 server | S (`services.postgresql`) or a container; a local alias targets it, with a local password that belongs in an env file, not here |
-| libvirt, VirtualBox | X inside the VM; revisit on metal |
+| PostgreSQL 17 server | X — not coming (2026-11-17); the alias that targeted it was last used in June, and a project that wants one can run a container |
+| libvirt, VirtualBox | X — nothing for now (2026-11-17): the host has no VM defined in either, and this repo's own VMs are QEMU through Nix. libvirt with virt-manager is the one to add if a long-lived VM is ever wanted |
 | Docker | ✓ rootless, `modules/base/containers.nix` |
 
 ## Shell configuration to port
@@ -201,5 +201,5 @@ or IDEs rather than typed, which history cannot see.
 ## Unidentified
 
 `pw`, `gi`, `dt`, `t`, `wt` (probably worktrunk), `cs` (probably coursier),
-`rum`, and a set of personal PR-automation shell scripts. Where the scripts
-live, and whether they belong in a repository, is open.
+`rum`, and a set of personal PR-automation shell scripts. None of them comes
+over (decided 2026-11-17), so what they were is left unanswered.

@@ -14,6 +14,7 @@
     ./gpu-check.nix
     ./steam.nix
     ./screen-recording.nix
+    ./wireshark.nix
   ];
 
   # The user layer's desktop half, on top of the core the base role imports.

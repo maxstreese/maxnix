@@ -1122,15 +1122,17 @@ What it took, neither of it code:
 Those five were treated as settled with IT outside this repo (2026-10-14);
 Fleet Desktop is on, as it is in the VM.
 
-**The everyday terminal tools from the current host are here; the rest is
-not yet.** `docs/inventory.md` records what the Ubuntu host has installed and
-what its shell history shows is actually used, and marks with ✓ what came
-over on 2026-10-01: the CLI tools, atuin and starship, DBeaver, and Harlequin
-in place of per-database clients. Decided besides: sdkman gives way to
-per-project flakes, mise stays for the work repos that pin tools with it,
-three host services stay behind, and Neovim gets a small configuration of its
-own in place of LazyVim. Still open: the less-used shell aliases, a few tools
-proposed but not added, and the rows marked "?".
+**What comes over from the current host is decided (2026-11-17); two things
+are untried.** `docs/inventory.md` records what the Ubuntu host has installed
+and what its shell history shows is actually used, marks with ✓ what came
+over and with X what stays behind, and has no undecided row left. In short:
+the CLI tools, atuin and starship, DBeaver, Harlequin in place of
+per-database clients, Wireshark, and Neovim with a small configuration of its
+own in place of LazyVim; sdkman gives way to per-project flakes and mise
+stays for the work repos that pin tools with it; no JetBrains product, no
+other editor and no VM manager comes. Untried on NixOS: a work repo's
+`./mill` wrapper, whose downloads run through nix-ld, and whether argo needs
+the `GODEBUG` carried over for it.
 
 **Bind reachability is only partly checked.** The dead German binds were found
 by a hand-run audit, not by anything in the repo. niri rejects a bad keysym at
