@@ -60,8 +60,8 @@ later is the same collection; the counts below will have moved.
    settings in plain Lua.
 2. **Shell aliases and functions** — `rt`, `clip` and `jsontidy` ported
    2026-11-17; see the last section for the rest.
-3. **Rows proposed U but not added**: bd (beads), mill. tldr (tealdeer)
-   went in on 2026-11-17.
+3. **Rows proposed U but not added**: bd (beads). tldr (tealdeer) went in
+   on 2026-11-17, and mill turned out to need nothing (its row).
 4. **The "?" rows below.**
 
 ## Already in maxnix
@@ -91,7 +91,7 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 | nvim | 508 (2362) | neovim 0.12.5 | U+cfg ✓ | decision 1; `svim` function used it |
 | aoe | 372 (806) | **missing** | U ✓ | upstream's release binary since 2026-11-14; its flake was removed 2026-10-06, as building it from source took CI from ~15 to ~55 min |
 | rg | 269 (791) | ripgrep | U ✓ | also used by the `rt` function |
-| mill | 130 (863) | mill 1.1.8 | P or U | not added yet |
+| mill | 130 (863) | mill 1.1.8 | X | nothing to install: every run is a repo's own `./mill` wrapper, which downloads the launcher and JVM the build pins (generic-linux binaries, so through nix-ld; not yet run on NixOS) |
 | bat | 106 (264) | bat | U+cfg ✓ | `programs.bat` |
 | pnpm | 75 (88) | pnpm | P | |
 | glow | 63 (205) | glow | U ✓ | |
