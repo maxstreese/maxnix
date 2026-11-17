@@ -68,7 +68,7 @@
   # it only ever acts inside a repo, and a repo's config acts only after
   # `mise trust`, the same gate as `direnv allow`.
   #
-  # The activation hook goes into bash and zsh and puts a trusted repo's
+  # The activation hook goes into bash and puts a trusted repo's
   # tools ahead of this profile's on PATH. Its downloads land in
   # ~/.local/share/mise, which backups skip (../../../modules/metal/backup.nix).
   programs.mise = {
@@ -168,13 +168,11 @@
     # shell's init: nothing runs at shell start, bash-completion loads the
     # file on the first Tab, and a restish that cannot produce it fails the
     # build instead of every new shell. A derivation beside the package
-    # rather than an override of it, which would rebuild restish. The zsh
-    # file is inert for now: nothing links /share/zsh into the profiles.
+    # rather than an override of it, which would rebuild restish.
     (runCommand "restish-completions" { nativeBuildInputs = [ installShellFiles ]; } ''
       export HOME=$TMPDIR
       installShellCompletion --cmd restish \
-        --bash <(${lib.getExe restish} completion bash) \
-        --zsh <(${lib.getExe restish} completion zsh)
+        --bash <(${lib.getExe restish} completion bash)
     '')
 
     # herdr, a terminal workspace manager for coding agents. Came from

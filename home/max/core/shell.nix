@@ -1,22 +1,23 @@
-# The interactive shell: prompt, history, pager, and zsh beside bash.
+# The interactive shell: bash, with prompt, history and pager.
 #
 # Modules rather than bare packages, because atuin and starship do nothing
 # until a shell hook initialises them. Their modules write that hook into
-# every shell enabled here — bash and zsh — so the two shells behave the
-# same.
+# every shell enabled here, which is bash alone.
 #
-# The login shell stays bash; `zsh` starts one. Making it the login shell is
-# users.users.max.shell plus programs.zsh.enable at the system level.
+# zsh was enabled beside it until 2026-11-17 and went unused, and half
+# wired: nothing linked /share/zsh into the profiles, so it saw no package's
+# completions. fish was weighed that day and not taken either; atuin and
+# starship already cover what a change of shell would mostly buy.
 { pkgs, ... }:
 let
   # The Ubuntu host's aliases and functions that its history shows in use
   # (../../../docs/inventory.md, "Shell configuration to port"), as programs
-  # rather than aliases or functions. One definition then serves bash, zsh
-  # and scripts, where a function would be written once per shell's init;
-  # shellcheck runs at build; and each names what it needs, so none depends
-  # on what a role happens to put on PATH. That last point is why `clip` is
-  # not a one-line alias: wl-clipboard is otherwise only in the desktop role,
-  # and an alias here would be dead on z690-wsl.
+  # rather than aliases or functions. They then work from scripts and any
+  # other shell too, not only at an interactive bash prompt; shellcheck runs
+  # at build; and each names what it needs, so none depends on what a role
+  # happens to put on PATH. That last point is why `clip` is not a one-line
+  # alias: wl-clipboard is otherwise only in the desktop role, and an alias
+  # here would be dead on z690-wsl.
 
   # The tree of a directory as ripgrep sees it: hidden files in, .git and
   # everything ignored out. `rt` or `rt some/dir`.
@@ -61,9 +62,6 @@ in
     clip
     jsontidy
   ];
-
-  # zsh, with Home Manager writing ~/.zshrc so the integrations below reach it.
-  programs.zsh.enable = true;
 
   # Shell history in a SQLite database, searched with Ctrl-R. The database
   # lives in ~/.local/share/atuin on the /home disk. History from the Ubuntu

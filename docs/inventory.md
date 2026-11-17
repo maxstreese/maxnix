@@ -40,8 +40,9 @@ later is the same collection; the counts below will have moved.
 - **Ubuntu-only plumbing is not coming**: snapd, livepatch, the apt/snap/brew
   update alias (`sysup`) that Nix replaces.
 - **Prompt and history** are Home Manager's atuin and starship modules, in
-  `home/max/core/shell.nix`, which also enables zsh beside bash so both get the
-  hooks. atuin's history from the Ubuntu host has to be copied over by hand.
+  `home/max/core/shell.nix`, for bash. zsh was enabled beside it until
+  2026-11-17 and removed unused. atuin's history from the Ubuntu host has to
+  be copied over by hand.
 - **DBeaver, not DataGrip.** DataGrip came over first and was swapped out the
   same day: DBeaver is free, so it needs no unfree allow-list entry.
 - **Harlequin for SQL in the terminal**, with Trino and MySQL adapters
@@ -67,7 +68,7 @@ steampipe, duckdb, scala, claude-code, 1Password and `op`, Twingate, Docker
 Wootility, htop, osquery, vim, comma.
 
 From the inventory (2026-10-01), marked ✓ in the tables: the everyday CLI in
-`home/max/core/dev.nix`, atuin, starship, bat and zsh in `home/max/core/shell.nix`, OBS
+`home/max/core/dev.nix`, atuin, starship and bat in `home/max/core/shell.nix`, OBS
 and GIMP in `home/max/desktop/apps.nix`, DBeaver, Harlequin.
 
 Not from the inventory, added since: sbomnix and nix-tree (CVE checks
