@@ -57,7 +57,8 @@ later is the same collection; the counts below will have moved.
    will not run; LSPs and formatters have to come from nixpkgs.
 2. **Shell aliases and functions** — `rt`, `clip` and `jsontidy` ported
    2026-11-17; see the last section for the rest.
-3. **Rows proposed U but not added**: tldr (tealdeer), bd (beads), mill.
+3. **Rows proposed U but not added**: bd (beads), mill. tldr (tealdeer)
+   went in on 2026-11-17.
 4. **The "?" rows below.**
 
 ## Already in maxnix
@@ -96,7 +97,7 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 | btop | 33 (202) | btop | U ✓ | also the `jtop` alias |
 | fd | 21 (96) | fd | U ✓ | `fdfind` on Ubuntu |
 | trino | 17 (92) | trino-cli | U ✓ | Harlequin's Trino profile too |
-| tldr | 16 (43) | tealdeer | U | not added yet |
+| tldr | 16 (43) | tealdeer | U ✓ | fetches its pages on first use |
 | argo | 11 (52) | argo-workflows | U ✓ | |
 | duf | 9 (84) | duf | U ✓ | |
 | helm | 9 (26) | kubernetes-helm | U ✓ | |

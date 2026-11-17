@@ -91,6 +91,18 @@
     };
   };
 
+  # tldr: a page of examples per command, where the man page is the
+  # reference. tealdeer is the Rust client, started in milliseconds. Through
+  # its module for one setting: the pages are a download, not part of the
+  # package, and auto_update fetches them on first use and again once they
+  # are 30 days old (the module's default interval). Without it `tldr`
+  # answers only after a manual `tldr --update`. The pages land in
+  # ~/.cache/tealdeer.
+  programs.tealdeer = {
+    enable = true;
+    settings.updates.auto_update = true;
+  };
+
   # gh, through its module rather than as a bare package, for one setting:
   # `gh repo clone` and friends default to HTTPS, which would ignore the SSH
   # auth key entirely and ask for a token instead. This points them at the
