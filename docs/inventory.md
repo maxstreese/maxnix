@@ -54,7 +54,8 @@ later is the same collection; the counts below will have moved.
    symlinked out of the store into a clone like `maxnix.dev.liveConfig`, or
    port it to Nix (nixvim)? Either way Mason's downloaded language servers
    will not run; LSPs and formatters have to come from nixpkgs.
-2. **Shell aliases and functions** — none ported yet; see the last section.
+2. **Shell aliases and functions** — `rt`, `clip` and `jsontidy` ported
+   2026-11-17; see the last section for the rest.
 3. **Rows proposed U but not added**: tldr (tealdeer), bd (beads), mill.
 4. **The "?" rows below.**
 
@@ -90,7 +91,7 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 | pnpm | 75 (88) | pnpm | P | |
 | glow | 63 (205) | glow | U ✓ | |
 | kubectx / kubens | 57 (136) | kubectx | U ✓ | aliases to kubectl today |
-| rt | 47 (104) | — | U | shell function: `rg --files` into `tree`; not ported |
+| rt | 47 (104) | — | U ✓ | was a shell function: `rg --files` into `tree`; a program in `home/max/core/shell.nix` |
 | btop | 33 (202) | btop | U ✓ | also the `jtop` alias |
 | fd | 21 (96) | fd | U ✓ | `fdfind` on Ubuntu |
 | trino | 17 (92) | trino-cli | U ✓ | Harlequin's Trino profile too |
@@ -100,7 +101,7 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 | helm | 9 (26) | kubernetes-helm | U ✓ | |
 | jq | 8 (16) | jq | U ✓ | |
 | harbor | 8 | harbor-cli | U ✓ | |
-| clip, jsontidy | 8 | wl-clipboard ✓ | U | aliases over xclip; wl-copy on Wayland; aliases not ported |
+| clip, jsontidy | 8 | wl-clipboard ✓ | U ✓ | were aliases over xclip; programs over wl-copy in `home/max/core/shell.nix` |
 | sqlfluff | 8 | sqlfluff | , or P | |
 | deno | 7 | deno | P | |
 | flux | 6 (9) | fluxcd | U ✓ | |
@@ -123,7 +124,8 @@ Homes: **U** user layer · **U+cfg** user layer, own file for its config ·
 ## Used before, not this quarter
 
 opencode 0 (208), mysql 0 (165), psql 0 (128), sbt 0 (28), restish 0 (41).
-Candidates for `,` — or P for sbt. Harlequin covers mysql and psql.
+Candidates for `,` — or P for sbt. Harlequin covers mysql and psql. restish
+went in anyway on 2026-11-17, asked for directly.
 
 ## Installed, never in the history
 
@@ -172,9 +174,13 @@ or IDEs rather than typed, which history cannot see.
 ## Shell configuration to port
 
 - **Aliases:** `ll`/`la`/`l`, `kubectx`/`kubens`/`kubepo`, `jtop`, `clip`,
-  `jsontidy`, `tp`, and launchers for IntelliJ and CLion. None ported; the
-  `kubectx`/`kubens` aliases are moot now that the real tools are in.
-- **Functions:** `rt`, `svim`. Not ported.
+  `jsontidy`, `tp`, and launchers for IntelliJ and CLion. `clip` and
+  `jsontidy` ✓ (2026-11-17, as programs in `home/max/core/shell.nix`); the
+  `kubectx`/`kubens` aliases are moot now that the real tools are in. The
+  rest are not ported, and a recount that day says to leave them: `jtop` 2
+  runs in 90 days (18 all-time), the others none, most of them never.
+- **Functions:** `rt` ✓ (same file). `svim` not ported: 11 runs, the last on
+  2026-07-31.
 - **Hooks:** starship and atuin ✓ (Home Manager modules); mise ✓ (Home Manager
   module), sdkman going; cargo and deno env; and a long run of `source <(… completion bash)`
   lines. Most of those completions come free once the package is in Home

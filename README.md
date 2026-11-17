@@ -1127,7 +1127,7 @@ over on 2026-10-01: the CLI tools, atuin and starship, DBeaver, and Harlequin
 in place of per-database clients. Decided besides: sdkman gives way to
 per-project flakes, mise stays for the work repos that pin tools with it, and
 three host services stay behind. Still open: how to carry the Neovim config
-over, the shell aliases and functions, a few tools proposed but not added, and
+over, the less-used shell aliases, a few tools proposed but not added, and
 the rows marked "?".
 
 **Bind reachability is only partly checked.** The dead German binds were found

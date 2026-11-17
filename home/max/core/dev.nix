@@ -5,7 +5,12 @@
 # in environment.systemPackages — the guest needs it to clone and rebuild this
 # repo before any user profile exists. Its *configuration* is still user-level,
 # in ./git.nix.
-{ inputs, pkgs, ... }:
+{
+  inputs,
+  lib,
+  pkgs,
+  ...
+}:
 {
   imports = [ inputs.nix-index-database.homeModules.nix-index ];
 
@@ -152,6 +157,25 @@
     # per-file complexity column. cloc's one unique trick, diffing two
     # revisions (`, cloc --git --diff A B`), is occasional enough for `,`.
     scc
+
+    # Also asked for directly. A REST client that reads an API's OpenAPI
+    # description and turns its operations into subcommands. The inventory
+    # had it as a candidate for `,` (no runs in its 90 days, 41 before).
+    restish
+
+    # Its completions, which the package does not install. Generated here at
+    # build time rather than by `source <(restish completion bash)` in the
+    # shell's init: nothing runs at shell start, bash-completion loads the
+    # file on the first Tab, and a restish that cannot produce it fails the
+    # build instead of every new shell. A derivation beside the package
+    # rather than an override of it, which would rebuild restish. The zsh
+    # file is inert for now: nothing links /share/zsh into the profiles.
+    (runCommand "restish-completions" { nativeBuildInputs = [ installShellFiles ]; } ''
+      export HOME=$TMPDIR
+      installShellCompletion --cmd restish \
+        --bash <(${lib.getExe restish} completion bash) \
+        --zsh <(${lib.getExe restish} completion zsh)
+    '')
 
     # herdr, a terminal workspace manager for coding agents. Came from
     # upstream's flake while nixpkgs' 0.9.1 failed to link; 0.9.3 builds.
