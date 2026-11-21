@@ -78,9 +78,18 @@ disko.lib.testLib.makeDiskoTest {
   #
   # When to type is read off the serial console, not off the screen
   # (2026-11-16). bootvine, which has the prompt here, logs "asking for a
-  # password" once it shows it. Until then this used OCR, which polls
-  # screenshots through tesseract: on GitHub's four-core runner the suite sat
-  # at the prompt for five minutes that way (run 43846479920), and those
+  # password" once it shows it. The pattern takes the line either way it has
+  # been written: 0.1.3 logged "bootvine[66]: bootvine: asking for a
+  # password: <path>", 0.1.4 "@bootvine[65]: asking for a password" with the
+  # message in bold, so an escape sequence sits between the colon and
+  # "asking" on the wire. Its release notes mention neither, and waiting for
+  # the first form's "bootvine: asking" sat at the prompt for the full 15
+  # minutes on the lock PR that brought 0.1.4 (run 44719759395); so did a
+  # pattern that allowed for the new prefix but not for the escape.
+  #
+  # Until 2026-11-16 this used OCR, which polls screenshots through
+  # tesseract: on GitHub's four-core runner the suite sat at the prompt for
+  # five minutes that way (run 43846479920), and those
   # minutes of CPU starved the suites running beside it. Twice the
   # observability suite's 240 s wait for a host metric, normally 8 to 18 s,
   # ran out exactly while this suite and ./install.nix were at their
@@ -88,7 +97,7 @@ disko.lib.testLib.makeDiskoTest {
   bootCommands = ''
     import datetime
     machine.wait_for_console_text(
-        "bootvine: asking for a password",
+        r"bootvine.*asking for a password",
         timeout=datetime.timedelta(minutes=15),
     )
     machine.send_chars("secretsecret\n")
@@ -202,7 +211,7 @@ disko.lib.testLib.makeDiskoTest {
     # way first.
     machine.start()
     machine.wait_for_console_text(
-        "bootvine: asking for a password",
+        r"bootvine.*asking for a password",
         timeout=datetime.timedelta(minutes=15),
     )
     machine.send_chars("secretsecret\n")
