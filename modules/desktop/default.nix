@@ -21,8 +21,9 @@
   home-manager.users.max.imports = [ ../../home/max/desktop ];
 
   # Its unfree packages; see ../../home/max/desktop/apps.nix for why each is
-  # wanted. Home Manager modules cannot declare their own: with useGlobalPkgs
-  # they borrow the system's nixpkgs config.
+  # wanted, and claude-desktop.nix beside it for the last. Home Manager
+  # modules cannot declare their own: with useGlobalPkgs they borrow the
+  # system's nixpkgs config.
   nixpkgs.config.allowUnfreePackages = [
     "spotify"
     "slack"
@@ -31,6 +32,9 @@
     # the other refused.
     "discord"
     "discord-unwrapped"
+    # Packaged in this repo, from Anthropic's .deb:
+    # ../../home/max/desktop/claude-desktop.nix.
+    "claude-desktop"
   ];
 
   # The login screen lives in ./greeter.nix. It used to be configured here as

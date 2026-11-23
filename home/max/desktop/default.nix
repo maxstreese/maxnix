@@ -11,11 +11,12 @@
     ./firefox.nix
     ./ghostty.nix
     ./apps.nix
+    ./claude-desktop.nix
   ];
 
   # The launcher the niri config spawns, and the clipboard tools. The
   # terminal it spawns is in ./ghostty.nix; everything else installed for this
-  # user is in ./apps.nix or ../core.
+  # user is in ./apps.nix, ./claude-desktop.nix or ../core.
   #
   # These were in environment.systemPackages until now — installed machine-wide
   # purely so the compositors' default keybinds would not dead-end. They are

@@ -86,7 +86,7 @@ credentials from there. No credential is in this repo, and none ever should be.
 | greeter | DMS Greeter (Quickshell UI hosted in niri) |
 | terminal | ghostty, opened through its D-Bus-activated systemd service |
 | browser | Firefox, 1Password and Vimium preinstalled by policy, default for links |
-| apps | Spotify, Slack, Discord, Claude Code — each signs in once via the browser |
+| apps | Spotify, Slack, Discord, Claude Code, Claude Desktop — each signs in once via the browser |
 | Claude Code's MCP servers | `grafana-local` (this machine's Prometheus, Loki, Tempo and dashboards) and `nixos` (mcp-nixos: options and packages from the public NixOS indexes), declared in `home/max/core/claude.nix` |
 | Claude Code's own configuration | my git rule (`~/.claude/rules/git.md`), the `/commit` skill, the status line, and settings: the commit trailer, fullscreen TUI, no idle compaction, transcripts kept ten years instead of 30 days, the duckdb-skills plugin. In `home/max/core/claude.nix` and `home/max/core/claude/`; `settings.json` stays writable and only declared keys are reset at activation |
 | games | Steam, as a system module: it needs the 32-bit graphics stack and controller udev rules |
@@ -178,6 +178,7 @@ and KVM — even the QEMU binary comes from the Nix store.
 | shell | Dux Modular Shell now, own Quickshell later | a usable desktop today; DMS's QML is a worked example to learn from |
 | greeter | DMS Greeter | matches DMS visually; **gives up** tuigreet's "works without GL" property |
 | boot console | bootvine: a live tree of systemd's pending units from the initrd to the greeter, and at shutdown; not Plymouth, not bare text | decided 2026-11-12. Plymouth hides the boot behind a splash; this shows more of it than the scrolling lines did, and names the unit a boot hangs or fails on. It also takes over the LUKS passphrase prompt, which is why `checks.metal-boots` boots through it. Young (v0.1.3, one author) and root in the initrd, so it was first taken from its own flake, pinned to a release tag that lock file maintenance did not move, with its Cachix cache not taken. Since 2026-11-14 package and module are nixpkgs' own: nixpkgs gained both, the two modules declared `services.bootvine.enable` twice, and the lock refresh stopped evaluating. What that gives up is the pin: its version now moves with nixpkgs, reviewed there, and a bump shows in the closure diff on the lock PR. Desktop role, not base: WSL has no console. `q` or `Esc` gives the plain console back; an older generation boots without it |
+| Claude Desktop | Anthropic's `.deb`, repacked in `home/max/desktop/claude-desktop.nix`; not a community flake as an input | decided 2026-11-23. Anthropic ships the Linux beta for Debian and Ubuntu only and nixpkgs has no package yet (`docs/blocked.toml` watches for one). Two flakes repack the same `.deb`: one had been stuck for eight weeks, the other is current and is what the recipe here started from. Kept in the repo all the same, because a recipe taken as an input can change in any way at a lock refresh, by one author, with only the version showing in the closure diff, and this one writes the launcher of an app that holds the Claude login. Here a bump is a version and a hash in `claude-desktop.json`, both read from Anthropic's apt index by Renovate, and the bytes are Anthropic's. **Gives up** someone else adapting the recipe when a release needs a new library; the build fails when one is missing, so that shows in CI. Desktop role, not gui: the WSL host has the Windows app. Cowork is not set up ("Open points") |
 | login passwords | metal: a yescrypt hash from sops (`login-password`) for `max` and root, users immutable; every VM: plaintext `maxnix` | decided 2026-09-17 as plaintext everywhere, changed 2026-10-13 for metal after measuring that the wiped root undid every `passwd` (Findings). Immutable users make the declared hash win at every activation, so `passwd` lasts only until the next one, and changing the password is a sops edit and a rebuild — the price of one a wipe cannot reset. Root shares the hash so the emergency shell still opens. The VMs hold no metal key and keep `maxnix`, which `vm-ssh` logs in with. `z690-wsl` (2026-11-07): a hash of its own, not metal's, from that host's own sops file and key, users immutable, root without one (`wsl -u root` needs none); it is what 1Password's system-authentication unlock asks for through polkit there. Not metal's because the WSL guest is the weaker place, reachable as root from Windows, so a password typed there should open nothing on the ThinkPad |
 | networking | NetworkManager; networks joined in the UI (DMS's widget, `nmcli`) and preserved, not declared from sops | decided 2026-10-14. A laptop meets new networks all the time, and a rebuild per café would make the declarative way unusable; the profiles survive the wiped root on `/persist`, which the backup covers. sops-declared profiles can join them later for fixed networks, better once metal's secrets are out of the VM key's reach. `max` is in `networkmanager`, so saving a network asks for no password |
 | swap | zram (compressed RAM), no swap on disk, so no hibernation for now | decided 2026-10-15. zram absorbs memory spikes for one line of config. Whether hibernation resumes reliably on this ThinkPad's AMD graphics, and whether lanzaboote's Secure Boot leaves the kernel willing to hibernate, shows only on the hardware; a swapfile in its own btrfs subvolume adds it later without repartitioning, with suspend-then-hibernate for a lid closed for days. That subvolume, `/swap`, is in the layout and empty (2026-11-16): it is the format-time part, and made by hand later it would be the first difference between the machine and what `checks.metal-boots` formats. The file and the sleep settings stay a rebuild |
@@ -609,6 +610,26 @@ release binary, pinned by hash and patched for the store (aoe,
 this closure. What is left compiling per run is the Dux shell, greeter and
 their Quickshell, four to five minutes.
 
+**A repacked Electron app keeps Chromium's sandbox without `--no-sandbox`
+(2026-11-23).** Community recipes for Claude Desktop start it with
+`--no-sandbox`, on the reasoning that Chromium's setuid helper cannot be
+setuid in the Nix store. The helper cannot, but Chromium only falls back to
+it where user namespaces are unavailable, and NixOS allows them. With the
+helper deleted and no flag, in the guest under niri: the renderers run in
+their own user, PID and network namespaces with a seccomp filter
+(`/proc/<pid>/ns/*` differ from the session's, `Seccomp: 2` in `status`);
+the GPU process and one zygote stay outside, as Chromium intends
+(`--no-zygote-sandbox` on that one is its own flag, not ours). Two more
+things from the same build. A wrapper whose flags contain shell, like
+nixpkgs' `NIXOS_OZONE_WL` line, has to be made with `makeShellWrapper` by
+name once `wrapGAppsHook3` is among the hooks: `makeWrapper` then builds a
+compiled wrapper, which passed the app the unexpanded text. And at each start
+the app tries to register itself for `claude://` by writing `mimeapps.list`,
+which Home Manager owns and keeps in the store; it logs "Read-only file
+system" and carries on, and the link works regardless, because the package's
+desktop file is the only handler for it (`xdg-mime query default
+x-scheme-handler/claude`).
+
 **DMS has a policy file for the lock settings, which is how they can be
 declared without owning `settings.json`.** `dms run` reads
 `/etc/dms/cli-policy.json` at every start (and `/usr/share/dms/` before it)
@@ -1025,6 +1046,18 @@ claims.
 ---
 
 ## Open points
+
+**Claude Desktop's Cowork is not set up.** Chat and Code work from the
+package as it is; Cowork runs its work in a virtual machine and needs more
+than the package gives it. Anthropic's Linux docs list KVM, the user in the
+`kvm` group, `/dev/vhost-vsock`, and QEMU and OVMF installed (the `.deb`
+recommends `qemu-system-x86`, `ovmf`, `bubblewrap`, `socat`); the app brings
+its own virtiofsd and a `cowork-linux-helper`, which the package already
+patches for the store. Not known: how the app looks for QEMU and the
+firmware, on `PATH` or at Debian's paths. If the second, the package has to
+point it at the store, as one community flake did for a version from
+September. In the dev VM it would also be a VM inside a VM. Left out on
+2026-11-23 because nothing needed it.
 
 **Tempo still hangs on an occasional stop.** With the backend worker fixed it
 stops in about 5 s, but in roughly one stop in seven (VM shutdowns and test

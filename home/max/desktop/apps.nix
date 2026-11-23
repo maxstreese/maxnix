@@ -8,7 +8,9 @@
 # Spotify, Slack and Discord are unfree. Home Manager cannot declare that
 # itself here — with useGlobalPkgs it borrows the system's nixpkgs config — so
 # the allow-list entries live in ../../../modules/desktop/default.nix, next to
-# where this layer is imported. Claude Code moved to ../core/claude.nix.
+# where this layer is imported. Claude Code moved to ../core/claude.nix;
+# Claude Desktop, which is packaged here and not taken from nixpkgs, has its
+# own file, ./claude-desktop.nix.
 { pkgs, ... }:
 {
   home.packages = with pkgs; [

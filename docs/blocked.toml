@@ -160,3 +160,20 @@ check = { command = '''
   fi
   echo "pinned Alloy passes Beyla's prometheus_export a port only"; exit 1
 ''' }
+
+[[entry]]
+id = "claude-desktop-nixpkgs"
+title = "Take Claude Desktop from nixpkgs"
+upstream = "https://github.com/NixOS/nixpkgs/pull/587988 (the newest of three open attempts as of 2026-11-23)"
+workaround = "home/max/desktop/claude-desktop.nix: Anthropic's .deb repacked here, pinned in claude-desktop.json"
+then = "Read nixpkgs' package for --no-sandbox and for LD_LIBRARY_PATH in its wrapper before taking it; if neither, use pkgs.claude-desktop and drop the derivation, the JSON, scripts/renovate-claude-desktop-rehash and its entries in renovate.jsonc and .github/renovate-global.js"
+check = { nix = '''
+  pkgs: {
+    unblocked = pkgs ? claude-desktop;
+    evidence =
+      if pkgs ? claude-desktop then
+        "pinned nixpkgs has claude-desktop " + pkgs.claude-desktop.version
+      else
+        "not in pinned nixpkgs";
+  }
+''' }

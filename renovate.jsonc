@@ -160,6 +160,20 @@
       "extractVersionTemplate": "^v(?<version>.+)$"
     },
     {
+      // Claude Desktop, repacked from Anthropic's .deb
+      // (home/max/desktop/claude-desktop.nix). The versions come from the
+      // apt repository that .deb is published in: Renovate's deb datasource
+      // reads dists/stable/main/binary-amd64/Packages.gz under the registry
+      // URL, the same index the rehash script takes the checksum from.
+      "customType": "regex",
+      "description": "Claude Desktop pinned from Anthropic's apt repository",
+      "managerFilePatterns": ["/(^|/)home/max/desktop/claude-desktop\\.json$/"],
+      "matchStrings": ["\"version\":\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "claude-desktop",
+      "datasourceTemplate": "deb",
+      "registryUrlTemplate": "https://downloads.claude.ai/claude-desktop/apt/stable?suite=stable&components=main&binaryArch=amd64"
+    },
+    {
       // The Nix release the workflows install, read straight out of the
       // installer URL in the one action they share. No annotation comment
       // and no variable: a composite action has no `env:` of its own to
@@ -294,6 +308,18 @@
       "postUpgradeTasks": {
         "commands": ["scripts/renovate-aoe-rehash"],
         "fileFilters": ["home/max/core/aoe.json"],
+        "installTools": { "nix": {} },
+        "executionMode": "update"
+      }
+    },
+    {
+      // And for Claude Desktop: a new version is a new .deb. No download
+      // here, the apt index states each version's SHA-256.
+      "description": "Rehash after a Claude Desktop bump",
+      "matchFileNames": ["home/max/desktop/claude-desktop.json"],
+      "postUpgradeTasks": {
+        "commands": ["scripts/renovate-claude-desktop-rehash"],
+        "fileFilters": ["home/max/desktop/claude-desktop.json"],
         "installTools": { "nix": {} },
         "executionMode": "update"
       }

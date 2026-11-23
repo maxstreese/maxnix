@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Rewrites the hash in home/max/desktop/claude-desktop.json for the version
+# in it. Renovate runs this after bumping the version there (see the
+# postUpgradeTasks in renovate.jsonc); by hand it is the same command.
+#
+# The .deb is not downloaded. Anthropic's apt index lists every version with
+# its SHA-256, in the file apt itself checks a download against, so the hash
+# is read from there: the stanza whose Version is the pinned one. A version
+# the index does not list fails here, not later in a build.
+#
+# Nothing but Nix, as in renovate-aoe-rehash: the Renovate container has nix
+# and little else. --impure because builtins.fetchurl without a hash is
+# exactly the point here.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+file=home/max/desktop/claude-desktop.json
+# tarball-ttl: Nix would otherwise reuse an index it fetched within the last
+# hour, which by hand is likely the one from before the release.
+export NIX_CONFIG="extra-experimental-features = nix-command
+tarball-ttl = 0"
+
+# The expression is Nix, single-quoted so the shell leaves its ${…} alone.
+# shellcheck disable=SC2016
+nix eval --impure --json --expr '
+  let
+    pin = builtins.fromJSON (builtins.readFile ./'"$file"');
+    index = builtins.readFile (
+      builtins.fetchurl "https://downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages"
+    );
+    # One stanza per version, blank lines between them.
+    stanzas = builtins.filter builtins.isString (builtins.split "\n\n" index);
+    field = name: stanza:
+      let
+        found = builtins.filter (m: m != null) (
+          map (builtins.match "${name}: (.*)") (
+            builtins.filter builtins.isString (builtins.split "\n" stanza)
+          )
+        );
+      in
+      if found == [ ] then null else builtins.head (builtins.head found);
+    mine = builtins.filter (s: field "Version" s == pin.version) stanzas;
+  in
+  if builtins.length mine != 1 then
+    throw "claude-desktop ${pin.version}: ${toString (builtins.length mine)} entries in the apt index, expected 1"
+  else
+    pin // {
+      hash = builtins.convertHash {
+        hash = field "SHA256" (builtins.head mine);
+        hashAlgo = "sha256";
+        toHashFormat = "sri";
+      };
+    }
+' > "$file.new"
+mv "$file.new" "$file"
