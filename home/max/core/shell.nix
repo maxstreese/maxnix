@@ -8,7 +8,7 @@
 # wired: nothing linked /share/zsh into the profiles, so it saw no package's
 # completions. fish was weighed that day and not taken either; atuin and
 # starship already cover what a change of shell would mostly buy.
-{ lib, pkgs, ... }:
+{ pkgs, ... }:
 let
   # The Ubuntu host's aliases and functions that its history shows in use
   # (../../../docs/inventory.md, "Shell configuration to port"), as programs
@@ -84,10 +84,28 @@ in
   home.shellAliases.grep = "grep --color=auto";
 
   # fzf's key bindings: Ctrl-T pastes picked files onto the command line,
-  # Alt-C changes into a picked directory. Its third binding, Ctrl-R, is
-  # switched off below so that history stays atuin's. The binary was already
-  # here for git's `cleanup` alias (./git.nix).
-  programs.fzf.enable = true;
+  # Alt-C changes into a picked directory. Its third binding, Ctrl-R, stays
+  # atuin's. The binary was already here for git's `cleanup` alias
+  # (./git.nix).
+  #
+  # What gives atuin the key is order: Home Manager sources atuin's hook
+  # after fzf's, and the later binding wins. historyWidget.command says the
+  # same thing to Home Manager, which since a lock refresh in November 2026
+  # warns at every evaluation when fzf and a history manager both claim
+  # Ctrl-R and neither is told to stand down. The option alone would not do
+  # it here: it sets FZF_CTRL_R_COMMAND as a session variable, and those
+  # never reach a terminal on this machine (./dev.nix).
+  #
+  # Until 2026-11-24 an empty FZF_CTRL_R_COMMAND was written into ~/.bashrc
+  # by hand ahead of fzf's hook, which Home Manager could not see as the
+  # answer. Loading both generated files in a bare shell showed what that
+  # line had been buying: nothing in emacs and vi-insert mode, where atuin
+  # has Ctrl-R either way, and in vi-command mode readline's own search in
+  # place of fzf's. Nothing here uses vi mode.
+  programs.fzf = {
+    enable = true;
+    historyWidget.command = "";
+  };
 
   # `z part-of-a-name` jumps to the directory used most and most recently
   # that matches; `zi` picks among the matches with fzf. It learns from
@@ -99,15 +117,5 @@ in
   # `source <(… completion bash)` lines here: completions are files in
   # share/bash-completion/completions, which bash-completion loads on the
   # first Tab. 1password-cli ships its own; restish's is built in ./dev.nix.
-  programs.bash = {
-    enable = true;
-    # Before fzf's hook, which reads it: an empty command is how fzf is told
-    # to leave Ctrl-R alone. Order 100 because the fzf module writes its
-    # hook at 200, ahead of mkBefore's 500. In ~/.bashrc and not
-    # home.sessionVariables, because those never reach a terminal here
-    # (../../../modules/base/default.nix).
-    initExtra = lib.mkOrder 100 ''
-      FZF_CTRL_R_COMMAND=
-    '';
-  };
+  programs.bash.enable = true;
 }
