@@ -45,20 +45,25 @@
 # SHA-256 from the same index (renovate.jsonc). Releases come about every two
 # days, so the bump rides in the one PR for all version bumps.
 #
-# Sign-in goes through the browser and comes back as a claude:// link, which
-# the desktop file below registers; `nix run` of a bare package has no such
-# entry and the login never returns (tried on the Ubuntu host). At each start
-# the app also tries to claim that scheme by writing mimeapps.list, which
-# Home Manager keeps in the store: one "Read-only file system" line in its
-# log, harmless, since this desktop file is the only handler. The session is
-# kept through the Secret Service, which is gnome-keyring here
-# (../../../modules/desktop/default.nix). State lands in ~/.config/Claude,
-# including claude_desktop_config.json where local MCP servers are listed:
-# undeclared on purpose, the app rewrites it itself.
+# Sign-in goes through the browser, by xdg-open. The app narrows PATH for
+# what it starts to system directories, so the browser has to be in the
+# system profile for the default to be honoured: see the Firefox line in
+# ../../../modules/desktop/default.nix. It comes back as a claude:// link,
+# which the desktop file below registers; `nix run` of a bare package has no
+# such entry and the login never returns (tried on the Ubuntu host). At each
+# start the app also tries to claim that scheme by writing mimeapps.list,
+# which Home Manager keeps in the store: one "Read-only file system" line in
+# its log, harmless, since the profile's mimeinfo.cache lists this desktop
+# file as the only handler (as long as nothing hides it, see the wrapper
+# below). The session is kept through the Secret Service, which is
+# gnome-keyring here (../../../modules/desktop/default.nix). State lands in
+# ~/.config/Claude, including claude_desktop_config.json where local MCP
+# servers are listed: undeclared on purpose, the app rewrites it itself.
 #
-# Cowork is not set up. It runs its work in a virtual machine, and for that
-# the app looks for QEMU and OVMF and needs /dev/kvm and /dev/vhost-vsock;
-# nothing here provides or patches those (README "Open points").
+# Cowork runs in Anthropic's cloud and works through this package as it is.
+# The virtual machine it uses to run commands on this machine needs QEMU,
+# firmware and virtiofsd at Debian's paths, which is the system's to give:
+# ../../../modules/desktop/claude-cowork.nix.
 { lib, pkgs, ... }:
 let
   pin = builtins.fromJSON (builtins.readFile ./claude-desktop.json);
@@ -76,9 +81,6 @@ let
       dpkg
       autoPatchelfHook
       makeWrapper
-      # For the GTK file dialogs: GSettings schemas, pixbuf loaders and GIO
-      # modules, handed to the one wrapper below through gappsWrapperArgs.
-      wrapGAppsHook3
     ];
 
     # What the binaries link against. autoPatchelfHook resolves each NEEDED
@@ -94,6 +96,7 @@ let
       expat
       gdk-pixbuf
       glib
+      # Also what sets GSETTINGS_SCHEMAS_PATH for the wrapper below.
       gtk3
       libdrm
       libgbm
@@ -147,7 +150,6 @@ let
 
     dontConfigure = true;
     dontBuild = true;
-    dontWrapGApps = true;
 
     installPhase = ''
       runHook preInstall
@@ -172,16 +174,32 @@ let
     # xdg-open is how the app hands the sign-in to the browser. Suffixed, so
     # the session's own comes first where there is one.
     #
+    # The schemas are for GTK's file dialogs, and are all this adds to
+    # XDG_DATA_DIRS. Not wrapGAppsHook3, which would also prepend this
+    # package's own share/: the browser the app starts inherits the app's
+    # environment, and with that directory in front the sign-in never came
+    # back (2026-11-24). GIO takes a desktop entry from the first directory
+    # that has it and its MIME types from that directory's mimeinfo.cache; a
+    # package has no such cache, only a profile does, so the entry found
+    # first claimed nothing and hid the indexed one behind it. `gio mime
+    # x-scheme-handler/claude` with Firefox's environment said "No default
+    # applications", and the app's own log called its handler "shadowed".
+    #
+    # --password-store names the Secret Service outright. Chromium picks its
+    # secret storage from the desktop's name, does not know niri, and falls
+    # back to none; the app then warns "No system keyring is available" and
+    # forgets the sign-in at every start, with gnome-keyring running and
+    # unlocked beside it (2026-11-24).
+    #
     # The NIXOS_OZONE_WL line is nixpkgs' convention for Electron programs,
     # without --ozone-platform-hint, which this Electron (45) no longer has.
-    # It is shell, expanded when the app starts, hence makeShellWrapper by
-    # name: with wrapGAppsHook3 present, plain makeWrapper builds a compiled
-    # wrapper, which handed the app the text of the expression as its first
-    # argument (seen in the first build here).
+    # It is shell, expanded when the app starts, so the wrapper has to be a
+    # script: makeWrapper's, not makeBinaryWrapper's.
     postFixup = ''
-      makeShellWrapper $out/lib/claude-desktop/claude-desktop $out/bin/claude-desktop \
-        "''${gappsWrapperArgs[@]}" \
+      makeWrapper $out/lib/claude-desktop/claude-desktop $out/bin/claude-desktop \
+        --prefix XDG_DATA_DIRS : "$GSETTINGS_SCHEMAS_PATH" \
         --suffix PATH : ${lib.makeBinPath [ pkgs.xdg-utils ]} \
+        --add-flags "--password-store=gnome-libsecret" \
         --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform=wayland --enable-features=WaylandWindowDecorations --enable-wayland-ime=true}}"
 
       # All three Exec lines: the entry itself and its New Chat and New

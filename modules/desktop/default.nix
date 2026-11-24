@@ -2,7 +2,7 @@
 # find. niri itself is in ./niri.nix. Hyprland ran next to it until
 # 2026-10-18; what it needed of this layer is why the layer states things
 # niri would have provided anyway (the keyring, below).
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 {
   imports = [
     ./greeter.nix
@@ -15,6 +15,7 @@
     ./steam.nix
     ./screen-recording.nix
     ./wireshark.nix
+    ./claude-cowork.nix
   ];
 
   # The user layer's desktop half, on top of the core the base role imports.
@@ -45,10 +46,29 @@
   # now configured in home/max, so those are user packages and moved there
   # — which also let kitty and wofi go entirely.
   #
-  # What stays is diagnostics: tools you want available before or without a
-  # user session.
-  environment.systemPackages = with pkgs; [
-    wayland-utils # wayland-info: what the compositor actually advertises
+  # What stays is diagnostics, tools you want available before or without a
+  # user session, and one program that has to be found without the user's
+  # profile.
+  environment.systemPackages = [
+    pkgs.wayland-utils # wayland-info: what the compositor actually advertises
+
+    # Firefox a second time, in the system profile: the very package Home
+    # Manager builds in ../../home/max/desktop/firefox.nix, policies and all,
+    # so nothing is configured twice and it costs no extra closure.
+    #
+    # For programs that look for the browser with a PATH of system
+    # directories only. Claude Desktop is one: it replaces PATH for
+    # everything it starts with a fixed list, /usr/bin and the like plus
+    # /run/current-system/sw/bin, and the per-user profile Home Manager
+    # installs into is not on it. Its sign-in runs xdg-open, xdg-open asks
+    # for the default https handler, which is firefox.desktop, and that entry
+    # starts the bare name `firefox`. Not finding one, xdg-open took the
+    # default for not installed and went to the next handler that resolved:
+    # Chrome, whose entry names a store path (there for agent-browser,
+    # ../../home/max/core/dev.nix). So the sign-in opened in a browser
+    # without 1Password (traced in the guest 2026-11-23; without Chrome it
+    # would have opened nothing).
+    config.home-manager.users.max.programs.firefox.finalPackage
   ];
 
   fonts = {

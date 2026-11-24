@@ -48,6 +48,11 @@
   # Make it the default browser, so `xdg-open` and every "log in with
   # browser" flow (Claude Code's OAuth, Spotify's login) land here rather than
   # in whatever the portal picks first.
+  #
+  # The entry starts the bare name `firefox`, so the default only holds for
+  # callers that can find one on their PATH. For those that search system
+  # directories only, ../../../modules/desktop/default.nix puts this same
+  # package into the system profile too.
   xdg.mimeApps = {
     enable = true;
     defaultApplications = {
