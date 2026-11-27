@@ -77,9 +77,19 @@
         # and the least obvious.
         "/var/lib/nixos"
 
-        # `twingate setup` writes the network name here — the machine config
-        # already documents that losing it means running setup again.
+        # `twingate setup` writes to both of these, and the daemon needs both:
+        # the network name in /etc/twingate, the account in /var/lib/twingate
+        # (<uuid>/auth.json, cert.pem, key.pem, device_id). Until 2026-11-27
+        # only the first was here, and the first reboot after setup showed
+        # what that is worth: the daemon exits with "there is no default
+        # account, please run `twingate setup` first" and the unit ends in
+        # start-limit-hit. 0711 is the mode the daemon gives the directory
+        # itself.
         "/etc/twingate"
+        {
+          directory = "/var/lib/twingate";
+          mode = "0711";
+        }
 
         # Secure Boot keys. Not reproducible: losing them means re-enrolling
         # from firmware setup mode. See maxnix.boot.secureBoot in ./disk.nix.

@@ -165,17 +165,19 @@
   #
   # No credential here, and none possible: you run `twingate setup` once to
   # name the network, then `twingate start`, which opens a browser to
-  # authenticate. The network name lands in /etc/twingate, which is on the
-  # disposable root disk — so a root-image reset means running setup again.
+  # authenticate. The network name lands in /etc/twingate and the account
+  # (auth data, certificate, key, device id) in /var/lib/twingate. Both are
+  # preserved on metal (modules/metal/persistence.nix); either one missing
+  # means running setup again.
   services.twingate.enable = true;
 
-  # Until setup has been run, the daemon exits immediately ("There is no
-  # default profile"). Upstream's unit pairs Restart=always with
-  # StartLimitIntervalSec=0, which disables the rate limit — so on an
-  # unconfigured machine it respawns every 2 s forever, burning CPU and
-  # filling the journal (655 lines in the first few minutes, measured). Give
-  # the limit back: five tries, then the unit gives up and sits in `failed`,
-  # where it is visible and quiet. `twingate setup` followed by
+  # Until setup has been run, the daemon exits immediately ("there is no
+  # default account, please run `twingate setup` first"). Upstream's unit
+  # pairs Restart=always with StartLimitIntervalSec=0, which disables the
+  # rate limit — so on an unconfigured machine it respawns every 2 s forever,
+  # burning CPU and filling the journal (655 lines in the first few minutes,
+  # measured). Give the limit back: five tries, then the unit gives up and
+  # sits in `failed`, where it is visible and quiet. `twingate setup` followed by
   # `systemctl start twingate` is the way back, and a configured daemon does
   # not exit, so this never triggers once it is in use.
   systemd.services.twingate.unitConfig.StartLimitIntervalSec = 30;

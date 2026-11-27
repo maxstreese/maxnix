@@ -565,6 +565,16 @@ at once, so it restarts every 2 s indefinitely (655 journal lines in the first
 few minutes). `hosts/t14s/configuration.nix` gives the limit back, so it
 gives up after five tries and stays in `failed` until configured.
 
+**`twingate setup` writes to two directories, and the daemon needs both.**
+The network name goes to `/etc/twingate`, the account (`<uuid>/auth.json`,
+`cert.pem`, `key.pem`, `device_id`) to `/var/lib/twingate`. Only the first was
+preserved until 2026-11-27, so the first reboot after setup wiped the account:
+the daemon exited with "there is no default account, please run `twingate
+setup` first", the unit ended in `start-limit-hit`, and `twingate start`
+changed nothing. With the network name still in place it looks configured;
+the journal line is what says otherwise. Both are in
+`modules/metal/persistence.nix` now.
+
 **Rootless Docker's socket variable never reaches the desktop.**
 `virtualisation.docker.rootless.setSocketVariable` sets `DOCKER_HOST` in
 `environment.extraInit`, which only shells read. Everything graphical is
