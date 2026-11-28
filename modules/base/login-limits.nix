@@ -153,6 +153,22 @@ in
 
   config.systemd.tmpfiles.rules = [ "d ${dir} 0700 root root -" ];
 
+  # polkit 127 checks the password in a socket-activated system service
+  # (polkit-agent-helper@.service) instead of a setuid helper, and that unit
+  # has ProtectSystem=strict: all of / read-only. pam_faillock opens the
+  # tally read-write even to look (preauth), gets EROFS, and returns
+  # PAM_SYSTEM_ERR from a `required` line, so every graphical password
+  # prompt failed, right password or wrong ("pam_faillock(polkit-1:auth):
+  # Error opening the tally file for max: Read-only file system", then
+  # "pam_authenticate failed: System error"). Found 2026-11-28 on metal as
+  # 1Password's system-authentication unlock refusing the login password.
+  # sudo, the consoles and the lock screen are not sandboxed and were
+  # unaffected, which is why pamtester on the polkit-1 stack would not have
+  # shown it; tests/desktop.nix goes through the helper's socket.
+  config.systemd.services."polkit-agent-helper@" = lib.mkIf config.security.polkit.enable {
+    serviceConfig.ReadWritePaths = [ dir ];
+  };
+
   # The `faillock` command, from the PAM the stacks above load, pointed at
   # the same directory. hiPrio over the unwrapped one, which looks in
   # /var/run/faillock and would show an empty count.

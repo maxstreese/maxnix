@@ -300,6 +300,20 @@ in `modules/base/login-limits.nix` names the file with `conf=`, and the
 `--dir`. A test asserting only "locked or not" would have passed; this one
 counts.
 
+**polkit's password helper cannot write the failed-login count.** Since
+polkit 127 the password behind a graphical prompt is checked by a
+socket-activated system service, `polkit-agent-helper@.service`, with
+`ProtectSystem=strict`. pam_faillock opens the tally read-write even to look,
+gets "Read-only file system" and returns a system error from a `required`
+line, so every prompt failed whatever was typed: on metal, 1Password's
+system-authentication unlock refused the login password (2026-11-28), which
+looks exactly like a different password having been set. sudo, the consoles
+and the lock screen run unsandboxed and kept working. The journal has it
+(`journalctl -t polkit-agent-helper-1`); `modules/base/login-limits.nix` gives
+the unit `ReadWritePaths` for the tally directory. `pamtester polkit-1` runs
+outside the sandbox and passes regardless, so the desktop suite speaks to the
+helper's socket instead.
+
 **With a wiped root, mutable users lose every `passwd` at the next boot.**
 `/etc/shadow` is on the root, so NixOS rebuilds it from the config each boot:
 in `checks.metal-boots`, a password changed with `chpasswd` on the first boot

@@ -430,6 +430,38 @@ in
           for service in ["login", "dankshell"]:
               assert tries(service, "maxnix") == 0, f"{service}: still locked after a reset"
 
+      with subtest("a graphical password prompt can count, and takes the right password"):
+          # polkit's helper is a sandboxed system service with / read-only
+          # (../modules/base/login-limits.nix), so pamtester on the polkit-1
+          # stack proves nothing: it runs outside the sandbox. This speaks
+          # the helper's own protocol on its socket, as an agent would: user,
+          # cookie, then the answer to PAM's prompt. The cookie is made up,
+          # so the helper reports FAILURE either way once polkitd rejects
+          # it; what PAM made of the password is read off the tally.
+          def prompt(password):
+              script = (
+                  "import socket; s = socket.socket(socket.AF_UNIX); "
+                  "s.connect('/run/polkit/agent-helper.socket'); "
+                  "s.sendall(b'max\\nno-such-cookie\\n'); "
+                  "assert b'PAM_PROMPT_ECHO_OFF' in s.recv(4096); "
+                  f"s.sendall(b'{password}\\n'); "
+                  "print(s.recv(4096).decode())"
+              )
+              return machine.succeed(f'su max -c "python3 -c \\"{script}\\""')
+
+          def counted():
+              return machine.succeed("faillock --user max | grep -c ' V$' || true").strip()
+
+          machine.succeed("faillock --user max --reset")
+          prompt("not-the-password")
+          machine.wait_until_succeeds("test \"$(faillock --user max | grep -c ' V$')\" = 1", timeout=30)
+          # The right one clears the count: pam_faillock's account line,
+          # which only runs after authentication succeeded.
+          prompt("maxnix")
+          machine.wait_until_succeeds("test \"$(faillock --user max | grep -c ' V$')\" = 0", timeout=30)
+          assert counted() == "0", machine.succeed("faillock --user max")
+          machine.fail("journalctl -b -t polkit-agent-helper-1 | grep -q 'Error opening the tally file'")
+
       with subtest("rootless Docker is not started for the greeter"):
           # ../modules/base/containers.nix: the daemon is a systemd user
           # service, so every user manager is asked to start it, the
