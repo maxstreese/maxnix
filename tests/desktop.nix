@@ -175,7 +175,9 @@ in
               # nvd: both rebuild paths print a generation diff before
               # activating, so it has to be on the machine, not just in the
               # dev shell.
-              ["git", "nvd", "1password", "op", "twingate", "wootility", "steam", "steam-run"],
+              # sbctl: the metal role's, for making and enrolling Secure Boot's
+              # keys (../modules/metal/disk.nix).
+              ["git", "nvd", "1password", "op", "twingate", "wootility", "steam", "steam-run", "sbctl"],
               user=False,
           )
 

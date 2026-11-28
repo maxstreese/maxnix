@@ -50,7 +50,12 @@
 # another fact about the unchosen machine. A swapfile on btrfs is a file, so
 # adding it later costs nothing — unlike the partition layout around it, which
 # is why the subvolume it would live in is already there (./disk-layout.nix).
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 {
   options.maxnix.disk.passwordFile = lib.mkOption {
     type = lib.types.nullOr lib.types.str;
@@ -102,6 +107,14 @@
       # Both must be mounted before anything writes to them.
       fileSystems."/persist".neededForBoot = true;
       fileSystems."/var/log".neededForBoot = true;
+
+      # sbctl, whether or not Secure Boot is on yet: it is what makes the
+      # keys (creating them needs it before lanzaboote is enabled), what
+      # enrols them, and what README's rescue section reads the state with
+      # (`sbctl status`, `sbctl verify`). lanzaboote calls it by store path
+      # and puts nothing on PATH, so until 2026-11-28 the command the
+      # instructions name was not there to run.
+      environment.systemPackages = [ pkgs.sbctl ];
     }
 
     # systemd-boot, until Secure Boot replaces it. lanzaboote is a drop-in
