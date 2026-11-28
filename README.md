@@ -1426,9 +1426,9 @@ On the day:
 
 After:
 
-10. Secure Boot with the machine's own keys and Microsoft's beside them
-    (`sbctl enroll-keys --microsoft`), in the order `modules/metal/disk.nix`
-    gives. No TPM unlock (decided 2026-10-15; see "Decisions, and why").
+10. Secure Boot: parked on 2026-11-28, not owed here. The machine runs
+    with it off; see "Secure Boot is parked" below for what it would
+    protect and the design to take up.
 11. The first app that asks for a keyring ("Choose password for new
     keyring"): leave both fields **empty**, then "Store passwords
     unencrypted?" → Continue. Autologin cannot unlock a keyring that has a
@@ -1520,6 +1520,54 @@ stop a Microsoft-signed system, such as one faking the LUKS prompt, from
 booting in someone else's hands — but at the risk of hardware whose option
 ROMs Microsoft signed, and of rescue sticks that boot only with Secure Boot
 off; the attack needs physical access twice and was judged not worth that.
+
+**Secure Boot is parked (2026-11-28).** The ThinkPad runs with it off in the
+firmware, `maxnix.boot.secureBoot` unset, no keys in `/var/lib/sbctl`, and
+plain systemd-boot. Looked at after the install and put down on purpose;
+what was worked out, so it need not be again:
+
+- *What it is for here.* The disk is encrypted, the boot partition is not:
+  kernel and initrd, which ask for the LUKS passphrase, lie there in the
+  clear. Someone with the laptop twice could replace them with ones that
+  record the passphrase. Secure Boot has the firmware refuse the altered
+  files. A stolen, powered-off laptop is LUKS's case and gains nothing; so
+  does malware with root, since the signing keys are on the same disk.
+- *What it does not do alone.* Whoever opens the firmware menu turns it off,
+  and the machine asks for the passphrase all the same, so tampering stays
+  silent. With Microsoft's keys kept, another Microsoft-signed system boots
+  too and can show a fake prompt.
+- *The complete design*, three mechanisms that cover each other's gaps:
+  Secure Boot with the machine's own keys (the bouncer); measured boot, the
+  TPM's record of what actually ran (the logbook); and the disk key sealed
+  in the TPM against that record plus a PIN, so that a changed boot chain,
+  Secure Boot switched off included, leaves the disk shut. The PIN is typed
+  once at power-on as the passphrase is now and may be the login password,
+  the TPM limiting guesses in hardware. Today's passphrase becomes a long
+  random recovery key in 1Password, typed only when the TPM refuses, which
+  is then the alarm. Beside it a firmware supervisor password, also for the
+  boot-device menu (not a power-on password; a forgotten supervisor
+  password on a ThinkPad is not resettable, so 1Password first). TPM
+  unlock *without* a PIN stays rejected, for the reason in the boot
+  decision of 2026-10-15; with a PIN that reason does not apply.
+- *How it would go into the repo.* lanzaboote's `autoGenerateKeys` and
+  `autoEnrollKeys` (`modules/metal/disk.nix` has the detail), so that one
+  description covers a fresh install and the finished machine and the stick
+  keeps working; forced off for every VM; and a check that installs onto a
+  virtual disk with the firmware in Setup Mode, boots twice and finds Secure
+  Boot enabled. Measured boot is lanzaboote's `measuredBoot`
+  (systemd-pcrlock), which allows at most four generations on the ESP.
+- *Not known.* Any of it on this hardware; how mature those lanzaboote
+  options are (read in the locked revision, never run, upstream's issues not
+  looked at); whether the Lenovo firmware enables Secure Boot by itself
+  after enrolment; how often a firmware update means a boot with the
+  recovery key; whether kernel lockdown gets in the way of Beyla's eBPF.
+  And whether IT expects it: nothing in these notes says so, Fleet can
+  report it, so ask before taking this up.
+
+Order when it is taken up: the supervisor password, Secure Boot with its
+check, TPM and PIN, then hardening of the running machine (lockdown,
+Thunderbolt/DMA, memory encryption if the firmware has it), each on its own.
+`sbctl` is on metal's PATH already.
 
 **Media and brightness keys** are GNOME keybindings like any other, so they
 should follow the grab now. Not yet verified with a keypress.

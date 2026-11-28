@@ -77,25 +77,34 @@
   options.maxnix.boot.secureBoot = lib.mkEnableOption ''
     Secure Boot via lanzaboote, replacing systemd-boot.
 
-    OFF until the machine exists and its keys are enrolled, because turning
-    it on before that produces a system that cannot install itself: the
-    bootloader it wants to write is signed with keys that are not there yet.
+    OFF, and parked since 2026-11-28 (README, "Open points": what it would
+    and would not protect, and the design to take up). Nothing sets it.
 
-    The order on install day is fixed and cannot be shortened:
+    As wired below it is the bare switch, and on its own it produces a
+    system that cannot install itself: lanzaboote signs the boot files with
+    keys in /var/lib/sbctl, and a blank disk has none. So the installer
+    stick, which installs this machine as built, would fail with it on.
 
-      1. install with this off, so systemd-boot writes a working ESP
-      2. boot, then `sudo sbctl create-keys` (or lanzaboote's
-         boot.lanzaboote.generateKeys.enable) to make /var/lib/sbctl
-      3. put the firmware into Setup Mode and enrol —
-         `sbctl enroll-keys --microsoft`, keeping Microsoft's keys beside
-         the machine's (decided 2026-10-16): option ROMs in docks and
-         adapters keep working and signed rescue sticks still boot; the
-         price is that any Microsoft-signed system boots too
-      4. set this true, rebuild, reboot
-      5. turn Secure Boot on in the firmware and check `bootctl status`
+    The way to turn it on without that is not the two-phase "install with
+    it off, flip it later" this text described until 2026-11-28, but
+    lanzaboote's own options, read in the locked revision and not yet run
+    here:
 
-    Steps 3 and 5 are firmware menus on a specific machine, so nothing here
-    can do them, and nothing here can test them either
+      boot.lanzaboote.autoGenerateKeys.enable   a first-boot service makes
+          the keys if there are none, and with it allowUnsigned defaults to
+          true, so an install without keys writes unsigned boot files
+          instead of failing
+      boot.lanzaboote.autoEnrollKeys.enable     puts the enrolment files on
+          the ESP, re-signs, and sets systemd-boot's `secure-boot-enroll
+          force`, so the keys are enrolled at the next boot with the
+          firmware in Setup Mode; Microsoft's keys included by default
+
+    (There is no `generateKeys` option, which this text named before.)
+
+    What stays by hand either way is the firmware: Setup Mode, and turning
+    Secure Boot on if the firmware does not do that itself after enrolment.
+    Every VM would need it forced off in ../vm/qemu-guest.nix, like the
+    other metal-only switches.
   '';
 
   config = lib.mkMerge [
